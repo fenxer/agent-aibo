@@ -77,6 +77,21 @@ final class PetRuntime {
         }
     }
 
+    #if DEBUG
+    /// Shows an arbitrary bubble for local UI testing. Overwritten by the next real agent event.
+    func showDebugBubble(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        bubbleText = trimmed
+        PetPanelController.shared.refreshContent()
+    }
+
+    func clearDebugBubble() {
+        bubbleText = nil
+        PetPanelController.shared.refreshContent()
+    }
+    #endif
+
     private func handle(jsonLine: String, at date: Date) {
         do {
             guard let parsed = try CursorHookParser.parse(jsonLine: jsonLine) else { return }

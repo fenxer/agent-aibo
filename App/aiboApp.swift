@@ -24,19 +24,8 @@ struct aiboApp: App {
                 )
             }
 
-            Divider()
-
-            if runtime.cursorHooksInstalled {
-                Button(String(localized: "Uninstall Cursor Hooks")) {
-                    runtime.uninstallCursorHooks()
-                }
-            } else {
-                Button(String(localized: "Install Cursor Hooks")) {
-                    runtime.installCursorHooks()
-                }
-            }
-
             if let lastErrorMessage = runtime.lastErrorMessage {
+                Divider()
                 Text(lastErrorMessage)
                     .foregroundStyle(.secondary)
             }

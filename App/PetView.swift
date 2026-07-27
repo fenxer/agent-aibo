@@ -28,21 +28,26 @@ struct PetView: View {
                 bubble
                 petImage
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         case .bottom:
             VStack(spacing: 6) {
                 petImage
                 bubble
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         case .left:
-            HStack(spacing: 6) {
+            HStack(spacing: 0) {
                 bubble
                 petImage
             }
+            // Keep the pet on the trailing edge; bubble grows away from it.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         case .right:
-            HStack(spacing: 6) {
+            HStack(spacing: 0) {
                 petImage
                 bubble
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
 

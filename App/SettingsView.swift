@@ -4,6 +4,9 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     case appearance
     case integrations
     case about
+    #if DEBUG
+    case development
+    #endif
 
     var id: String { rawValue }
 
@@ -12,6 +15,9 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: String(localized: "Appearance")
         case .integrations: String(localized: "Integrations")
         case .about: String(localized: "About")
+        #if DEBUG
+        case .development: String(localized: "Development")
+        #endif
         }
     }
 
@@ -20,6 +26,9 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .appearance: "paintbrush"
         case .integrations: "link"
         case .about: "info.circle"
+        #if DEBUG
+        case .development: "hammer"
+        #endif
         }
     }
 }
@@ -45,6 +54,10 @@ struct SettingsView: View {
                     IntegrationsSettingsPane()
                 case .about:
                     AboutSettingsPane()
+                #if DEBUG
+                case .development:
+                    DevelopmentSettingsPane()
+                #endif
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -133,6 +146,45 @@ private struct AboutSettingsPane: View {
         .padding()
     }
 }
+
+#if DEBUG
+private struct DevelopmentSettingsPane: View {
+    @State private var message = ""
+    @State private var runtime = PetRuntime.shared
+
+    private var canShow: Bool {
+        !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                TextField(String(localized: "Message"), text: $message, axis: .vertical)
+                    .lineLimit(2...5)
+
+                HStack {
+                    Button(String(localized: "Show Bubble")) {
+                        runtime.showDebugBubble(message)
+                    }
+                    .disabled(!canShow)
+
+                    Button(String(localized: "Clear Bubble")) {
+                        runtime.clearDebugBubble()
+                    }
+                }
+
+                Text(String(localized: "Shows arbitrary text on the pet bubble. Cleared or overwritten by the next real agent event."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(String(localized: "Bubble Preview"))
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+    }
+}
+#endif
 
 #Preview {
     SettingsView()
