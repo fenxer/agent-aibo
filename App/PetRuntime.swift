@@ -10,6 +10,7 @@ final class PetRuntime {
     private(set) var world = PetWorldState()
     private(set) var bubbleText: String?
     private(set) var cursorHooksInstalled = false
+    private(set) var codexHooksInstalled = false
     private(set) var lastErrorMessage: String?
 
     private var server: UnixSocketServer?
@@ -21,6 +22,7 @@ final class PetRuntime {
 
     func start() {
         cursorHooksInstalled = (try? CursorHooksFile.isInstalled()) ?? false
+        codexHooksInstalled = (try? CodexHooksFile.isInstalled()) ?? false
 
         do {
             let queued = try HookQueue.drain()
@@ -77,6 +79,27 @@ final class PetRuntime {
         }
     }
 
+    func installCodexHooks() {
+        do {
+            let command = try Self.hookCommandPath()
+            try CodexHooksFile.install(command: command)
+            codexHooksInstalled = true
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = String(localized: "Failed to install Codex hooks")
+        }
+    }
+
+    func uninstallCodexHooks() {
+        do {
+            try CodexHooksFile.uninstall()
+            codexHooksInstalled = false
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = String(localized: "Failed to uninstall Codex hooks")
+        }
+    }
+
     #if DEBUG
     /// Shows an arbitrary bubble for local UI testing. Overwritten by the next real agent event.
     func showDebugBubble(_ text: String) {
@@ -94,7 +117,7 @@ final class PetRuntime {
 
     private func handle(jsonLine: String, at date: Date) {
         do {
-            guard let parsed = try CursorHookParser.parse(jsonLine: jsonLine) else { return }
+            guard let parsed = try HookLineParser.parse(jsonLine: jsonLine) else { return }
             apply(
                 .agent(session: parsed.session, transition: parsed.transition, at: date)
             )
@@ -103,7 +126,7 @@ final class PetRuntime {
                 scheduleIdleDeadline()
             }
         } catch {
-            // Malformed hook payloads are ignored; Cursor is fail-open and so are we.
+            // Malformed hook payloads are ignored; agents are fail-open and so are we.
         }
     }
 

@@ -1,10 +1,10 @@
 import AiboCore
 import Foundation
 
-public enum CursorHooksFile {
+public enum CodexHooksFile {
     public static var defaultURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".cursor", isDirectory: true)
+            .appendingPathComponent(".codex", isDirectory: true)
             .appendingPathComponent("hooks.json", isDirectory: false)
     }
 
@@ -14,7 +14,7 @@ public enum CursorHooksFile {
         fileManager: FileManager = .default
     ) throws {
         let config = try readObject(from: url, fileManager: fileManager)
-        let next = try CursorHooksInstaller.install(config: config, command: command)
+        let next = try CodexHooksInstaller.install(config: config, command: command)
         try writeAtomic(next, to: url, fileManager: fileManager)
     }
 
@@ -23,7 +23,7 @@ public enum CursorHooksFile {
         fileManager: FileManager = .default
     ) throws {
         let config = try readObject(from: url, fileManager: fileManager)
-        let next = try CursorHooksInstaller.uninstall(config: config)
+        let next = try CodexHooksInstaller.uninstall(config: config)
         try writeAtomic(next, to: url, fileManager: fileManager)
     }
 
@@ -32,7 +32,7 @@ public enum CursorHooksFile {
         fileManager: FileManager = .default
     ) throws -> Bool {
         let config = try readObject(from: url, fileManager: fileManager)
-        return CursorHooksInstaller.isInstalled(config)
+        return CodexHooksInstaller.isInstalled(config)
     }
 
     private static func readObject(

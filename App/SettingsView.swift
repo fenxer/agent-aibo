@@ -122,6 +122,32 @@ private struct IntegrationsSettingsPane: View {
             } header: {
                 Text(String(localized: "Cursor"))
             }
+
+            Section {
+                LabeledContent(String(localized: "Status")) {
+                    Text(
+                        runtime.codexHooksInstalled
+                            ? String(localized: "Installed")
+                            : String(localized: "Not installed")
+                    )
+                }
+
+                if runtime.codexHooksInstalled {
+                    Button(String(localized: "Uninstall Codex Hooks")) {
+                        runtime.uninstallCodexHooks()
+                    }
+                } else {
+                    Button(String(localized: "Install Codex Hooks")) {
+                        runtime.installCodexHooks()
+                    }
+                }
+
+                Text(String(localized: "Codex supports waiting-for-you via PermissionRequest."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(String(localized: "Codex"))
+            }
         }
         .formStyle(.grouped)
         .padding()
