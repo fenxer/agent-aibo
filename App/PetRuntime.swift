@@ -12,21 +12,33 @@ final class PetRuntime {
     private(set) var bubbleItems: [StatusBubbleItem] = []
     private(set) var cursorHooksInstalled = false
     private(set) var codexHooksInstalled = false
+    private(set) var webhookListening = false
     private(set) var lastErrorMessage: String?
+    /// Newest-first webhook receive history shown in Settings (capped).
+    private(set) var receiveLogEntries: [ReceiveLogEntry] = []
+    /// Total records currently on disk (may exceed the UI window).
+    private(set) var receiveLogTotalCount = 0
 
     private var server: UnixSocketServer?
+    private var webhookServer: WebhookServer?
     private var consumeTask: Task<Void, Never>?
+    private var webhookTask: Task<Void, Never>?
     private var idleTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
+    private var webhookBubbles: [StatusBubbleItem] = []
+    private var webhookExpiryTasks: [String: Task<Void, Never>] = [:]
     #if DEBUG
     private var debugBubbleText: String?
     #endif
+
+    private static let webhookBubbleTTL: TimeInterval = 12
 
     private init() {}
 
     func start() {
         cursorHooksInstalled = (try? CursorHooksFile.isInstalled()) ?? false
         codexHooksInstalled = (try? CodexHooksFile.isInstalled()) ?? false
+        reloadReceiveLog()
 
         do {
             let queued = try HookQueue.drain()
@@ -51,15 +63,133 @@ final class PetRuntime {
             lastErrorMessage = String(localized: "Failed to start hook listener")
         }
 
+        syncWebhookServer()
         scheduleWatchdog()
     }
 
     func stop() {
         consumeTask?.cancel()
+        webhookTask?.cancel()
         idleTask?.cancel()
         watchdogTask?.cancel()
+        for task in webhookExpiryTasks.values {
+            task.cancel()
+        }
+        webhookExpiryTasks.removeAll()
         server?.stop()
         server = nil
+        webhookServer?.stop()
+        webhookServer = nil
+        webhookListening = false
+    }
+
+    func syncWebhookServer() {
+        webhookTask?.cancel()
+        webhookTask = nil
+        webhookServer?.stop()
+        webhookServer = nil
+        webhookListening = false
+
+        guard AppSettings.shared.webhookEnabled else { return }
+
+        let port = AppSettings.shared.webhookPort
+        let secretBox = WebhookSecretBox(secret: AppSettings.shared.webhookSecret)
+        let server = WebhookServer(port: port, secretProvider: {
+            secretBox.secret
+        })
+
+        do {
+            let stream = try server.start()
+            webhookServer = server
+            webhookListening = true
+            lastErrorMessage = nil
+
+            webhookTask = Task { [weak self] in
+                for await delivery in stream {
+                    await MainActor.run {
+                        self?.ingestWebhook(delivery)
+                    }
+                }
+                await MainActor.run {
+                    self?.webhookListening = false
+                }
+            }
+        } catch {
+            webhookServer = nil
+            webhookListening = false
+            lastErrorMessage = String(localized: "Failed to start webhook listener")
+        }
+    }
+
+    func ingestWebhook(_ delivery: WebhookDelivery) {
+        let item = StatusBubbleItem(
+            id: "webhook:\(delivery.id)",
+            text: delivery.displayText,
+            lastEventAt: delivery.receivedAt
+        )
+        webhookBubbles.removeAll { $0.id == item.id }
+        webhookBubbles.append(item)
+        recordReceive(delivery)
+        refreshBubbleItems()
+        PetPanelController.shared.refreshContent()
+        scheduleWebhookExpiry(for: item.id)
+    }
+
+    /// Local test / DEBUG helper: format raw body the same way as HTTP ingest.
+    func ingestWebhookBody(_ body: Data, id: String = UUID().uuidString) {
+        let parsed = WebhookMessageFormatter.parse(from: body)
+        ingestWebhook(
+            WebhookDelivery(
+                id: id,
+                source: parsed.source,
+                displayText: parsed.displayText,
+                receivedAt: Date()
+            )
+        )
+    }
+
+    func clearReceiveLog() {
+        do {
+            try ReceiveLogStore.clear()
+            receiveLogEntries = []
+            receiveLogTotalCount = 0
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = String(localized: "Failed to clear receive log")
+        }
+    }
+
+    func exportReceiveLog() -> Data? {
+        do {
+            return try ReceiveLogStore.exportJSON()
+        } catch {
+            lastErrorMessage = String(localized: "Failed to export receive log")
+            return nil
+        }
+    }
+
+    private func recordReceive(_ delivery: WebhookDelivery) {
+        let entry = ReceiveLogEntry(
+            receivedAt: delivery.receivedAt,
+            source: delivery.source,
+            message: delivery.displayText,
+            deliveryID: delivery.id
+        )
+        do {
+            try ReceiveLogStore.append(entry)
+            receiveLogEntries.insert(entry, at: 0)
+            if receiveLogEntries.count > ReceiveLogStore.uiDisplayLimit {
+                receiveLogEntries = Array(receiveLogEntries.prefix(ReceiveLogStore.uiDisplayLimit))
+            }
+            receiveLogTotalCount = (try? ReceiveLogStore.count()) ?? receiveLogEntries.count
+        } catch {
+            lastErrorMessage = String(localized: "Failed to write receive log")
+        }
+    }
+
+    private func reloadReceiveLog() {
+        receiveLogEntries = (try? ReceiveLogStore.load(limit: ReceiveLogStore.uiDisplayLimit)) ?? []
+        receiveLogTotalCount = (try? ReceiveLogStore.count()) ?? receiveLogEntries.count
     }
 
     func installCursorHooks() {
@@ -119,6 +249,34 @@ final class PetRuntime {
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
     }
+
+    /// Posts a signed webhook to the local listener (requires webhook enabled).
+    func postTestWebhook(body: Data) async -> String? {
+        guard AppSettings.shared.webhookEnabled else {
+            return String(localized: "Enable the webhook listener in Integrations first.")
+        }
+        let secret = AppSettings.shared.webhookSecret
+        let urlString = AppSettings.shared.webhookURLString
+        guard let url = URL(string: urlString) else {
+            return String(localized: "Invalid webhook URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(WebhookSignature.sign(body: body, secret: secret), forHTTPHeaderField: "X-Webhook-Signature")
+        request.setValue(UUID().uuidString, forHTTPHeaderField: "X-Webhook-ID")
+        request.httpBody = body
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            if (200..<300).contains(code) { return nil }
+            return String(localized: "Webhook test failed (\(code))")
+        } catch {
+            return String(localized: "Webhook test request failed")
+        }
+    }
     #endif
 
     private func handle(jsonLine: String, at date: Date) {
@@ -161,6 +319,7 @@ final class PetRuntime {
                 )
             )
         }
+        items.append(contentsOf: webhookBubbles)
         #if DEBUG
         if let debugBubbleText {
             items.append(
@@ -173,6 +332,21 @@ final class PetRuntime {
         }
         #endif
         bubbleItems = items.sorted { $0.lastEventAt > $1.lastEventAt }
+    }
+
+    private func scheduleWebhookExpiry(for id: String) {
+        webhookExpiryTasks[id]?.cancel()
+        webhookExpiryTasks[id] = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.webhookBubbleTTL))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self else { return }
+                self.webhookBubbles.removeAll { $0.id == id }
+                self.webhookExpiryTasks[id] = nil
+                self.refreshBubbleItems()
+                PetPanelController.shared.refreshContent()
+            }
+        }
     }
 
     private func scheduleIdleDeadline() {
@@ -208,5 +382,21 @@ final class PetRuntime {
             throw CocoaError(.fileNoSuchFile)
         }
         return candidate
+    }
+}
+
+/// Thread-safe secret snapshot for the webhook accept queue.
+private final class WebhookSecretBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: String
+
+    init(secret: String) {
+        value = secret
+    }
+
+    var secret: String {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
     }
 }

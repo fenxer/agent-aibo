@@ -59,7 +59,7 @@ struct PetView: View {
 
     @ViewBuilder
     private func bubbleStack(items: [StatusBubbleItem], nearPetIndex: Int) -> some View {
-        VStack(spacing: stackSpacing) {
+        VStack(alignment: stackAlignment, spacing: stackSpacing) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 StatusBubble(
                     text: item.text,
@@ -67,6 +67,15 @@ struct PetView: View {
                     showsArrow: index == nearPetIndex
                 )
             }
+        }
+    }
+
+    /// Top/bottom: center. Left: flush to pet (trailing). Right: flush to pet (leading).
+    private var stackAlignment: HorizontalAlignment {
+        switch placement {
+        case .top, .bottom: .center
+        case .left: .trailing
+        case .right: .leading
         }
     }
 
