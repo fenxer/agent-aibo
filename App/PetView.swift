@@ -27,6 +27,9 @@ struct PetView: View {
                 .accessibilityLabel(String(localized: "Desktop pet"))
         }
         .padding(8)
+        // Titlebar-less panel: make the pet content a drag handle.
+        .gesture(WindowDragGesture())
+        .allowsWindowActivationEvents()
     }
 }
 

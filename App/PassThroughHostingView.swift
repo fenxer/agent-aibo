@@ -10,6 +10,9 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     private let hitTestImage: NSImage?
     private var alphaMask: AlphaMask?
 
+    /// Bottom-centered rect used for pet-image alpha hit testing (window coordinates of content view).
+    var petHitRect: CGRect = .null
+
     init(rootView: Content, hitTestImage: NSImage?) {
         self.hitTestImage = hitTestImage
         super.init(rootView: rootView)
@@ -27,14 +30,29 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard bounds.contains(point) else { return nil }
-        if alphaMask == nil {
-            alphaMask = hitTestImage.flatMap(AlphaMask.init)
+
+        if petHitRect.isNull == false, petHitRect.contains(point) {
+            if alphaMask == nil {
+                alphaMask = hitTestImage.flatMap(AlphaMask.init)
+            }
+            if let alphaMask {
+                let local = CGPoint(x: point.x - petHitRect.minX, y: point.y - petHitRect.minY)
+                let localBounds = CGRect(origin: .zero, size: petHitRect.size)
+                guard alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold) else {
+                    return nil
+                }
+            }
+        } else if petHitRect.isNull == false {
+            // Outside the pet sprite: allow hits only when SwiftUI has content there (e.g. bubble).
+            return super.hitTest(point)
         }
-        guard let alphaMask else { return self }
-        guard alphaMask.isOpaque(at: point, in: bounds, threshold: opaqueAlphaThreshold) else {
-            return nil
-        }
-        return self
+
+        return super.hitTest(point) ?? self
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // Borderless nonactivating panels have no titlebar; hand the drag to WindowServer.
+        window?.performDrag(with: event)
     }
 }
 

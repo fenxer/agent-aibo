@@ -23,5 +23,7 @@ final class PetPanel: NSPanel {
         becomesKeyOnlyIfNeeded = true
         hidesOnDeactivate = false
         animationBehavior = .utilityWindow
+        isMovable = true
+        isMovableByWindowBackground = true
     }
 }
