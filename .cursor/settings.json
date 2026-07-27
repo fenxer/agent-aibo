@@ -1,0 +1,13 @@
+{
+  "plugins": {
+    "claude-plugins-official/swift-lsp": {
+      "enabled": true
+    },
+    "continual-learning": {
+      "enabled": false
+    },
+    "continual-learning-local": {
+      "enabled": true
+    }
+  }
+}
