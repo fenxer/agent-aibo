@@ -35,6 +35,7 @@ struct SettingsView: View {
                 }
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             Group {
                 switch selection ?? .appearance {
