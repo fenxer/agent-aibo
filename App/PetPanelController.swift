@@ -13,10 +13,11 @@ final class PetPanelController {
     private var screenObserver: NSObjectProtocol?
     private var hasPlacedInitially = false
 
-    private let baseWidth: CGFloat = 240
     private let petSize: CGFloat = 96
     private let contentPadding: CGFloat = 8
     private let screenPadding: CGFloat = 24
+    private let bubbleMaxWidth: CGFloat = 220
+    private let bubbleEstimatedHeight: CGFloat = 52
 
     private init() {}
 
@@ -50,50 +51,99 @@ final class PetPanelController {
 
     func refreshContent() {
         let text = PetRuntime.shared.bubbleText
-        let rootView = PetView(bubbleText: text)
+        let placement = AppSettings.shared.bubblePlacement
+        let rootView = PetView(bubbleText: text, placement: placement)
         if let hostingView {
             hostingView.rootView = rootView
         }
         guard let panel else { return }
 
-        let height: CGFloat = text == nil ? 120 : 180
-        let newSize = NSSize(width: baseWidth, height: height)
+        let newSize = panelSize(hasBubble: text != nil, placement: placement)
         let oldFrame = panel.frame
 
-        // Keep the pet's bottom-center stable when the bubble changes panel height.
+        // Keep the pet's center stable when bubble layout/size changes.
         var newFrame = oldFrame
         newFrame.size = newSize
         newFrame.origin.x = oldFrame.midX - newSize.width / 2
-        newFrame.origin.y = oldFrame.minY
+        newFrame.origin.y = oldFrame.midY - newSize.height / 2
         panel.setFrame(newFrame, display: true)
 
-        updatePetHitRect(panelHeight: height)
+        updatePetHitRect(panelSize: newSize, placement: placement, hasBubble: text != nil)
         clampToVisibleScreen()
     }
 
     private func makePanel() -> PetPanel {
-        let initialSize = NSSize(width: baseWidth, height: 120)
+        let placement = AppSettings.shared.bubblePlacement
+        let initialSize = panelSize(hasBubble: false, placement: placement)
         let panel = PetPanel(contentRect: NSRect(origin: .zero, size: initialSize))
         let hostingView = PassThroughHostingView(
-            rootView: PetView(bubbleText: PetRuntime.shared.bubbleText),
+            rootView: PetView(
+                bubbleText: PetRuntime.shared.bubbleText,
+                placement: placement
+            ),
             hitTestImage: NSImage(named: "DefaultPet")
         )
         hostingView.frame = NSRect(origin: .zero, size: initialSize)
         panel.contentView = hostingView
         self.hostingView = hostingView
-        updatePetHitRect(panelHeight: initialSize.height)
+        updatePetHitRect(panelSize: initialSize, placement: placement, hasBubble: false)
         return panel
     }
 
-    private func updatePetHitRect(panelHeight: CGFloat) {
-        let rect = CGRect(
-            x: (baseWidth - petSize) / 2,
-            y: contentPadding,
-            width: petSize,
-            height: petSize
-        )
-        hostingView?.petHitRect = rect
-        _ = panelHeight
+    private func panelSize(hasBubble: Bool, placement: BubblePlacement) -> NSSize {
+        let petBlock = petSize + contentPadding * 2
+        guard hasBubble else {
+            return NSSize(width: petBlock, height: petBlock)
+        }
+
+        switch placement {
+        case .top, .bottom:
+            return NSSize(
+                width: max(petBlock, bubbleMaxWidth + contentPadding * 2),
+                height: petBlock + bubbleEstimatedHeight + 20
+            )
+        case .left, .right:
+            return NSSize(
+                width: petBlock + bubbleMaxWidth + 20,
+                height: max(petBlock, bubbleEstimatedHeight + contentPadding * 2 + 24)
+            )
+        }
+    }
+
+    private func updatePetHitRect(
+        panelSize: NSSize,
+        placement: BubblePlacement,
+        hasBubble: Bool
+    ) {
+        let pad = contentPadding
+        let x: CGFloat
+        let y: CGFloat
+
+        if !hasBubble {
+            x = (panelSize.width - petSize) / 2
+            y = (panelSize.height - petSize) / 2
+        } else {
+            switch placement {
+            case .top:
+                // SwiftUI: bubble above, pet below → pet near AppKit bottom.
+                x = (panelSize.width - petSize) / 2
+                y = pad
+            case .bottom:
+                // Pet above → near AppKit top.
+                x = (panelSize.width - petSize) / 2
+                y = panelSize.height - pad - petSize
+            case .left:
+                // Pet on trailing side.
+                x = panelSize.width - pad - petSize
+                y = (panelSize.height - petSize) / 2
+            case .right:
+                // Pet on leading side.
+                x = pad
+                y = (panelSize.height - petSize) / 2
+            }
+        }
+
+        hostingView?.petHitRect = CGRect(x: x, y: y, width: petSize, height: petSize)
     }
 
     private func startObservingScreenChangesIfNeeded() {
