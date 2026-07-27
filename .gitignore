@@ -19,6 +19,10 @@ DerivedData/
 # SwiftPM
 .build/
 .swiftpm/
+.swiftpm-cache/
+
+# Local xcodebuild output used by Scripts/run.sh
+.derivedData/
 
 # macOS
 .DS_Store
