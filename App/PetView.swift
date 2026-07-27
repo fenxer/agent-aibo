@@ -65,7 +65,10 @@ struct PetView: View {
                 StatusBubble(
                     text: item.text,
                     placement: placement,
-                    showsArrow: index == nearPetIndex
+                    showsArrow: index == nearPetIndex,
+                    onDismiss: item.isDismissible
+                        ? { PetRuntime.shared.dismissBubble(id: item.id) }
+                        : nil
                 )
             }
         }

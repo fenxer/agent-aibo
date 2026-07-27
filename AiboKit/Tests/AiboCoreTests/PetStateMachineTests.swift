@@ -69,6 +69,39 @@ import Testing
     #expect(state.sessions[key]?.activity == .idle)
 }
 
+@Test func interruptedSchedulesIdleFallback() {
+    let key = SessionKey(agent: .cursor, conversationID: "c1")
+    let t0 = Date(timeIntervalSince1970: 2_750)
+
+    var state = PetWorldState()
+    state = PetStateMachine.reduce(
+        state,
+        event: .agent(session: key, transition: .apply(.interrupted), at: t0)
+    )
+    #expect(state.sessions[key]?.activity == .interrupted)
+    #expect(state.sessions[key]?.idleAt == t0.addingTimeInterval(PetStateMachine.doneIdleDelay))
+
+    state = PetStateMachine.reduce(
+        state,
+        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.doneIdleDelay))
+    )
+    #expect(state.sessions[key]?.activity == .idle)
+}
+
+@Test func failedDoesNotScheduleIdleFallback() {
+    let key = SessionKey(agent: .cursor, conversationID: "c1")
+    let t0 = Date(timeIntervalSince1970: 2_800)
+
+    var state = PetWorldState()
+    state = PetStateMachine.reduce(
+        state,
+        event: .agent(session: key, transition: .apply(.failed), at: t0)
+    )
+    #expect(state.sessions[key]?.activity == .failed)
+    #expect(state.sessions[key]?.idleAt == nil)
+    #expect(PetStateMachine.schedulesIdleFallback(.failed) == false)
+}
+
 @Test func watchdogForcesIdleAfterSilence() {
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 3_000)

@@ -51,8 +51,25 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     }
 
     override func mouseDown(with event: NSEvent) {
-        // Borderless nonactivating panels have no titlebar; hand the drag to WindowServer.
-        window?.performDrag(with: event)
+        let point = convert(event.locationInWindow, from: nil)
+        // Drag the panel only from opaque pet pixels; bubbles need SwiftUI taps
+        // (e.g. dismiss `.failed`).
+        if isOpaquePetHit(at: point) {
+            window?.performDrag(with: event)
+            return
+        }
+        super.mouseDown(with: event)
+    }
+
+    private func isOpaquePetHit(at point: NSPoint) -> Bool {
+        guard petHitRect.isNull == false, petHitRect.contains(point) else { return false }
+        if alphaMask == nil {
+            alphaMask = hitTestImage.flatMap(AlphaMask.init)
+        }
+        guard let alphaMask else { return true }
+        let local = CGPoint(x: point.x - petHitRect.minX, y: point.y - petHitRect.minY)
+        let localBounds = CGRect(origin: .zero, size: petHitRect.size)
+        return alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold)
     }
 }
 

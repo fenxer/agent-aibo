@@ -148,6 +148,17 @@ final class PetRuntime {
         )
     }
 
+    /// Clears a dismissible bubble (currently `.failed` agent status) on user click.
+    func dismissBubble(id: String) {
+        for (key, snapshot) in world.sessions {
+            guard snapshot.activity == .failed else { continue }
+            let itemID = "\(key.agent.rawValue):\(key.conversationID)"
+            guard itemID == id else { continue }
+            apply(.agent(session: key, transition: .apply(.idle), at: Date()))
+            return
+        }
+    }
+
     func clearReceiveLog() {
         do {
             try ReceiveLogStore.clear()
@@ -290,7 +301,7 @@ final class PetRuntime {
             )
             scheduleWatchdog()
             if case let .apply(activity) = parsed.transition,
-               activity == .done || activity == .registered
+               PetStateMachine.schedulesIdleFallback(activity)
             {
                 scheduleIdleDeadline()
             }
@@ -317,7 +328,8 @@ final class PetRuntime {
                 StatusBubbleItem(
                     id: "\(key.agent.rawValue):\(key.conversationID)",
                     text: text,
-                    lastEventAt: snapshot.lastEventAt
+                    lastEventAt: snapshot.lastEventAt,
+                    isDismissible: snapshot.activity == .failed
                 )
             )
         }

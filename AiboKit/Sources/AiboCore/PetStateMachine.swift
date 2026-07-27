@@ -9,15 +9,23 @@ public enum PetEvent: Equatable, Sendable {
     case agent(session: SessionKey, transition: StateTransition, at: Date)
     /// Force idle when a session has been silent longer than `timeout`.
     case watchdog(at: Date, timeout: TimeInterval)
-    /// Apply delayed `.done` / `.registered` → `.idle` fallbacks that are due.
+    /// Apply delayed terminal-status → `.idle` fallbacks that are due.
     case idleDeadline(at: Date)
 }
 
 public enum PetStateMachine {
-    /// Hold time before `.done` or `.registered` falls back to `.idle`.
+    /// Hold time before `.done` / `.registered` / `.interrupted` falls back to `.idle`.
     public static let doneIdleDelay: TimeInterval = 3
     /// Default silence timeout before a session is forced to `.idle`.
     public static let defaultWatchdogTimeout: TimeInterval = 120
+
+    /// Statuses that briefly linger on the bubble, then clear themselves.
+    public static func schedulesIdleFallback(_ activity: PetActivityState) -> Bool {
+        switch activity {
+        case .done, .registered, .interrupted: true
+        default: false
+        }
+    }
 
     public static func reduce(_ state: PetWorldState, event: PetEvent) -> PetWorldState {
         var next = state
@@ -42,15 +50,9 @@ public enum PetStateMachine {
         case .removeSession:
             state.sessions.removeValue(forKey: session)
         case let .apply(activity):
-            let idleAt: Date?
-            switch activity {
-            case .done, .registered:
-                idleAt = at.addingTimeInterval(doneIdleDelay)
-            case .idle:
-                idleAt = nil
-            default:
-                idleAt = nil
-            }
+            let idleAt = schedulesIdleFallback(activity)
+                ? at.addingTimeInterval(doneIdleDelay)
+                : nil
             state.sessions[session] = SessionSnapshot(
                 activity: activity,
                 lastEventAt: at,

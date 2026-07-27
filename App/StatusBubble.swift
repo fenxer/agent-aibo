@@ -5,6 +5,8 @@ struct StatusBubble: View {
     let placement: BubblePlacement
     /// Only the bubble nearest the pet keeps the popover arrow.
     var showsArrow: Bool = true
+    /// When set, a tap clears this bubble (e.g. `.failed`).
+    var onDismiss: (() -> Void)? = nil
 
     private let arrowHeight: CGFloat = 6
     private let arrowWidth: CGFloat = 10
@@ -34,6 +36,8 @@ struct StatusBubble: View {
             .alignmentGuide(.leading) { d in
                 showsArrow && placement == .right ? d[.leading] + arrowHeight : d[.leading]
             }
+            .contentShape(Rectangle())
+            .modifier(DismissTapModifier(onDismiss: onDismiss))
     }
 
     @ViewBuilder
@@ -75,4 +79,22 @@ struct StatusBubble: View {
     StatusBubble(text: "Codex is waiting for you", placement: .top, showsArrow: false)
         .padding(40)
         .background(Color.secondary.opacity(0.25))
+}
+
+/// Applies a high-priority tap only when dismissible, so WindowDragGesture still works elsewhere.
+private struct DismissTapModifier: ViewModifier {
+    var onDismiss: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        if let onDismiss {
+            content
+                .highPriorityGesture(
+                    TapGesture().onEnded { onDismiss() }
+                )
+                .accessibilityHint(String(localized: "Click to dismiss"))
+                .accessibilityAddTraits(.isButton)
+        } else {
+            content
+        }
+    }
 }
