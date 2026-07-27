@@ -37,15 +37,16 @@ struct PetView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         case .left:
-            HStack(spacing: 0) {
-                bubbleStack(nearPetIndex: bubbleItems.count - 1)
+            HStack(alignment: .center, spacing: 0) {
+                // Layout height = near-pet bubble only; older bubbles grow upward.
+                sideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
                 petImage
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         case .right:
-            HStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 0) {
                 petImage
-                bubbleStack(nearPetIndex: bubbleItems.count - 1)
+                sideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
@@ -66,6 +67,24 @@ struct PetView: View {
                     placement: placement,
                     showsArrow: index == nearPetIndex
                 )
+            }
+        }
+    }
+
+    /// Keeps the near-pet (arrow) bubble vertically centered with the pet;
+    /// newer bubbles stack upward without shifting that anchor.
+    @ViewBuilder
+    private func sideAnchoredBubbleStack(nearPetIndex: Int) -> some View {
+        if bubbleItems.indices.contains(nearPetIndex) {
+            StatusBubble(
+                text: bubbleItems[nearPetIndex].text,
+                placement: placement,
+                showsArrow: true
+            )
+            .hidden()
+            .accessibilityHidden(true)
+            .overlay(alignment: .bottom) {
+                bubbleStack(nearPetIndex: nearPetIndex)
             }
         }
     }
@@ -99,10 +118,12 @@ struct PetView: View {
     )
 }
 
-#Preview("left") {
+#Preview("left stack") {
     PetView(
         bubbleItems: [
-            StatusBubbleItem(id: "1", text: "Cursor is using Shell", lastEventAt: .now),
+            StatusBubbleItem(id: "1", text: "Cursor is thinking…", lastEventAt: .now),
+            StatusBubbleItem(id: "2", text: "Cursor session started", lastEventAt: .now.addingTimeInterval(-1)),
+            StatusBubbleItem(id: "3", text: "Cursor session started", lastEventAt: .now.addingTimeInterval(-2)),
         ],
         placement: .left
     )

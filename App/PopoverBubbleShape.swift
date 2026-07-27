@@ -3,7 +3,7 @@ import SwiftUI
 /// Popover-like shape: rounded rectangle with a small arrow that blends into a flat edge.
 struct PopoverBubbleShape: Shape {
     var arrowEdge: Edge
-    var cornerRadius: CGFloat = 14
+    var cornerRadius: CGFloat = 12
     var arrowWidth: CGFloat = 10
     var arrowHeight: CGFloat = 6
 
@@ -15,8 +15,10 @@ struct PopoverBubbleShape: Shape {
         var path = Path()
         path.move(to: CGPoint(x: body.minX + radius, y: body.minY))
 
+        let drawsArrow = arrowWidth > 0 && arrowHeight > 0
+
         // Top edge
-        if arrowEdge == .top {
+        if drawsArrow, arrowEdge == .top {
             path.addLine(to: arrow.baseStart)
             addCurvedArrow(to: &path, from: arrow.baseStart, tip: arrow.tip, to: arrow.baseEnd)
         }
@@ -30,7 +32,7 @@ struct PopoverBubbleShape: Shape {
         )
 
         // Trailing edge
-        if arrowEdge == .trailing {
+        if drawsArrow, arrowEdge == .trailing {
             path.addLine(to: arrow.baseStart)
             addCurvedArrow(to: &path, from: arrow.baseStart, tip: arrow.tip, to: arrow.baseEnd)
         }
@@ -44,7 +46,7 @@ struct PopoverBubbleShape: Shape {
         )
 
         // Bottom edge (walk right → left)
-        if arrowEdge == .bottom {
+        if drawsArrow, arrowEdge == .bottom {
             path.addLine(to: arrow.baseEnd)
             addCurvedArrow(to: &path, from: arrow.baseEnd, tip: arrow.tip, to: arrow.baseStart)
         }
@@ -58,7 +60,7 @@ struct PopoverBubbleShape: Shape {
         )
 
         // Leading edge (walk bottom → top)
-        if arrowEdge == .leading {
+        if drawsArrow, arrowEdge == .leading {
             path.addLine(to: arrow.baseEnd)
             addCurvedArrow(to: &path, from: arrow.baseEnd, tip: arrow.tip, to: arrow.baseStart)
         }
@@ -113,6 +115,9 @@ struct PopoverBubbleShape: Shape {
         let edgeLength: CGFloat = switch arrowEdge {
         case .top, .bottom: body.width
         case .leading, .trailing: body.height
+        }
+        guard arrowWidth > 0, arrowHeight > 0 else {
+            return min(cornerRadius, min(body.width, body.height) / 2)
         }
         let reservedFlat = arrowWidth + 8
         let maxRadius = max(0, (edgeLength - reservedFlat) / 2)

@@ -134,9 +134,15 @@ final class PetPanelController {
                 height: petBlock + stackHeight + 20
             )
         case .left, .right:
+            // Near-pet bubble stays vertically centered with the pet; older
+            // bubbles grow upward — panel must leave room above the pet center.
+            let stackAbove =
+                CGFloat(max(0, bubbleCount - 1)) * bubbleEstimatedHeight
+                + CGFloat(max(0, bubbleCount - 2)) * bubbleStackSpacing
+            let halfAbove = contentPadding + stackAbove + bubbleEstimatedHeight / 2
             return NSSize(
                 width: petBlock + bubbleMaxWidth + 20,
-                height: max(petBlock, stackHeight + contentPadding * 2 + 24)
+                height: max(petBlock, halfAbove * 2)
             )
         }
     }

@@ -25,32 +25,32 @@ struct StatusBubble: View {
             // Cap width; pin content toward the pet so short copy doesn't float
             // in the middle of a bubbleMaxWidth-sized panel slot.
             .frame(maxWidth: 220, alignment: frameAlignment)
+            // Stack left/right on the body edge, not the arrow tip.
+            .alignmentGuide(.trailing) { d in
+                showsArrow && placement == .left ? d[.trailing] - arrowHeight : d[.trailing]
+            }
+            .alignmentGuide(.leading) { d in
+                showsArrow && placement == .right ? d[.leading] + arrowHeight : d[.leading]
+            }
     }
 
     @ViewBuilder
     private func bubbleBackground(edge: Edge) -> some View {
-        if showsArrow {
-            let shape = PopoverBubbleShape(
-                arrowEdge: edge,
-                cornerRadius: cornerRadius,
-                arrowWidth: arrowWidth,
-                arrowHeight: arrowHeight
-            )
-            // Keep text outside glassEffect — Liquid Glass foreground treatment
-            // over glyphs causes heavy aliasing on a transparent NSPanel.
-            shape
-                .fill(Color.white.opacity(0.2))
-                .background {
-                    Color.clear.glassEffect(.clear, in: shape)
-                }
-        } else {
-            let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            shape
-                .fill(Color.white.opacity(0.2))
-                .background {
-                    Color.clear.glassEffect(.clear, in: shape)
-                }
-        }
+        // Same shape for arrow / no-arrow so stacked corner arcs match
+        // (RoundedRectangle .continuous looks softer than circular Path arcs).
+        let shape = PopoverBubbleShape(
+            arrowEdge: edge,
+            cornerRadius: cornerRadius,
+            arrowWidth: showsArrow ? arrowWidth : 0,
+            arrowHeight: showsArrow ? arrowHeight : 0
+        )
+        // Keep text outside glassEffect — Liquid Glass foreground treatment
+        // over glyphs causes heavy aliasing on a transparent NSPanel.
+        shape
+            .fill(Color.white.opacity(0.2))
+            .background {
+                Color.clear.glassEffect(.clear, in: shape)
+            }
     }
 
     /// Side closest to the pet — left bubble pins trailing, right pins leading.
