@@ -8,7 +8,8 @@ final class PetRuntime {
     static let shared = PetRuntime()
 
     private(set) var world = PetWorldState()
-    private(set) var bubbleText: String?
+    /// Active status bubbles, newest first. Empty when idle.
+    private(set) var bubbleItems: [StatusBubbleItem] = []
     private(set) var cursorHooksInstalled = false
     private(set) var codexHooksInstalled = false
     private(set) var lastErrorMessage: String?
@@ -17,6 +18,9 @@ final class PetRuntime {
     private var consumeTask: Task<Void, Never>?
     private var idleTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
+    #if DEBUG
+    private var debugBubbleText: String?
+    #endif
 
     private init() {}
 
@@ -101,16 +105,18 @@ final class PetRuntime {
     }
 
     #if DEBUG
-    /// Shows an arbitrary bubble for local UI testing. Overwritten by the next real agent event.
+    /// Adds an arbitrary bubble on top of the stack for local UI testing.
     func showDebugBubble(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        bubbleText = trimmed
+        debugBubbleText = trimmed
+        refreshBubbleItems()
         PetPanelController.shared.refreshContent()
     }
 
     func clearDebugBubble() {
-        bubbleText = nil
+        debugBubbleText = nil
+        refreshBubbleItems()
         PetPanelController.shared.refreshContent()
     }
     #endif
@@ -118,6 +124,9 @@ final class PetRuntime {
     private func handle(jsonLine: String, at date: Date) {
         do {
             guard let parsed = try HookLineParser.parse(jsonLine: jsonLine) else { return }
+            #if DEBUG
+            debugBubbleText = nil
+            #endif
             apply(
                 .agent(session: parsed.session, transition: parsed.transition, at: date)
             )
@@ -132,12 +141,38 @@ final class PetRuntime {
 
     private func apply(_ event: PetEvent) {
         world = PetStateMachine.reduce(world, event: event)
-        if let primary = world.primarySession {
-            bubbleText = StatusCopy.message(for: primary.snapshot.activity, agent: primary.key.agent)
-        } else {
-            bubbleText = nil
-        }
+        refreshBubbleItems()
         PetPanelController.shared.refreshContent()
+    }
+
+    private func refreshBubbleItems() {
+        var items: [StatusBubbleItem] = []
+        for (key, snapshot) in world.sessions {
+            guard snapshot.activity != .idle else { continue }
+            guard let text = StatusCopy.message(
+                for: snapshot.activity,
+                agent: key.agent
+            ) else { continue }
+            items.append(
+                StatusBubbleItem(
+                    id: "\(key.agent.rawValue):\(key.conversationID)",
+                    text: text,
+                    lastEventAt: snapshot.lastEventAt
+                )
+            )
+        }
+        #if DEBUG
+        if let debugBubbleText {
+            items.append(
+                StatusBubbleItem(
+                    id: "debug",
+                    text: debugBubbleText,
+                    lastEventAt: Date.distantFuture
+                )
+            )
+        }
+        #endif
+        bubbleItems = items.sorted { $0.lastEventAt > $1.lastEventAt }
     }
 
     private func scheduleIdleDeadline() {

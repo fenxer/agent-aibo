@@ -199,7 +199,7 @@ private struct DevelopmentSettingsPane: View {
                     }
                 }
 
-                Text(String(localized: "Shows arbitrary text on the pet bubble. Cleared or overwritten by the next real agent event."))
+                Text(String(localized: "Adds a bubble on top of the stack. Cleared or overwritten by the next real agent event."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
