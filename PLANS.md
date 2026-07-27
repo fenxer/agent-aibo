@@ -338,7 +338,7 @@ isReleasedWhenClosed = false
 
 - `.nonactivatingPanel` 是关键：点击宠物不会把 aibo 切到前台，用户不会被打断。
 - `NSApp.setActivationPolicy(.accessory)` + Info.plist 里 `LSUIElement = true`，不占 Dock 图标。
-- 透明区域必须点击穿透，宠物本体和气泡可点击。用自定义 `hitTest` 实现，不要简单粗暴地全局 `ignoresMouseEvents`。
+- 透明区域必须点击穿透，宠物本体和气泡可点击。用自定义 content view 的 `hitTest`（对宠物图做一次 alpha mask 缓存）实现，不要简单粗暴地全局 `ignoresMouseEvents`。**不要**再覆写 `NSWindow.hitTest`——macOS 27 的 Swift AppKit 叠层已不再暴露该方法。
 - 多显示器：监听 `NSApplication.didChangeScreenParametersNotification`，屏幕变化时把宠物拉回可见区域。
 
 ### 6.2 其余 UI 用纯 SwiftUI
@@ -418,8 +418,7 @@ isReleasedWhenClosed = false
 ## 11. 已知待办与陷阱
 
 - **`Resources/kirby.png` 是占位素材，Kirby 是任天堂的注册商标。开源发布前必须替换成原创或授权素材。** 不要在 README、截图、应用图标、仓库名里使用这个形象。代码里不要硬编码 `kirby` 这个名字，用 `defaultPet` 之类的中性命名，方便替换。
-- Xcode 尚未安装完成。在它就绪前 `xcodebuild` 和 Instruments 都用不了，这段时间只能在 `AiboKit/` 下用 SwiftPM 推进核心逻辑，UI 部分要等。
-- `aibo.xcodeproj` 尚未创建。创建后请立刻确认 `.gitignore` 覆盖了 `xcuserdata/`、`*.xcworkspace/xcuserdata/`、`DerivedData/`，这些是开源仓库里最常见的噪音来源。
+- Xcode 27 beta（`Xcode-beta.app`）已可用；命令行请先 `export DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer`，否则会落到 Command Line Tools。
 - 未配置代码签名和公证。分发前需要 Developer ID 签名 + notarization，否则用户下载后会被 Gatekeeper 拦截。
 - Cursor 的 user 级 hooks 在 Cloud Agent 环境里不生效（云端 VM 访问不到本地 home），这对桌宠场景无影响，但不要在文档里承诺支持 Cloud Agent。
 - Cursor 文档没有给出 hook 的默认超时秒数，只写了 "platform default"。不要假设具体数值，保持 hook 足够快即可。
