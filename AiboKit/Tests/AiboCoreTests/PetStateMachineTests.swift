@@ -44,6 +44,31 @@ import Testing
     #expect(state.sessions[key]?.activity == .idle)
 }
 
+@Test func registeredSchedulesIdleFallback() {
+    let key = SessionKey(agent: .cursor, conversationID: "c1")
+    let t0 = Date(timeIntervalSince1970: 2_500)
+
+    var state = PetWorldState()
+    state = PetStateMachine.reduce(
+        state,
+        event: .agent(session: key, transition: .apply(.registered), at: t0)
+    )
+    #expect(state.sessions[key]?.activity == .registered)
+    #expect(state.sessions[key]?.idleAt == t0.addingTimeInterval(PetStateMachine.doneIdleDelay))
+
+    state = PetStateMachine.reduce(
+        state,
+        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.doneIdleDelay - 0.1))
+    )
+    #expect(state.sessions[key]?.activity == .registered)
+
+    state = PetStateMachine.reduce(
+        state,
+        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.doneIdleDelay))
+    )
+    #expect(state.sessions[key]?.activity == .idle)
+}
+
 @Test func watchdogForcesIdleAfterSilence() {
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 3_000)

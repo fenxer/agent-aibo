@@ -183,7 +183,7 @@ Cursor：
 
 | 事件 | 状态 |
 | --- | --- |
-| `sessionStart` | `.registered` |
+| `sessionStart` | `.registered` → 延时回落 `.idle`（与 `.done` 同延时） |
 | `beforeSubmitPrompt` | `.thinking` |
 | `preToolUse` / `beforeShellExecution` | `.usingTool(name)` |
 | `postToolUse` | `.thinking` |
@@ -196,7 +196,7 @@ Codex：
 
 | 事件 | 状态 |
 | --- | --- |
-| `SessionStart` | `.registered` |
+| `SessionStart` | `.registered` → 延时回落 `.idle`（与 `.done` 同延时） |
 | `UserPromptSubmit` / `PreToolUse` / `PostToolUse` / `SubagentStart` | `.thinking` / `.usingTool(name)` |
 | `PermissionRequest` | **`.waiting`** |
 | `Stop` / `SubagentStop` | `.done` |

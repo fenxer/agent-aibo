@@ -289,7 +289,9 @@ final class PetRuntime {
                 .agent(session: parsed.session, transition: parsed.transition, at: date)
             )
             scheduleWatchdog()
-            if case .apply(.done) = parsed.transition {
+            if case let .apply(activity) = parsed.transition,
+               activity == .done || activity == .registered
+            {
                 scheduleIdleDeadline()
             }
         } catch {

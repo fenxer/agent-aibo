@@ -9,12 +9,12 @@ public enum PetEvent: Equatable, Sendable {
     case agent(session: SessionKey, transition: StateTransition, at: Date)
     /// Force idle when a session has been silent longer than `timeout`.
     case watchdog(at: Date, timeout: TimeInterval)
-    /// Apply delayed `.done` → `.idle` fallbacks that are due.
+    /// Apply delayed `.done` / `.registered` → `.idle` fallbacks that are due.
     case idleDeadline(at: Date)
 }
 
 public enum PetStateMachine {
-    /// Default hold time before `.done` falls back to `.idle`.
+    /// Hold time before `.done` or `.registered` falls back to `.idle`.
     public static let doneIdleDelay: TimeInterval = 3
     /// Default silence timeout before a session is forced to `.idle`.
     public static let defaultWatchdogTimeout: TimeInterval = 120
@@ -43,11 +43,12 @@ public enum PetStateMachine {
             state.sessions.removeValue(forKey: session)
         case let .apply(activity):
             let idleAt: Date?
-            if activity == .done {
+            switch activity {
+            case .done, .registered:
                 idleAt = at.addingTimeInterval(doneIdleDelay)
-            } else if activity == .idle {
+            case .idle:
                 idleAt = nil
-            } else {
+            default:
                 idleAt = nil
             }
             state.sessions[session] = SessionSnapshot(

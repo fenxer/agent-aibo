@@ -30,7 +30,8 @@ public struct SessionKey: Hashable, Sendable, Codable {
 public struct SessionSnapshot: Equatable, Sendable, Codable {
     public var activity: PetActivityState
     public var lastEventAt: Date
-    /// When non-nil, the session should fall back to `.idle` at this time after `.done`.
+    /// When non-nil, the session should fall back to `.idle` at this time
+    /// (used after `.done` and `.registered`).
     public var idleAt: Date?
 
     public init(activity: PetActivityState, lastEventAt: Date, idleAt: Date? = nil) {
