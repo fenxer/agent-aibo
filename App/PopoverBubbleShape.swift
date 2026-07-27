@@ -1,26 +1,24 @@
 import SwiftUI
 
-/// Popover-like shape: rounded rectangle with a triangular arrow on one edge.
+/// Popover-like shape: rounded rectangle with a small arrow that blends into a flat edge.
 struct PopoverBubbleShape: Shape {
     var arrowEdge: Edge
-    var cornerRadius: CGFloat = 16
-    var arrowWidth: CGFloat = 16
-    var arrowHeight: CGFloat = 9
+    var cornerRadius: CGFloat = 14
+    var arrowWidth: CGFloat = 10
+    var arrowHeight: CGFloat = 6
 
     func path(in rect: CGRect) -> Path {
         let body = bodyRect(in: rect)
-        let radius = min(cornerRadius, min(body.width, body.height) / 2)
-        let arrow = arrowPoints(in: rect, body: body)
+        let radius = resolvedCornerRadius(for: body)
+        let arrow = arrowGeometry(in: rect, body: body)
 
         var path = Path()
-        // Start at top-left corner, after the leading arc, walking clockwise.
         path.move(to: CGPoint(x: body.minX + radius, y: body.minY))
 
-        // Top edge (+ optional top arrow)
+        // Top edge
         if arrowEdge == .top {
-            path.addLine(to: CGPoint(x: arrow[0].x, y: body.minY))
-            path.addLine(to: arrow[1])
-            path.addLine(to: CGPoint(x: arrow[2].x, y: body.minY))
+            path.addLine(to: arrow.baseStart)
+            addCurvedArrow(to: &path, from: arrow.baseStart, tip: arrow.tip, to: arrow.baseEnd)
         }
         path.addLine(to: CGPoint(x: body.maxX - radius, y: body.minY))
         path.addArc(
@@ -31,11 +29,10 @@ struct PopoverBubbleShape: Shape {
             clockwise: false
         )
 
-        // Trailing edge (+ optional trailing arrow)
+        // Trailing edge
         if arrowEdge == .trailing {
-            path.addLine(to: CGPoint(x: body.maxX, y: arrow[0].y))
-            path.addLine(to: arrow[1])
-            path.addLine(to: CGPoint(x: body.maxX, y: arrow[2].y))
+            path.addLine(to: arrow.baseStart)
+            addCurvedArrow(to: &path, from: arrow.baseStart, tip: arrow.tip, to: arrow.baseEnd)
         }
         path.addLine(to: CGPoint(x: body.maxX, y: body.maxY - radius))
         path.addArc(
@@ -46,11 +43,10 @@ struct PopoverBubbleShape: Shape {
             clockwise: false
         )
 
-        // Bottom edge (+ optional bottom arrow)
+        // Bottom edge (walk right → left)
         if arrowEdge == .bottom {
-            path.addLine(to: CGPoint(x: arrow[2].x, y: body.maxY))
-            path.addLine(to: arrow[1])
-            path.addLine(to: CGPoint(x: arrow[0].x, y: body.maxY))
+            path.addLine(to: arrow.baseEnd)
+            addCurvedArrow(to: &path, from: arrow.baseEnd, tip: arrow.tip, to: arrow.baseStart)
         }
         path.addLine(to: CGPoint(x: body.minX + radius, y: body.maxY))
         path.addArc(
@@ -61,11 +57,10 @@ struct PopoverBubbleShape: Shape {
             clockwise: false
         )
 
-        // Leading edge (+ optional leading arrow)
+        // Leading edge (walk bottom → top)
         if arrowEdge == .leading {
-            path.addLine(to: CGPoint(x: body.minX, y: arrow[2].y))
-            path.addLine(to: arrow[1])
-            path.addLine(to: CGPoint(x: body.minX, y: arrow[0].y))
+            path.addLine(to: arrow.baseEnd)
+            addCurvedArrow(to: &path, from: arrow.baseEnd, tip: arrow.tip, to: arrow.baseStart)
         }
         path.addLine(to: CGPoint(x: body.minX, y: body.minY + radius))
         path.addArc(
@@ -113,38 +108,102 @@ struct PopoverBubbleShape: Shape {
         }
     }
 
-    /// Three points: baseStart, tip, baseEnd along the walk direction of the edge.
-    private func arrowPoints(in rect: CGRect, body: CGRect) -> [CGPoint] {
+    /// Keep a flat segment long enough for the arrow so it doesn't sit on a corner arc.
+    private func resolvedCornerRadius(for body: CGRect) -> CGFloat {
+        let edgeLength: CGFloat = switch arrowEdge {
+        case .top, .bottom: body.width
+        case .leading, .trailing: body.height
+        }
+        let reservedFlat = arrowWidth + 8
+        let maxRadius = max(0, (edgeLength - reservedFlat) / 2)
+        return min(cornerRadius, maxRadius)
+    }
+
+    private struct ArrowGeometry {
+        var baseStart: CGPoint
+        var tip: CGPoint
+        var baseEnd: CGPoint
+    }
+
+    private func arrowGeometry(in rect: CGRect, body: CGRect) -> ArrowGeometry {
         let half = arrowWidth / 2
         switch arrowEdge {
         case .top:
             let midX = body.midX
-            return [
-                CGPoint(x: midX - half, y: body.minY),
-                CGPoint(x: midX, y: rect.minY),
-                CGPoint(x: midX + half, y: body.minY),
-            ]
+            return ArrowGeometry(
+                baseStart: CGPoint(x: midX - half, y: body.minY),
+                tip: CGPoint(x: midX, y: rect.minY),
+                baseEnd: CGPoint(x: midX + half, y: body.minY)
+            )
         case .bottom:
             let midX = body.midX
-            return [
-                CGPoint(x: midX - half, y: body.maxY),
-                CGPoint(x: midX, y: rect.maxY),
-                CGPoint(x: midX + half, y: body.maxY),
-            ]
+            return ArrowGeometry(
+                baseStart: CGPoint(x: midX - half, y: body.maxY),
+                tip: CGPoint(x: midX, y: rect.maxY),
+                baseEnd: CGPoint(x: midX + half, y: body.maxY)
+            )
         case .leading:
             let midY = body.midY
-            return [
-                CGPoint(x: body.minX, y: midY - half),
-                CGPoint(x: rect.minX, y: midY),
-                CGPoint(x: body.minX, y: midY + half),
-            ]
+            return ArrowGeometry(
+                baseStart: CGPoint(x: body.minX, y: midY - half),
+                tip: CGPoint(x: rect.minX, y: midY),
+                baseEnd: CGPoint(x: body.minX, y: midY + half)
+            )
         case .trailing:
             let midY = body.midY
-            return [
-                CGPoint(x: body.maxX, y: midY - half),
-                CGPoint(x: rect.maxX, y: midY),
-                CGPoint(x: body.maxX, y: midY + half),
-            ]
+            return ArrowGeometry(
+                baseStart: CGPoint(x: body.maxX, y: midY - half),
+                tip: CGPoint(x: rect.maxX, y: midY),
+                baseEnd: CGPoint(x: body.maxX, y: midY + half)
+            )
+        }
+    }
+
+    /// Soft arrow sides so Liquid Glass doesn't render a detached hard triangle.
+    private func addCurvedArrow(
+        to path: inout Path,
+        from start: CGPoint,
+        tip: CGPoint,
+        to end: CGPoint
+    ) {
+        let controlInset: CGFloat = arrowHeight * 0.35
+        switch arrowEdge {
+        case .top:
+            path.addQuadCurve(
+                to: tip,
+                control: CGPoint(x: start.x + (tip.x - start.x) * 0.55, y: start.y - controlInset)
+            )
+            path.addQuadCurve(
+                to: end,
+                control: CGPoint(x: end.x + (tip.x - end.x) * 0.55, y: end.y - controlInset)
+            )
+        case .bottom:
+            path.addQuadCurve(
+                to: tip,
+                control: CGPoint(x: start.x + (tip.x - start.x) * 0.55, y: start.y + controlInset)
+            )
+            path.addQuadCurve(
+                to: end,
+                control: CGPoint(x: end.x + (tip.x - end.x) * 0.55, y: end.y + controlInset)
+            )
+        case .leading:
+            path.addQuadCurve(
+                to: tip,
+                control: CGPoint(x: start.x - controlInset, y: start.y + (tip.y - start.y) * 0.55)
+            )
+            path.addQuadCurve(
+                to: end,
+                control: CGPoint(x: end.x - controlInset, y: end.y + (tip.y - end.y) * 0.55)
+            )
+        case .trailing:
+            path.addQuadCurve(
+                to: tip,
+                control: CGPoint(x: start.x + controlInset, y: start.y + (tip.y - start.y) * 0.55)
+            )
+            path.addQuadCurve(
+                to: end,
+                control: CGPoint(x: end.x + controlInset, y: end.y + (tip.y - end.y) * 0.55)
+            )
         }
     }
 }
