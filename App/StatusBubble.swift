@@ -24,7 +24,9 @@ struct StatusBubble: View {
             }
             // Cap width; pin content toward the pet so short copy doesn't float
             // in the middle of a bubbleMaxWidth-sized panel slot.
-            .frame(maxWidth: 220, alignment: frameAlignment)
+            .frame(maxWidth: 320, alignment: frameAlignment)
+            // Don't compress wrapped text when a parent proposes a short height.
+            .fixedSize(horizontal: false, vertical: true)
             // Stack left/right on the body edge, not the arrow tip.
             .alignmentGuide(.trailing) { d in
                 showsArrow && placement == .left ? d[.trailing] - arrowHeight : d[.trailing]

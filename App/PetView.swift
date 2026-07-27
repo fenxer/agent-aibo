@@ -85,6 +85,9 @@ struct PetView: View {
             .accessibilityHidden(true)
             .overlay(alignment: .bottom) {
                 bubbleStack(nearPetIndex: nearPetIndex)
+                    // Overlay proposes the anchor's size; keep the stack's ideal height
+                    // so multi-line bubbles aren't crushed to one line.
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

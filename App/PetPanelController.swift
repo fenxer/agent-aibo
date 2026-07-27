@@ -19,9 +19,12 @@ final class PetPanelController {
     private let petSize: CGFloat = 96
     private let contentPadding: CGFloat = 8
     private let screenPadding: CGFloat = 24
-    private let bubbleMaxWidth: CGFloat = 220
+    private let bubbleMaxWidth: CGFloat = 320
     private let bubbleEstimatedHeight: CGFloat = 52
     private let bubbleStackSpacing: CGFloat = 4
+    private let bubbleVerticalPadding: CGFloat = 20
+    private let bubbleArrowSlack: CGFloat = 6
+    private let bubbleHorizontalPadding: CGFloat = 28
 
     private init() {}
 
@@ -76,7 +79,7 @@ final class PetPanelController {
             hostingView.rootView = rootView
         }
 
-        let newSize = panelSize(bubbleCount: bubbleCount, placement: placement)
+        let newSize = panelSize(items: items, placement: placement)
         let newPetCenter = petCenter(
             in: newSize,
             placement: placement,
@@ -100,7 +103,7 @@ final class PetPanelController {
     private func makePanel() -> PetPanel {
         let placement = AppSettings.shared.bubblePlacement
         let items = PetRuntime.shared.bubbleItems
-        let initialSize = panelSize(bubbleCount: items.count, placement: placement)
+        let initialSize = panelSize(items: items, placement: placement)
         let panel = PetPanel(contentRect: NSRect(origin: .zero, size: initialSize))
         let hostingView = PassThroughHostingView(
             rootView: PetView(bubbleItems: items, placement: placement),
@@ -117,14 +120,16 @@ final class PetPanelController {
         return panel
     }
 
-    private func panelSize(bubbleCount: Int, placement: BubblePlacement) -> NSSize {
+    private func panelSize(items: [StatusBubbleItem], placement: BubblePlacement) -> NSSize {
         let petBlock = petSize + contentPadding * 2
+        let bubbleCount = items.count
         guard bubbleCount > 0 else {
             return NSSize(width: petBlock, height: petBlock)
         }
 
+        let heights = items.map(estimatedBubbleHeight(for:))
         let stackHeight =
-            CGFloat(bubbleCount) * bubbleEstimatedHeight
+            heights.reduce(0, +)
             + CGFloat(max(0, bubbleCount - 1)) * bubbleStackSpacing
 
         switch placement {
@@ -136,15 +141,32 @@ final class PetPanelController {
         case .left, .right:
             // Near-pet bubble stays vertically centered with the pet; older
             // bubbles grow upward — panel must leave room above the pet center.
+            // `items` are newest-first; near-pet is last.
+            let nearHeight = heights.last ?? bubbleEstimatedHeight
+            let aboveHeights = heights.dropLast()
             let stackAbove =
-                CGFloat(max(0, bubbleCount - 1)) * bubbleEstimatedHeight
-                + CGFloat(max(0, bubbleCount - 2)) * bubbleStackSpacing
-            let halfAbove = contentPadding + stackAbove + bubbleEstimatedHeight / 2
+                aboveHeights.reduce(0, +)
+                + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
+            let halfAbove = contentPadding + stackAbove + nearHeight / 2
             return NSSize(
                 width: petBlock + bubbleMaxWidth + 20,
                 height: max(petBlock, halfAbove * 2)
             )
         }
+    }
+
+    /// Approximate rendered bubble height for panel sizing (callout + padding).
+    private func estimatedBubbleHeight(for item: StatusBubbleItem) -> CGFloat {
+        let textWidth = bubbleMaxWidth - bubbleHorizontalPadding - bubbleArrowSlack
+        let font = NSFont.preferredFont(forTextStyle: .callout)
+        let textHeight = ceil(
+            (item.text as NSString).boundingRect(
+                with: NSSize(width: max(1, textWidth), height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: font]
+            ).height
+        )
+        return max(bubbleEstimatedHeight, textHeight + bubbleVerticalPadding + bubbleArrowSlack)
     }
 
     private func updatePetHitRect(
