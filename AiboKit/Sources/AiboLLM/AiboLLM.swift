@@ -3,5 +3,9 @@ import AiboCore
 /// Model provider abstractions used for remote webhook persona rewriting.
 public enum AiboLLM {
     public static let moduleName = "AiboLLM"
-    public static let coreModuleName = AiboCore.moduleName
+
+    /// Placeholder dependency edge so the module stays wired to AiboCore.
+    public static func statusLabel(for activity: PetActivityState, agent: AgentKind) -> String? {
+        StatusCopy.message(for: activity, agent: agent)
+    }
 }

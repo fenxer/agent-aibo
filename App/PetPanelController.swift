@@ -9,9 +9,10 @@ final class PetPanelController {
     private(set) var isVisible = false
 
     private var panel: PetPanel?
+    private var hostingView: PassThroughHostingView<PetView>?
     private var screenObserver: NSObjectProtocol?
 
-    private let panelSize = NSSize(width: 120, height: 120)
+    private let baseSize = NSSize(width: 240, height: 160)
     private let screenPadding: CGFloat = 24
 
     private init() {}
@@ -19,6 +20,7 @@ final class PetPanelController {
     func show() {
         let panel = panel ?? makePanel()
         self.panel = panel
+        refreshContent()
         repositionIfNeeded()
         panel.orderFrontRegardless()
         isVisible = true
@@ -38,14 +40,30 @@ final class PetPanelController {
         }
     }
 
+    func refreshContent() {
+        let text = PetRuntime.shared.bubbleText
+        let rootView = PetView(bubbleText: text)
+        if let hostingView {
+            hostingView.rootView = rootView
+        }
+        guard let panel else { return }
+
+        let height: CGFloat = text == nil ? 120 : 180
+        var frame = panel.frame
+        frame.size = NSSize(width: baseSize.width, height: height)
+        panel.setContentSize(frame.size)
+        repositionIfNeeded()
+    }
+
     private func makePanel() -> PetPanel {
-        let panel = PetPanel(contentRect: NSRect(origin: .zero, size: panelSize))
+        let panel = PetPanel(contentRect: NSRect(origin: .zero, size: baseSize))
         let hostingView = PassThroughHostingView(
-            rootView: PetView(),
+            rootView: PetView(bubbleText: PetRuntime.shared.bubbleText),
             hitTestImage: NSImage(named: "DefaultPet")
         )
-        hostingView.frame = NSRect(origin: .zero, size: panelSize)
+        hostingView.frame = NSRect(origin: .zero, size: baseSize)
         panel.contentView = hostingView
+        self.hostingView = hostingView
         return panel
     }
 
@@ -68,13 +86,11 @@ final class PetPanelController {
 
         let visible = screen.visibleFrame
         var frame = panel.frame
-        frame.size = panelSize
-        frame.origin.x = visible.maxX - panelSize.width - screenPadding
+        frame.origin.x = visible.maxX - frame.width - screenPadding
         frame.origin.y = visible.minY + screenPadding
 
-        // If the panel somehow left all screens, snap back into the main visible frame.
         if !screen.frame.intersects(frame) {
-            frame.origin.x = visible.maxX - panelSize.width - screenPadding
+            frame.origin.x = visible.maxX - frame.width - screenPadding
             frame.origin.y = visible.minY + screenPadding
         }
 

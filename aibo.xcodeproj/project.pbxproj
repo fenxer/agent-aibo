@@ -7,11 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3A3091F53017090000431C96 /* AiboHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3091F43017090000431C96 /* AiboHook.swift */; };
+		3A3091F83017090000431C96 /* aibo-hook in Copy Helpers */ = {isa = PBXBuildFile; fileRef = 3A3091F03017090000431C96 /* aibo-hook */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		3A3091E43017080000431C96 /* AiboIngest in Frameworks */ = {isa = PBXBuildFile; productRef = 3A3091E13017080000431C96 /* AiboIngest */; };
 		3A3091E53017080000431C96 /* AiboLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 3A3091E23017080000431C96 /* AiboLLM */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3A3091F03017090000431C96 /* aibo-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "aibo-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
+		3A3091F43017090000431C96 /* AiboHook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiboHook.swift; sourceTree = "<group>"; };
 		3A3091CD3017070E00431C96 /* aibo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = aibo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -24,6 +28,11 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		3A3091F33017090000431C96 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
 		3A3091CA3017070E00431C96 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
@@ -38,14 +47,24 @@
 			isa = PBXGroup;
 			children = (
 				3A3091CF3017070E00431C96 /* App */,
+				3A3091F63017090000431C96 /* Hook */,
 				3A3091CE3017070E00431C96 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		3A3091F63017090000431C96 /* Hook */ = {
+			isa = PBXGroup;
+			children = (
+				3A3091F43017090000431C96 /* AiboHook.swift */,
+			);
+			path = Hook;
 			sourceTree = "<group>";
 		};
 		3A3091CE3017070E00431C96 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				3A3091CD3017070E00431C96 /* aibo.app */,
+				3A3091F03017090000431C96 /* aibo-hook */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -60,8 +79,12 @@
 				3A3091C93017070E00431C96 /* Sources */,
 				3A3091CA3017070E00431C96 /* Frameworks */,
 				3A3091CB3017070E00431C96 /* Resources */,
+				3A3091F73017090000431C96 /* Copy Helpers */,
 			);
 			buildRules = (
+			);
+			dependencies = (
+				3A3091FA3017090000431C96 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				3A3091CF3017070E00431C96 /* App */,
@@ -75,6 +98,23 @@
 			productReference = 3A3091CD3017070E00431C96 /* aibo.app */;
 			productType = "com.apple.product-type.application";
 		};
+
+		3A3091F13017090000431C96 /* aibo-hook */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3A3091FB3017090000431C96 /* Build configuration list for PBXNativeTarget "aibo-hook" */;
+			buildPhases = (
+				3A3091F23017090000431C96 /* Sources */,
+				3A3091F33017090000431C96 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "aibo-hook";
+			productName = "aibo-hook";
+			productReference = 3A3091F03017090000431C96 /* aibo-hook */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -86,6 +126,9 @@
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					3A3091CC3017070E00431C96 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					3A3091F13017090000431C96 = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -108,10 +151,43 @@
 			projectRoot = "";
 			targets = (
 				3A3091CC3017070E00431C96 /* aibo */,
+				3A3091F13017090000431C96 /* aibo-hook */,
 			);
 		};
 /* End PBXProject section */
 
+
+/* Begin PBXCopyFilesBuildPhase section */
+		3A3091F73017090000431C96 /* Copy Helpers */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+				3A3091F83017090000431C96 /* aibo-hook in Copy Helpers */,
+			);
+			name = "Copy Helpers";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		3A3091F93017090000431C96 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3A3091C53017070E00431C96 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3A3091F13017090000431C96;
+			remoteInfo = "aibo-hook";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		3A3091FA3017090000431C96 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3A3091F13017090000431C96 /* aibo-hook */;
+			targetProxy = 3A3091F93017090000431C96 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 /* Begin PBXResourcesBuildPhase section */
 		3A3091CB3017070E00431C96 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
@@ -121,6 +197,12 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		3A3091F23017090000431C96 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+				3A3091F53017090000431C96 /* AiboHook.swift in Sources */,
+			);
+		};
 		3A3091C93017070E00431C96 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
@@ -258,7 +340,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5XHWFT9Z9U;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -292,7 +374,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5XHWFT9Z9U;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
@@ -317,6 +399,41 @@
 			};
 			name = Release;
 		};
+
+		3A3091FC3017090000431C96 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 5XHWFT9Z9U;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = work.fenx.aibo.hook;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		3A3091FD3017090000431C96 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 5XHWFT9Z9U;
+				ENABLE_HARDENED_RUNTIME = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = work.fenx.aibo.hook;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -333,6 +450,15 @@
 			buildConfigurations = (
 				3A3091D93017071000431C96 /* Debug configuration for PBXNativeTarget "aibo" */,
 				3A3091DA3017071000431C96 /* Release configuration for PBXNativeTarget "aibo" */,
+			);
+			defaultConfigurationName = Release;
+		};
+
+		3A3091FB3017090000431C96 /* Build configuration list for PBXNativeTarget "aibo-hook" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A3091FC3017090000431C96 /* Debug */,
+				3A3091FD3017090000431C96 /* Release */,
 			);
 			defaultConfigurationName = Release;
 		};

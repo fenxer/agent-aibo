@@ -6,9 +6,9 @@ import SwiftUI
 struct aiboApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var petPanelController = PetPanelController.shared
+    @State private var runtime = PetRuntime.shared
 
     init() {
-        // Keep the local package link exercised while ingest wiring is still a scaffold.
         _ = AiboIngest.moduleName
     }
 
@@ -22,6 +22,23 @@ struct aiboApp: App {
                         ? String(localized: "Hide Pet")
                         : String(localized: "Show Pet")
                 )
+            }
+
+            Divider()
+
+            if runtime.cursorHooksInstalled {
+                Button(String(localized: "Uninstall Cursor Hooks")) {
+                    runtime.uninstallCursorHooks()
+                }
+            } else {
+                Button(String(localized: "Install Cursor Hooks")) {
+                    runtime.installCursorHooks()
+                }
+            }
+
+            if let lastErrorMessage = runtime.lastErrorMessage {
+                Text(lastErrorMessage)
+                    .foregroundStyle(.secondary)
             }
 
             Divider()
