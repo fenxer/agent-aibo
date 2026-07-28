@@ -146,7 +146,7 @@ struct StatusBubble: View {
     private func statusText(ink: Color) -> some View {
         if item.animatesEllipsis {
             let base = Self.strippingTrailingEllipsis(item.text)
-            TimelineView(.animation(minimumInterval: Self.ellipsisInterval)) { context in
+            TimelineView(.periodic(from: Self.ellipsisEpoch, by: Self.ellipsisInterval)) { context in
                 let count = Int(context.date.timeIntervalSinceReferenceDate / Self.ellipsisInterval) % 3 + 1
                 let dots = String(repeating: ".", count: count)
                 // Layout against the widest form ("...") so 1↔2↔3 dots don’t reflow.
@@ -187,6 +187,12 @@ struct StatusBubble: View {
     }
 
     private static let ellipsisInterval: TimeInterval = 0.45
+
+    /// `.animation` wakes the view graph on every display refresh (60–120 Hz) and
+    /// only then filters by `minimumInterval`, so cycling three dots cost a full
+    /// re-layout of the bubble text ~120 times a second. A periodic schedule wakes
+    /// only when the dots actually change. Shared across bubbles so they stay in phase.
+    private static let ellipsisEpoch = Date()
 
     private var hasAgentHeader: Bool {
         let hasProject = !(item.projectName ?? "").isEmpty

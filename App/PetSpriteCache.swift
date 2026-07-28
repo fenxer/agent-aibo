@@ -12,6 +12,8 @@ final class PetSpriteCache {
 
     private struct CachedSheet {
         var frames: [PetdexSpriteState: [NSImage]]
+        /// Same pixels as `frames`, kept unwrapped for `CALayer.contents`.
+        var layerFrames: [PetdexSpriteState: [CGImage]]
         var idlePreview: NSImage
     }
 
@@ -52,6 +54,16 @@ final class PetSpriteCache {
         return frames[index]
     }
 
+    /// One loop of `state`, ordered, for `CAKeyframeAnimation`. Empty when the
+    /// record has no usable atlas — callers fall back to `previewImage(for:)`.
+    func layerFrames(
+        for record: PetLibraryRecord,
+        state: PetdexSpriteState
+    ) -> [CGImage] {
+        guard record.kind == .petdex, let sheet = sheet(for: record) else { return [] }
+        return sheet.layerFrames[state] ?? sheet.layerFrames[.idle] ?? []
+    }
+
     private func staticImage(for record: PetLibraryRecord) -> NSImage? {
         if let cached = staticImages[record.id] { return cached }
         guard let url = PetLibraryStore.shared.artworkURL(for: record),
@@ -64,43 +76,59 @@ final class PetSpriteCache {
     private func sheet(for record: PetLibraryRecord) -> CachedSheet? {
         if let cached = sheets[record.id] { return cached }
         guard let url = PetLibraryStore.shared.artworkURL(for: record),
-              let cgImage = loadCGImage(url: url)
+              let decoded = loadCGImage(url: url),
+              let atlas = detachedBitmap(decoded)
         else { return nil }
 
-        let width = cgImage.width
-        let height = cgImage.height
-        let whole = NSImage(cgImage: cgImage, size: NSSize(width: width, height: height))
+        let width = atlas.width
+        let height = atlas.height
 
         guard let layout = PetdexSpriteLayout(pixelWidth: width, pixelHeight: height) else {
-            let cached = CachedSheet(frames: [.idle: [whole]], idlePreview: whole)
+            let whole = NSImage(cgImage: atlas, size: NSSize(width: width, height: height))
+            let cached = CachedSheet(
+                frames: [.idle: [whole]],
+                layerFrames: [.idle: [atlas]],
+                idlePreview: whole
+            )
             sheets[record.id] = cached
             return cached
         }
 
         var frames: [PetdexSpriteState: [NSImage]] = [:]
+        var layerFrames: [PetdexSpriteState: [CGImage]] = [:]
         for state in PetdexSpriteState.allCases {
             var images: [NSImage] = []
+            var cgImages: [CGImage] = []
             images.reserveCapacity(state.frameCount)
+            cgImages.reserveCapacity(state.frameCount)
             for index in 0..<state.frameCount {
                 guard let rect = layout.frameRect(state: state, frameIndex: index),
-                      let cropped = cgImage.cropping(
+                      let cropped = atlas.cropping(
                           to: CGRect(x: rect.x, y: rect.y, width: rect.w, height: rect.h)
-                      )
+                      ),
+                      let frame = detachedBitmap(cropped)
                 else { continue }
+                cgImages.append(frame)
                 images.append(
                     NSImage(
-                        cgImage: cropped,
+                        cgImage: frame,
                         size: NSSize(width: rect.w, height: rect.h)
                     )
                 )
             }
             if !images.isEmpty {
                 frames[state] = images
+                layerFrames[state] = cgImages
             }
         }
 
-        let idlePreview = frames[.idle]?.first ?? whole
-        let cached = CachedSheet(frames: frames, idlePreview: idlePreview)
+        let idlePreview = frames[.idle]?.first
+            ?? NSImage(cgImage: atlas, size: NSSize(width: width, height: height))
+        let cached = CachedSheet(
+            frames: frames,
+            layerFrames: layerFrames,
+            idlePreview: idlePreview
+        )
         sheets[record.id] = cached
         return cached
     }
@@ -108,5 +136,35 @@ final class PetSpriteCache {
     private func loadCGImage(url: URL) -> CGImage? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
+    /// Copies `image` into a freshly allocated bitmap.
+    ///
+    /// `CGImage.cropping(to:)` does not copy pixels: every frame stays attached to
+    /// the lazily decoded atlas, and ImageIO then decodes the whole spritesheet
+    /// again — and keeps that buffer alive — once per frame that gets drawn. For a
+    /// 1536×1872 atlas that is 11 MB per frame instead of 156 KB.
+    ///
+    /// Uses BGRA (premultiplied first, little endian), the layout CoreAnimation
+    /// uploads without conversion.
+    private func detachedBitmap(_ image: CGImage) -> CGImage? {
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                  data: nil,
+                  width: image.width,
+                  height: image.height,
+                  bitsPerComponent: 8,
+                  bytesPerRow: 0,
+                  space: space,
+                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                      | CGBitmapInfo.byteOrder32Little.rawValue
+              )
+        else { return nil }
+        context.interpolationQuality = .none
+        context.draw(
+            image,
+            in: CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        )
+        return context.makeImage()
     }
 }
