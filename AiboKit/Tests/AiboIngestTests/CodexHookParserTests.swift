@@ -4,11 +4,12 @@ import Testing
 
 @Test func parserMapsCodexPayload() throws {
     let line = """
-    {"session_id":"thr_123","hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"/tmp"}
+    {"session_id":"thr_123","hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"/tmp/aibo"}
     """
     let parsed = try CodexHookParser.parse(jsonLine: line)
     #expect(parsed?.session == SessionKey(agent: .codex, conversationID: "thr_123"))
     #expect(parsed?.transition == .apply(.usingTool("Bash")))
+    #expect(parsed?.projectName == "aibo")
 }
 
 @Test func parserMapsCodexPermissionRequestToWaiting() throws {

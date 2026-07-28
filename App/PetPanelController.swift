@@ -20,11 +20,15 @@ final class PetPanelController {
     private let contentPadding: CGFloat = 8
     private let screenPadding: CGFloat = 24
     private let bubbleMaxWidth: CGFloat = 320
-    private let bubbleEstimatedHeight: CGFloat = 52
+    private let bubbleEstimatedHeight: CGFloat = 88
     private let bubbleStackSpacing: CGFloat = 4
-    private let bubbleVerticalPadding: CGFloat = 20
+    private let bubbleContentPadding: CGFloat = 12
+    private let bubbleHeaderLineHeight: CGFloat = 15
+    private let bubbleSectionSpacing: CGFloat = 12
+    private let bubbleStatusLineHeight: CGFloat = 24
+    private let bubbleCapsuleWidthEstimate: CGFloat = 88
     private let bubbleArrowSlack: CGFloat = 6
-    private let bubbleHorizontalPadding: CGFloat = 28
+    private let bubbleRowSpacing: CGFloat = 8
 
     private init() {}
 
@@ -155,10 +159,11 @@ final class PetPanelController {
         }
     }
 
-    /// Approximate rendered bubble height for panel sizing (callout + padding).
+    /// Approximate rendered bubble height for panel sizing (header + capsule row).
     private func estimatedBubbleHeight(for item: StatusBubbleItem) -> CGFloat {
-        let textWidth = bubbleMaxWidth - bubbleHorizontalPadding - bubbleArrowSlack
-        let font = NSFont.preferredFont(forTextStyle: .callout)
+        let contentWidth = bubbleMaxWidth - bubbleContentPadding * 2 - bubbleArrowSlack
+        let textWidth = contentWidth - bubbleCapsuleWidthEstimate - bubbleRowSpacing
+        let font = NSFont.systemFont(ofSize: 14)
         let textHeight = ceil(
             (item.text as NSString).boundingRect(
                 with: NSSize(width: max(1, textWidth), height: .greatestFiniteMagnitude),
@@ -166,7 +171,13 @@ final class PetPanelController {
                 attributes: [.font: font]
             ).height
         )
-        return max(bubbleEstimatedHeight, textHeight + bubbleVerticalPadding + bubbleArrowSlack)
+        let statusRowHeight = max(bubbleStatusLineHeight, textHeight)
+        var height = bubbleContentPadding * 2 + statusRowHeight
+        let hasHeader = !(item.projectName ?? "").isEmpty || !(item.modelName ?? "").isEmpty
+        if hasHeader {
+            height += bubbleHeaderLineHeight + bubbleSectionSpacing
+        }
+        return max(bubbleEstimatedHeight, height + bubbleArrowSlack)
     }
 
     private func updatePetHitRect(

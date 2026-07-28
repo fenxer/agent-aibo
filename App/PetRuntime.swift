@@ -27,11 +27,18 @@ final class PetRuntime {
     private var watchdogTask: Task<Void, Never>?
     private var webhookBubbles: [StatusBubbleItem] = []
     private var webhookExpiryTasks: [String: Task<Void, Never>] = [:]
+    /// Project / model labels keyed by session; merged across hook events.
+    private var sessionDisplayMeta: [SessionKey: SessionDisplayMeta] = [:]
     #if DEBUG
-    private var debugBubbleText: String?
+    private var debugBubbleItem: StatusBubbleItem?
     #endif
 
     private static let webhookBubbleTTL: TimeInterval = 12
+
+    private struct SessionDisplayMeta: Equatable, Sendable {
+        var projectName: String?
+        var modelName: String?
+    }
 
     private init() {}
 
@@ -125,7 +132,8 @@ final class PetRuntime {
         let item = StatusBubbleItem(
             id: "webhook:\(delivery.id)",
             text: delivery.displayText,
-            lastEventAt: delivery.receivedAt
+            lastEventAt: delivery.receivedAt,
+            agentName: delivery.source
         )
         webhookBubbles.removeAll { $0.id == item.id }
         webhookBubbles.append(item)
@@ -247,16 +255,35 @@ final class PetRuntime {
 
     #if DEBUG
     /// Adds an arbitrary bubble on top of the stack for local UI testing.
-    func showDebugBubble(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        debugBubbleText = trimmed
+    func showDebugBubble(
+        text: String,
+        agentName: String = "Cursor",
+        projectName: String? = nil,
+        modelName: String? = nil,
+        showCursorIcon: Bool = true
+    ) {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else { return }
+        let trimmedAgent = agentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedProject = projectName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedModel = modelName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        debugBubbleItem = StatusBubbleItem(
+            id: "debug",
+            text: trimmedText,
+            lastEventAt: Date.distantFuture,
+            agentName: trimmedAgent.isEmpty ? "Debug" : trimmedAgent,
+            iconAssetName: showCursorIcon ? "cursor" : nil,
+            projectName: (trimmedProject?.isEmpty == false) ? trimmedProject : nil,
+            modelName: (trimmedModel?.isEmpty == false) ? trimmedModel : nil
+        )
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
     }
 
     func clearDebugBubble() {
-        debugBubbleText = nil
+        debugBubbleItem = nil
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
     }
@@ -294,8 +321,16 @@ final class PetRuntime {
         do {
             guard let parsed = try HookLineParser.parse(jsonLine: jsonLine) else { return }
             #if DEBUG
-            debugBubbleText = nil
+            debugBubbleItem = nil
             #endif
+            mergeDisplayMeta(
+                for: parsed.session,
+                projectName: parsed.projectName,
+                modelName: parsed.modelName
+            )
+            if case .removeSession = parsed.transition {
+                sessionDisplayMeta.removeValue(forKey: parsed.session)
+            }
             apply(
                 .agent(session: parsed.session, transition: parsed.transition, at: date)
             )
@@ -310,6 +345,18 @@ final class PetRuntime {
         }
     }
 
+    private func mergeDisplayMeta(
+        for session: SessionKey,
+        projectName: String?,
+        modelName: String?
+    ) {
+        guard projectName != nil || modelName != nil else { return }
+        var meta = sessionDisplayMeta[session] ?? SessionDisplayMeta()
+        if let projectName { meta.projectName = projectName }
+        if let modelName { meta.modelName = modelName }
+        sessionDisplayMeta[session] = meta
+    }
+
     private func apply(_ event: PetEvent) {
         world = PetStateMachine.reduce(world, event: event)
         refreshBubbleItems()
@@ -319,33 +366,39 @@ final class PetRuntime {
     private func refreshBubbleItems() {
         var items: [StatusBubbleItem] = []
         for (key, snapshot) in world.sessions {
-            guard snapshot.activity != .idle else { continue }
-            guard let text = StatusCopy.message(
-                for: snapshot.activity,
-                agent: key.agent
-            ) else { continue }
+            if snapshot.activity == .idle {
+                sessionDisplayMeta.removeValue(forKey: key)
+                continue
+            }
+            guard let text = StatusCopy.statusPhrase(for: snapshot.activity) else { continue }
+            let meta = sessionDisplayMeta[key]
             items.append(
                 StatusBubbleItem(
                     id: "\(key.agent.rawValue):\(key.conversationID)",
                     text: text,
                     lastEventAt: snapshot.lastEventAt,
-                    isDismissible: snapshot.activity == .failed
+                    isDismissible: snapshot.activity == .failed,
+                    agentName: StatusCopy.displayName(key.agent),
+                    iconAssetName: Self.iconAssetName(for: key.agent),
+                    projectName: meta?.projectName,
+                    modelName: meta?.modelName
                 )
             )
         }
         items.append(contentsOf: webhookBubbles)
         #if DEBUG
-        if let debugBubbleText {
-            items.append(
-                StatusBubbleItem(
-                    id: "debug",
-                    text: debugBubbleText,
-                    lastEventAt: Date.distantFuture
-                )
-            )
+        if let debugBubbleItem {
+            items.append(debugBubbleItem)
         }
         #endif
         bubbleItems = items.sorted { $0.lastEventAt > $1.lastEventAt }
+    }
+
+    private static func iconAssetName(for agent: AgentKind) -> String? {
+        switch agent {
+        case .cursor: "cursor"
+        case .codex: nil
+        }
     }
 
     private func scheduleWebhookExpiry(for id: String) {

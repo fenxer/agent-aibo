@@ -31,7 +31,9 @@ public enum CodexHookParser {
         return ParsedHookLine(
             session: SessionKey(agent: .codex, conversationID: sessionID),
             transition: transition,
-            eventName: eventName
+            eventName: eventName,
+            projectName: HookPayloadFields.projectName(from: payload),
+            modelName: HookPayloadFields.modelName(from: payload)
         )
     }
 }

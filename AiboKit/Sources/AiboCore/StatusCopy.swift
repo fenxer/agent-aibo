@@ -2,30 +2,36 @@ import Foundation
 
 /// Local templates for agent status. Never call an LLM from this path.
 public enum StatusCopy {
+    /// Full sentence used by non-bubble callers (e.g. LLM helpers).
     public static func message(
         for activity: PetActivityState,
         agent: AgentKind
     ) -> String? {
-        let agentLabel = displayName(agent)
+        guard let phrase = statusPhrase(for: activity) else { return nil }
+        return "\(displayName(agent)) \(phrase)"
+    }
+
+    /// Status text shown beside the agent capsule (no agent name prefix).
+    public static func statusPhrase(for activity: PetActivityState) -> String? {
         switch activity {
         case .idle:
             return nil
         case .registered:
-            return "\(agentLabel) session started"
+            return "session started"
         case .thinking:
-            return "\(agentLabel) is thinking…"
+            return "is thinking"
         case let .usingTool(name):
-            return "\(agentLabel) is using \(name)"
+            return "is using \(name)"
         case .responding:
-            return "\(agentLabel) is responding…"
+            return "is responding"
         case .waiting:
-            return "\(agentLabel) is waiting for you"
+            return "is waiting for you"
         case .done:
-            return "\(agentLabel) finished"
+            return "finished"
         case .interrupted:
-            return "\(agentLabel) was interrupted"
+            return "was interrupted"
         case .failed:
-            return "\(agentLabel) failed"
+            return "failed"
         }
     }
 

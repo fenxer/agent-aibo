@@ -63,7 +63,7 @@ struct PetView: View {
         VStack(alignment: stackAlignment, spacing: stackSpacing) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 StatusBubble(
-                    text: item.text,
+                    item: item,
                     placement: placement,
                     showsArrow: index == nearPetIndex,
                     onDismiss: item.isDismissible
@@ -80,7 +80,7 @@ struct PetView: View {
     private func sideAnchoredBubbleStack(nearPetIndex: Int) -> some View {
         if bubbleItems.indices.contains(nearPetIndex) {
             StatusBubble(
-                text: bubbleItems[nearPetIndex].text,
+                item: bubbleItems[nearPetIndex],
                 placement: placement,
                 showsArrow: true
             )
@@ -117,8 +117,22 @@ struct PetView: View {
 #Preview("stack above") {
     PetView(
         bubbleItems: [
-            StatusBubbleItem(id: "1", text: "Codex is waiting for you", lastEventAt: .now),
-            StatusBubbleItem(id: "2", text: "Cursor is thinking…", lastEventAt: .now.addingTimeInterval(-1)),
+            StatusBubbleItem(
+                id: "1",
+                text: "is waiting for you",
+                lastEventAt: .now,
+                agentName: "Codex",
+                projectName: "aibo"
+            ),
+            StatusBubbleItem(
+                id: "2",
+                text: "is thinking",
+                lastEventAt: .now.addingTimeInterval(-1),
+                agentName: "Cursor",
+                iconAssetName: "cursor",
+                projectName: "design-fragments",
+                modelName: "Grok 4.5 High Fast"
+            ),
         ],
         placement: .top
     )
@@ -127,9 +141,29 @@ struct PetView: View {
 #Preview("left stack") {
     PetView(
         bubbleItems: [
-            StatusBubbleItem(id: "1", text: "Cursor is thinking…", lastEventAt: .now),
-            StatusBubbleItem(id: "2", text: "Cursor session started", lastEventAt: .now.addingTimeInterval(-1)),
-            StatusBubbleItem(id: "3", text: "Cursor session started", lastEventAt: .now.addingTimeInterval(-2)),
+            StatusBubbleItem(
+                id: "1",
+                text: "is thinking",
+                lastEventAt: .now,
+                agentName: "Cursor",
+                iconAssetName: "cursor",
+                projectName: "aibo",
+                modelName: "Composer"
+            ),
+            StatusBubbleItem(
+                id: "2",
+                text: "session started",
+                lastEventAt: .now.addingTimeInterval(-1),
+                agentName: "Cursor",
+                iconAssetName: "cursor"
+            ),
+            StatusBubbleItem(
+                id: "3",
+                text: "session started",
+                lastEventAt: .now.addingTimeInterval(-2),
+                agentName: "Cursor",
+                iconAssetName: "cursor"
+            ),
         ],
         placement: .left
     )

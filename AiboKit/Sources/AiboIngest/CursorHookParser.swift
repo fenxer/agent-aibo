@@ -5,6 +5,10 @@ public struct ParsedHookLine: Sendable, Equatable {
     public var session: SessionKey
     public var transition: StateTransition
     public var eventName: String
+    /// Last path component of workspace root / cwd when present in the payload.
+    public var projectName: String? = nil
+    /// Model id / label when the hook payload includes one.
+    public var modelName: String? = nil
 }
 
 public enum CursorHookParser {
@@ -36,7 +40,9 @@ public enum CursorHookParser {
         return ParsedHookLine(
             session: SessionKey(agent: .cursor, conversationID: conversationID),
             transition: transition,
-            eventName: eventName
+            eventName: eventName,
+            projectName: HookPayloadFields.projectName(from: payload),
+            modelName: HookPayloadFields.modelName(from: payload)
         )
     }
 }

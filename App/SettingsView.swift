@@ -94,9 +94,48 @@ private struct AppearanceSettingsPane: View {
             } header: {
                 Text(String(localized: "Status Bubble"))
             }
+
+            Section {
+                Picker(String(localized: "Glass Style"), selection: $settings.bubbleGlassStyle) {
+                    ForEach(BubbleGlassStyle.allCases) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+
+                Text(String(localized: "Clear is see-through glass; Regular is the system glass; Translucent skips Liquid Glass and uses a soft fill."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ColorPicker(
+                    String(localized: "Glass Tint"),
+                    selection: glassTintBinding,
+                    supportsOpacity: true
+                )
+
+                if settings.bubbleGlassTint != nil {
+                    Button(String(localized: "Reset Tint")) {
+                        settings.bubbleGlassTint = nil
+                    }
+                }
+
+                Text(String(localized: "Optional color wash on the glass. Reset removes the tint."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(String(localized: "Bubble Glass"))
+            }
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    /// ColorPicker needs a non-optional `Color`; writing always enables a custom tint.
+    private var glassTintBinding: Binding<Color> {
+        Binding(
+            get: { settings.bubbleGlassTint ?? .accentColor },
+            set: { settings.bubbleGlassTint = $0 }
+        )
     }
 }
 
@@ -351,7 +390,11 @@ private struct AboutSettingsPane: View {
 
 #if DEBUG
 private struct DevelopmentSettingsPane: View {
-    @State private var message = ""
+    @State private var projectName = "design-fragments"
+    @State private var modelName = "Grok 4.5 High Fast"
+    @State private var agentName = "Cursor"
+    @State private var showCursorIcon = true
+    @State private var message = "is thinking"
     @State private var webhookJSON = """
         {
           "event": "statusChange",
@@ -374,12 +417,22 @@ private struct DevelopmentSettingsPane: View {
     var body: some View {
         Form {
             Section {
-                TextField(String(localized: "Message"), text: $message, axis: .vertical)
+                TextField(String(localized: "Project Name"), text: $projectName)
+                TextField(String(localized: "Model Name"), text: $modelName)
+                TextField(String(localized: "Agent Name"), text: $agentName)
+                Toggle(String(localized: "Show Cursor Icon"), isOn: $showCursorIcon)
+                TextField(String(localized: "Status Text"), text: $message, axis: .vertical)
                     .lineLimit(2...5)
 
                 HStack {
                     Button(String(localized: "Show Bubble")) {
-                        runtime.showDebugBubble(message)
+                        runtime.showDebugBubble(
+                            text: message,
+                            agentName: agentName,
+                            projectName: projectName,
+                            modelName: modelName,
+                            showCursorIcon: showCursorIcon
+                        )
                     }
                     .disabled(!canShow)
 
@@ -388,7 +441,7 @@ private struct DevelopmentSettingsPane: View {
                     }
                 }
 
-                Text(String(localized: "Adds a bubble on top of the stack. Cleared or overwritten by the next real agent event."))
+                Text(String(localized: "Leave Project / Model empty to hide the header row. Cleared or overwritten by the next real agent event."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
