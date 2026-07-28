@@ -78,7 +78,7 @@ struct StatusBubble: View {
                     }
                     if let modelName = item.modelName, !modelName.isEmpty {
                         Text(modelName)
-                            .font(.system(size: 12)
+                            .font(.system(size: 12))
                             .foregroundStyle(ink.opacity(0.6))
                             .lineLimit(1)
                     }
@@ -96,24 +96,33 @@ struct StatusBubble: View {
 
     @ViewBuilder
     private func statusText(ink: Color) -> some View {
-        let base = Self.strippingTrailingEllipsis(item.text)
-        TimelineView(.animation(minimumInterval: Self.ellipsisInterval)) { context in
-            let count = Int(context.date.timeIntervalSinceReferenceDate / Self.ellipsisInterval) % 3 + 1
-            let dots = String(repeating: ".", count: count)
-            // Layout against the widest form ("...") so 1↔2↔3 dots don’t reflow.
-            Text(base + "...")
+        if item.animatesEllipsis {
+            let base = Self.strippingTrailingEllipsis(item.text)
+            TimelineView(.animation(minimumInterval: Self.ellipsisInterval)) { context in
+                let count = Int(context.date.timeIntervalSinceReferenceDate / Self.ellipsisInterval) % 3 + 1
+                let dots = String(repeating: ".", count: count)
+                // Layout against the widest form ("...") so 1↔2↔3 dots don’t reflow.
+                Text(base + "...")
+                    .font(.system(size: 14, weight: .regular))
+                    .lineHeight(.exact(points: statusLineHeight))
+                    .hidden()
+                    .overlay(alignment: .topLeading) {
+                        Text(base + dots)
+                            .font(.system(size: 14, weight: .regular))
+                            .lineHeight(.exact(points: statusLineHeight))
+                            .foregroundStyle(ink)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .accessibilityLabel(base + dots)
+            }
+        } else {
+            Text(item.text)
                 .font(.system(size: 14, weight: .regular))
                 .lineHeight(.exact(points: statusLineHeight))
-                .hidden()
-                .overlay(alignment: .topLeading) {
-                    Text(base + dots)
-                        .font(.system(size: 14, weight: .regular))
-                        .lineHeight(.exact(points: statusLineHeight))
-                        .foregroundStyle(ink)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .accessibilityLabel(base + dots)
+                .foregroundStyle(ink)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

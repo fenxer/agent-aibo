@@ -378,6 +378,7 @@ final class PetRuntime {
                     text: text,
                     lastEventAt: snapshot.lastEventAt,
                     isDismissible: snapshot.activity == .failed,
+                    animatesEllipsis: Self.animatesEllipsis(for: snapshot.activity),
                     agentName: StatusCopy.displayName(key.agent),
                     iconAssetName: Self.iconAssetName(for: key.agent),
                     projectName: meta?.projectName,
@@ -398,6 +399,14 @@ final class PetRuntime {
         switch agent {
         case .cursor: "cursor"
         case .codex: nil
+        }
+    }
+
+    /// Terminal hook states keep static copy — no loading-dot cycle.
+    private static func animatesEllipsis(for activity: PetActivityState) -> Bool {
+        switch activity {
+        case .done, .interrupted: false
+        default: true
         }
     }
 

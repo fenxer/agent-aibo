@@ -8,6 +8,8 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
     var lastEventAt: Date
     /// When true, a click/tap clears the bubble (used for `.failed`).
     var isDismissible: Bool = false
+    /// When true, status text cycles trailing `.` / `..` / `...`. Off for terminal states.
+    var animatesEllipsis: Bool = true
     /// Label inside the agent capsule (e.g. "Cursor").
     var agentName: String = ""
     /// Template image asset name for the capsule icon, if any.
