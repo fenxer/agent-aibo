@@ -7,11 +7,17 @@ final class PetPanelController {
     static let shared = PetPanelController()
 
     private(set) var isVisible = false
+    /// When false, the pet sprite vanishes (Pow); panel `orderOut` follows after the effect.
+    private(set) var isContentPresented = true
+    /// 0 = above / squashed, 1 = settled. Explicit show motion (not Pow boing).
+    private(set) var petAppearProgress: CGFloat = 1
 
     private var panel: PetPanel?
+    private var rootView: PetPanelRootView?
     private var hostingView: PassThroughHostingView<PetView>?
     private var screenObserver: NSObjectProtocol?
     private var hasPlacedInitially = false
+    private var hideTask: Task<Void, Never>?
     /// Last layout we sized/positioned for — used to keep the pet fixed on screen.
     private var laidOutBubbleCount = 0
     private var laidOutPlacement: BubblePlacement = .top
@@ -34,23 +40,80 @@ final class PetPanelController {
     private init() {}
 
     func show() {
+        hideTask?.cancel()
+        hideTask = nil
+
         let panel = panel ?? makePanel()
         self.panel = panel
-        refreshContent()
+        // Menu / launch path — safe to size synchronously (not inside a layout pass).
+        applyGeometryNow()
         if !hasPlacedInitially {
             placeAtDefaultCorner()
             hasPlacedInitially = true
         } else {
             clampToVisibleScreen()
         }
+
+        // First launch: already presented. After hide: re-insert with identity, then
+        // spring petAppearProgress (Pow `.boing` GeometryEffect collapses this panel).
+        let shouldBoing = !isContentPresented
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            if shouldBoing {
+                petAppearProgress = 0
+                isContentPresented = true
+            } else {
+                petAppearProgress = 1
+                isContentPresented = true
+            }
+        }
+
+        freezePanelSize()
         panel.orderFrontRegardless()
         isVisible = true
         startObservingScreenChangesIfNeeded()
+
+        if shouldBoing {
+            hideTask = Task { @MainActor in
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                withAnimation(PetAppearance.boingAnimation) {
+                    petAppearProgress = 1
+                }
+                hideTask = nil
+            }
+        }
     }
 
     func hide() {
-        panel?.orderOut(nil)
+        guard isVisible else { return }
         isVisible = false
+        hideTask?.cancel()
+
+        hideTask = Task { @MainActor in
+            // Let the menu dismiss finish — mutating the panel during that layout pass
+            // triggers NSHostingView constraint recursion.
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+
+            freezePanelSize()
+            // Do not setFrame / resize here. Vanish must run against a stable panel size.
+            withAnimation(PetAppearance.vanishAnimation) {
+                isContentPresented = false
+            }
+
+            try? await Task.sleep(for: PetAppearance.vanishDuration + .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            panel?.orderOut(nil)
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                petAppearProgress = 0
+            }
+            // Keep isContentPresented == false so the next show can animate in.
+            hideTask = nil
+        }
     }
 
     func toggle() {
@@ -61,36 +124,75 @@ final class PetPanelController {
         }
     }
 
+    /// Keep content min==max at the managed frame so SwiftUI can't shrink the panel to 0.
+    private func freezePanelSize() {
+        guard let panel else { return }
+        let minSide = petBlockMinimum(petSize: currentPetSize)
+        var frame = panel.frame
+        if frame.width < minSide || frame.height < minSide {
+            frame.size.width = max(frame.width, minSide)
+            frame.size.height = max(frame.height, minSide)
+            panel.setFrame(frame, display: false)
+            applyContentFrame(frame.size)
+        }
+        pinContentSize(frame.size)
+    }
+
+    private func pinContentSize(_ size: NSSize) {
+        guard let panel else { return }
+        let safe = NSSize(width: max(size.width, 1), height: max(size.height, 1))
+        panel.contentMinSize = safe
+        panel.contentMaxSize = safe
+    }
+
+    private func applyContentFrame(_ size: NSSize) {
+        let bounds = NSRect(origin: .zero, size: size)
+        rootView?.frame = bounds
+        hostingView?.frame = bounds
+    }
+
     func refreshContent() {
         guard panel != nil else { return }
         let bubbleCount = PetRuntime.shared.bubbleItems.count
-        // PetView observes runtime/settings; this only resizes the NSPanel.
-        // Grow immediately so insertion isn't clipped; delay shrink so removal can finish.
+        // Grow: defer one turn so we aren't inside SwiftUI/AppKit layout.
+        // Shrink: wait for Pow poof (0.4s) so the cloud isn't clipped.
         if bubbleCount < laidOutBubbleCount {
-            scheduleShrinkGeometry()
-            return
+            scheduleGeometryUpdate(after: .milliseconds(420))
+        } else {
+            scheduleGeometryUpdate(after: .zero)
         }
+    }
+
+    /// Flush any pending resize and apply now. Caller must not be mid-layout.
+    private func applyGeometryNow() {
+        pendingGeometryTask?.cancel()
+        pendingGeometryTask = nil
         applyGeometryPreservingPetCenter()
         clampToVisibleScreen()
     }
 
-    private var pendingShrinkTask: Task<Void, Never>?
+    private var pendingGeometryTask: Task<Void, Never>?
 
-    private func scheduleShrinkGeometry() {
-        pendingShrinkTask?.cancel()
-        pendingShrinkTask = Task { @MainActor in
-            // Match Pow poof (0.4s) so the cloud isn't clipped by panel shrink.
-            try? await Task.sleep(for: .milliseconds(420))
-            guard !Task.isCancelled else { return }
+    /// Coalesce panel resizes off the current layout/update pass.
+    /// Sync `setFrame(display:)` during SwiftUI updates triggers
+    /// `layoutSubtreeIfNeeded` recursion warnings and Update Constraints crashes.
+    private func scheduleGeometryUpdate(after delay: Duration) {
+        pendingGeometryTask?.cancel()
+        pendingGeometryTask = Task { @MainActor in
+            if delay == .zero {
+                await Task.yield()
+            } else {
+                try? await Task.sleep(for: delay)
+            }
+            guard !Task.isCancelled, panel != nil else { return }
             applyGeometryPreservingPetCenter()
             clampToVisibleScreen()
+            pendingGeometryTask = nil
         }
     }
 
     private func applyGeometryPreservingPetCenter() {
         guard let panel else { return }
-        pendingShrinkTask?.cancel()
-        pendingShrinkTask = nil
 
         let items = PetRuntime.shared.bubbleItems
         let placement = AppSettings.shared.bubblePlacement
@@ -128,8 +230,10 @@ final class PetPanelController {
         newFrame.origin.x = petOnScreen.x - newPetCenter.x
         newFrame.origin.y = petOnScreen.y - newPetCenter.y
 
-        panel.setFrame(newFrame, display: true)
-        hostingView?.frame = NSRect(origin: .zero, size: safeSize)
+        // `display: false` avoids forcing layoutSubtreeIfNeeded inside an active layout pass.
+        panel.setFrame(newFrame, display: false)
+        applyContentFrame(safeSize)
+        pinContentSize(safeSize)
         laidOutBubbleCount = bubbleCount
         laidOutPlacement = placement
         laidOutPetSize = petSize
@@ -154,21 +258,33 @@ final class PetPanelController {
         let items = PetRuntime.shared.bubbleItems
         let petSize = currentPetSize
         let initialSize = panelSize(items: items, petSize: petSize, placement: placement)
-        let panel = PetPanel(contentRect: NSRect(origin: .zero, size: initialSize))
+        let safeInitial = NSSize(
+            width: max(initialSize.width, petBlockMinimum(petSize: petSize)),
+            height: max(initialSize.height, petBlockMinimum(petSize: petSize))
+        )
+        let panel = PetPanel(contentRect: NSRect(origin: .zero, size: safeInitial))
+
+        // Hosting view must NOT be the window contentView — see PetPanelRootView.
+        let rootView = PetPanelRootView(frame: NSRect(origin: .zero, size: safeInitial))
         let hostingView = PassThroughHostingView(
             rootView: PetView(),
             hitTestImage: NSImage(named: "DefaultPet")
         )
-        // We size the panel explicitly; don't let SwiftUI intrinsic size move the window.
         hostingView.sizingOptions = []
-        hostingView.frame = NSRect(origin: .zero, size: initialSize)
-        panel.contentView = hostingView
+        hostingView.clipsToBounds = false
+        hostingView.frame = rootView.bounds
+        hostingView.autoresizingMask = [.width, .height]
+        rootView.addSubview(hostingView)
+        panel.contentView = rootView
+
+        self.rootView = rootView
         self.hostingView = hostingView
+        pinContentSize(safeInitial)
         laidOutBubbleCount = items.count
         laidOutPlacement = placement
         laidOutPetSize = petSize
         updatePetHitRect(
-            panelSize: initialSize,
+            panelSize: safeInitial,
             petSize: petSize,
             placement: placement,
             bubbleCount: items.count
@@ -322,7 +438,7 @@ final class PetPanelController {
         var frame = panel.frame
         frame.origin.x = visible.maxX - frame.width - screenPadding
         frame.origin.y = visible.minY + screenPadding
-        panel.setFrame(frame, display: true)
+        panel.setFrame(frame, display: false)
     }
 
     private func clampToVisibleScreen() {
@@ -355,6 +471,8 @@ final class PetPanelController {
             frame.origin.y = visible.minY
         }
 
-        panel.setFrame(frame, display: true)
+        panel.setFrame(frame, display: false)
+        applyContentFrame(frame.size)
+        pinContentSize(frame.size)
     }
 }

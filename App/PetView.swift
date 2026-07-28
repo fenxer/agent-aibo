@@ -1,3 +1,4 @@
+import Pow
 import SwiftUI
 
 struct PetView: View {
@@ -7,6 +8,8 @@ struct PetView: View {
     var placementOverride: BubblePlacement? = nil
     /// Preview / test override; `nil` derives from `AppSettings.shared.petScalePercent`.
     var petSizeOverride: CGFloat? = nil
+
+    @State private var panelController = PetPanelController.shared
 
     private let stackSpacing: CGFloat = 4
     private let petBubbleSpacing: CGFloat = 6
@@ -35,6 +38,8 @@ struct PetView: View {
     var body: some View {
         // Keep one layout tree (even with zero bubbles) so insert/remove
         // transitions are not torn down by switching to a pet-only branch.
+        // Hide vanishes only the pet sprite (local transition) and fades bubbles —
+        // never remove this root tree while resizing the NSPanel (constraint loop).
         positionedContent
             .padding(8)
             .gesture(WindowDragGesture())
@@ -46,7 +51,7 @@ struct PetView: View {
         switch placement {
         case .top:
             VStack(spacing: petBubbleSpacing) {
-                bubbleStack(nearPetIndex: bubbleItems.count - 1)
+                fadingBubbleStack(nearPetIndex: bubbleItems.count - 1)
                 petImage
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -54,23 +59,40 @@ struct PetView: View {
             VStack(spacing: petBubbleSpacing) {
                 petImage
                 // Oldest nearest pet (arrow); newer grow downward.
-                bubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0)
+                fadingBubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         case .left:
             HStack(alignment: .center, spacing: 0) {
                 // Layout height = near-pet bubble only; older bubbles grow upward.
-                sideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
                 petImage
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         case .right:
             HStack(alignment: .center, spacing: 0) {
                 petImage
-                sideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
+    }
+
+    @ViewBuilder
+    private func fadingBubbleStack(nearPetIndex: Int) -> some View {
+        fadingBubbleStack(items: bubbleItems, nearPetIndex: nearPetIndex)
+    }
+
+    @ViewBuilder
+    private func fadingBubbleStack(items: [StatusBubbleItem], nearPetIndex: Int) -> some View {
+        bubbleStack(items: items, nearPetIndex: nearPetIndex)
+            .opacity(panelController.isContentPresented ? 1 : 0)
+    }
+
+    @ViewBuilder
+    private func fadingSideAnchoredBubbleStack(nearPetIndex: Int) -> some View {
+        sideAnchoredBubbleStack(nearPetIndex: nearPetIndex)
+            .opacity(panelController.isContentPresented ? 1 : 0)
     }
 
     /// `bubbleItems` are newest-first; arrow sits on the bubble nearest the pet.
@@ -143,12 +165,41 @@ struct PetView: View {
     }
 
     private var petImage: some View {
-        Image("DefaultPet")
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .frame(width: petSize, height: petSize)
-            .accessibilityLabel(String(localized: "Desktop pet"))
+        let progress = panelController.petAppearProgress
+        // progress 0: above + vertically squashed; 1: settled (spring may overshoot >1).
+        let clamped = max(progress, 0)
+        let squash = min(max(0.72 + clamped * 0.28, 0.55), 1.2)
+        let widen = min(max(1.18 - clamped * 0.18, 0.9), 1.25)
+
+        return ZStack {
+            // Keep layout size while the sprite is removed for Pow vanish.
+            Color.clear
+                .frame(width: petSize, height: petSize)
+
+            if panelController.isContentPresented {
+                Image("DefaultPet")
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: petSize, height: petSize)
+                    .scaleEffect(x: widen, y: squash, anchor: .bottom)
+                    .offset(y: (1 - clamped) * -petSize * 1.35)
+                    .contentShape(Rectangle())
+                    .contextMenu { AiboAppMenu() }
+                    // Insertion must stay `.identity` — Pow `.boing` is a GeometryEffect
+                    // that makes NSHostingView zero out PetPanel's width.
+                    .transition(
+                        .asymmetric(
+                            insertion: .identity,
+                            removal: .movingParts.vanish(
+                                PetAppearance.dominantColor,
+                                increasedBrightness: false
+                            )
+                        )
+                    )
+            }
+        }
+        .accessibilityLabel(String(localized: "Desktop pet"))
     }
 }
 

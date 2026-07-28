@@ -52,6 +52,11 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
+        // Control-click is the classic context-menu gesture; don't steal it for dragging.
+        if event.modifierFlags.contains(.control) {
+            super.mouseDown(with: event)
+            return
+        }
         // Drag the panel only from opaque pet pixels; bubbles need SwiftUI taps
         // (e.g. dismiss `.failed`).
         if isOpaquePetHit(at: point) {
