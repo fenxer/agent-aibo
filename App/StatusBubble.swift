@@ -67,8 +67,22 @@ struct StatusBubble: View {
         capsuleFill: Color,
         capsuleContent: Color
     ) -> some View {
+        switch item.kind {
+        case .agent:
+            agentBubbleContent(ink: ink, capsuleFill: capsuleFill, capsuleContent: capsuleContent)
+        case .webhook:
+            webhookBubbleContent(ink: ink, capsuleFill: capsuleFill, capsuleContent: capsuleContent)
+        }
+    }
+
+    @ViewBuilder
+    private func agentBubbleContent(
+        ink: Color,
+        capsuleFill: Color,
+        capsuleContent: Color
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if hasHeader {
+            if hasAgentHeader {
                 HStack(spacing: headerSpacing) {
                     if let projectName = item.projectName, !projectName.isEmpty {
                         Text(projectName)
@@ -88,6 +102,40 @@ struct StatusBubble: View {
             // Capsule / status share line height; firstTextBaseline keeps glyphs aligned.
             HStack(alignment: .firstTextBaseline, spacing: headerSpacing) {
                 agentCapsule(fill: capsuleFill, content: capsuleContent)
+                statusText(ink: ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func webhookBubbleContent(
+        ink: Color,
+        capsuleFill: Color,
+        capsuleContent: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: headerSpacing) {
+                if !item.agentName.isEmpty {
+                    Text(item.agentName)
+                        .font(.system(size: 12))
+                        .foregroundStyle(ink)
+                        .lineLimit(1)
+                }
+                Text(Self.relativeTimeString(from: item.lastEventAt))
+                    .font(.system(size: 12))
+                    .foregroundStyle(ink.opacity(0.6))
+                    .lineLimit(1)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: headerSpacing) {
+                if let statusLabel = item.statusLabel, !statusLabel.isEmpty {
+                    webhookStatusCapsule(
+                        status: statusLabel,
+                        fill: capsuleFill,
+                        content: capsuleContent
+                    )
+                }
                 statusText(ink: ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -140,7 +188,7 @@ struct StatusBubble: View {
 
     private static let ellipsisInterval: TimeInterval = 0.45
 
-    private var hasHeader: Bool {
+    private var hasAgentHeader: Bool {
         let hasProject = !(item.projectName ?? "").isEmpty
         let hasModel = !(item.modelName ?? "").isEmpty
         return hasProject || hasModel
@@ -169,6 +217,30 @@ struct StatusBubble: View {
         .padding(.trailing, 8)
         .frame(minHeight: capsuleHeight)
         .background(Capsule().fill(fill))
+    }
+
+    /// Webhook status capsule: symmetric 8pt horizontal padding (no icon).
+    @ViewBuilder
+    private func webhookStatusCapsule(status: String, fill: Color, content: Color) -> some View {
+        Text(status)
+            .font(.system(size: 12, weight: .regular))
+            .foregroundStyle(content)
+            .lineLimit(1)
+            .padding(.top, 2)
+            .padding(.bottom, 2)
+            .padding(.horizontal, 8)
+            .frame(minHeight: capsuleHeight)
+            .background(Capsule().fill(fill))
+    }
+
+    private static let relativeTimeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
+    private static func relativeTimeString(from date: Date) -> String {
+        relativeTimeFormatter.localizedString(for: date, relativeTo: Date())
     }
 
     @ViewBuilder
@@ -291,6 +363,23 @@ struct StatusBubble: View {
         ),
         placement: .top,
         showsArrow: false
+    )
+    .padding(40)
+    .background(Color.secondary.opacity(0.25))
+}
+
+#Preview("webhook") {
+    StatusBubble(
+        item: StatusBubbleItem(
+            id: "webhook:1",
+            text: "deployed main@abc1234",
+            lastEventAt: .now.addingTimeInterval(-3 * 60 * 60),
+            kind: .webhook,
+            animatesEllipsis: false,
+            agentName: "Deploy Bot",
+            statusLabel: "FINISHED"
+        ),
+        placement: .top
     )
     .padding(40)
     .background(Color.secondary.opacity(0.25))

@@ -33,8 +33,6 @@ final class PetRuntime {
     private var debugBubbleItem: StatusBubbleItem?
     #endif
 
-    private static let webhookBubbleTTL: TimeInterval = 12
-
     private struct SessionDisplayMeta: Equatable, Sendable {
         var projectName: String?
         var modelName: String?
@@ -129,18 +127,41 @@ final class PetRuntime {
     }
 
     func ingestWebhook(_ delivery: WebhookDelivery) {
+        let trimmedSummary = delivery.summary?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedStatus = delivery.status?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let summaryText =
+            if let trimmedSummary, !trimmedSummary.isEmpty {
+                trimmedSummary
+            } else {
+                delivery.displayText
+            }
+        let dismissMode = AppSettings.shared.webhookDismissMode
         let item = StatusBubbleItem(
             id: "webhook:\(delivery.id)",
-            text: delivery.displayText,
+            text: summaryText,
             lastEventAt: delivery.receivedAt,
-            agentName: delivery.source
+            kind: .webhook,
+            isDismissible: dismissMode == .onClick,
+            animatesEllipsis: false,
+            agentName: delivery.source,
+            statusLabel: (trimmedStatus?.isEmpty == false) ? trimmedStatus : nil
         )
         webhookBubbles.removeAll { $0.id == item.id }
         webhookBubbles.append(item)
         recordReceive(delivery)
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
-        scheduleWebhookExpiry(for: item.id)
+        switch dismissMode {
+        case .onClick:
+            cancelWebhookExpiry(for: item.id)
+        case .afterSeconds:
+            scheduleWebhookExpiry(
+                for: item.id,
+                seconds: AppSettings.shared.webhookAutoDismissSeconds
+            )
+        }
     }
 
     /// Local test / DEBUG helper: format raw body the same way as HTTP ingest.
@@ -150,14 +171,20 @@ final class PetRuntime {
             WebhookDelivery(
                 id: id,
                 source: parsed.source,
+                status: parsed.status,
+                summary: parsed.summary,
                 displayText: parsed.displayText,
                 receivedAt: Date()
             )
         )
     }
 
-    /// Clears a dismissible bubble (currently `.failed` agent status) on user click.
+    /// Clears a dismissible bubble on user click (webhook, or `.failed` agent status).
     func dismissBubble(id: String) {
+        if webhookBubbles.contains(where: { $0.id == id && $0.isDismissible }) {
+            removeWebhookBubble(id: id)
+            return
+        }
         for (key, snapshot) in world.sessions {
             guard snapshot.activity == .failed else { continue }
             let itemID = "\(key.agent.rawValue):\(key.conversationID)"
@@ -410,19 +437,30 @@ final class PetRuntime {
         }
     }
 
-    private func scheduleWebhookExpiry(for id: String) {
-        webhookExpiryTasks[id]?.cancel()
+    private func scheduleWebhookExpiry(for id: String, seconds: Int) {
+        cancelWebhookExpiry(for: id)
+        let delay = max(1, seconds)
         webhookExpiryTasks[id] = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(Self.webhookBubbleTTL))
+            try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                guard let self else { return }
-                self.webhookBubbles.removeAll { $0.id == id }
-                self.webhookExpiryTasks[id] = nil
-                self.refreshBubbleItems()
-                PetPanelController.shared.refreshContent()
+                self?.removeWebhookBubble(id: id)
             }
         }
+    }
+
+    private func cancelWebhookExpiry(for id: String) {
+        webhookExpiryTasks[id]?.cancel()
+        webhookExpiryTasks[id] = nil
+    }
+
+    private func removeWebhookBubble(id: String) {
+        cancelWebhookExpiry(for: id)
+        let before = webhookBubbles.count
+        webhookBubbles.removeAll { $0.id == id }
+        guard webhookBubbles.count != before else { return }
+        refreshBubbleItems()
+        PetPanelController.shared.refreshContent()
     }
 
     private func scheduleIdleDeadline() {

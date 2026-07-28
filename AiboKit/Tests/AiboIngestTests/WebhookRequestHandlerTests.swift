@@ -35,6 +35,8 @@ import Testing
     let once = WebhookRequestHandler.handle(request: request, secret: secret, idCache: &cache)
     #expect(once.statusCode == 200)
     #expect(once.delivery?.displayText == "FINISHED: done")
+    #expect(once.delivery?.status == "FINISHED")
+    #expect(once.delivery?.summary == "done")
     #expect(once.delivery?.id == "delivery-1")
 
     let twice = WebhookRequestHandler.handle(request: request, secret: secret, idCache: &cache)

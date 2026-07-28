@@ -2,20 +2,30 @@ import Foundation
 
 /// One status bubble in the stacked display.
 struct StatusBubbleItem: Identifiable, Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
+        /// Local agent hooks: project/model header + agent capsule + status phrase.
+        case agent
+        /// Remote webhook: source + relative time header + status capsule + summary.
+        case webhook
+    }
+
     var id: String
-    /// Status / body text shown beside the agent capsule.
+    /// Body text beside the capsule (agent status phrase, or webhook summary).
     var text: String
     var lastEventAt: Date
+    var kind: Kind = .agent
     /// When true, a click/tap clears the bubble (used for `.failed`).
     var isDismissible: Bool = false
     /// When true, status text cycles trailing `.` / `..` / `...`. Off for terminal states.
     var animatesEllipsis: Bool = true
-    /// Label inside the agent capsule (e.g. "Cursor").
+    /// Agent capsule label, or webhook `source` in the header.
     var agentName: String = ""
-    /// Template image asset name for the capsule icon, if any.
+    /// Template image asset name for the agent capsule icon, if any.
     var iconAssetName: String? = nil
-    /// Last path component of the workspace / cwd, when known.
+    /// Last path component of the workspace / cwd, when known (agent only).
     var projectName: String? = nil
-    /// Active model label, when known.
+    /// Active model label, when known (agent only).
     var modelName: String? = nil
+    /// Webhook `status` shown inside the capsule.
+    var statusLabel: String? = nil
 }

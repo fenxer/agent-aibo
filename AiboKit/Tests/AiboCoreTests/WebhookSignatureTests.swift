@@ -21,7 +21,10 @@ import Testing
     let body = Data(
         #"{"event":"statusChange","status":"FINISHED","summary":"Added README"}"#.utf8
     )
-    #expect(WebhookMessageFormatter.displayText(from: body) == "FINISHED: Added README")
+    let parsed = WebhookMessageFormatter.parse(from: body)
+    #expect(parsed.displayText == "FINISHED: Added README")
+    #expect(parsed.status == "FINISHED")
+    #expect(parsed.summary == "Added README")
 }
 
 @Test func webhookMessageExtractsSource() {
@@ -33,7 +36,10 @@ import Testing
     let explicit = Data(
         #"{"source":"Deploy Bot","summary":"shipped"}"#.utf8
     )
-    #expect(WebhookMessageFormatter.parse(from: explicit).source == "Deploy Bot")
+    let parsed = WebhookMessageFormatter.parse(from: explicit)
+    #expect(parsed.source == "Deploy Bot")
+    #expect(parsed.summary == "shipped")
+    #expect(parsed.status == nil)
 }
 
 @Test func webhookIDCacheDedups() {

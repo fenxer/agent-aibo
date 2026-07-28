@@ -292,7 +292,26 @@ private struct IntegrationsSettingsPane: View {
                     }
                 }
 
-                Text(String(localized: "Bound to 127.0.0.1 only. Public senders need your own tunnel (Cloudflare Tunnel, Tailscale Funnel, etc.). Requests are shown as raw bubble text for now — no LLM rewrite yet."))
+                Picker(String(localized: "Dismiss Bubble"), selection: $settings.webhookDismissMode) {
+                    ForEach(WebhookDismissMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+
+                if settings.webhookDismissMode == .afterSeconds {
+                    LabeledContent(String(localized: "Seconds")) {
+                        TextField(
+                            String(localized: "Seconds"),
+                            value: $settings.webhookAutoDismissSeconds,
+                            format: .number
+                        )
+                        .labelsHidden()
+                        .frame(width: 64)
+                    }
+                }
+
+                Text(String(localized: "Bound to 127.0.0.1 only. Public senders need your own tunnel (Cloudflare Tunnel, Tailscale Funnel, etc.). Requests are shown as raw bubble text for now — no LLM rewrite yet. Default dismiss is click; optional auto-dismiss uses the seconds above."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
@@ -445,10 +464,11 @@ private struct DevelopmentSettingsPane: View {
     @State private var message = "is thinking"
     @State private var webhookJSON = """
         {
-          "event": "statusChange",
-          "id": "bc_test",
+          "source": "Deploy Bot",
           "status": "FINISHED",
-          "summary": "Added README.md with installation instructions"
+          "summary": "deployed main@abc1234",
+          "event": "workers.deploy",
+          "id": "build-test-1"
         }
         """
     @State private var webhookStatus: String?
@@ -499,7 +519,7 @@ private struct DevelopmentSettingsPane: View {
             Section {
                 TextEditor(text: $webhookJSON)
                     .font(.system(.caption, design: .monospaced))
-                    .frame(minHeight: 120)
+                    .frame(minHeight: 140)
 
                 HStack {
                     Button(String(localized: "Inject Webhook Bubble")) {

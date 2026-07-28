@@ -16,6 +16,8 @@ final class AppSettings {
         static let petScalePercent = "settings.petScalePercent"
         static let webhookEnabled = "settings.webhookEnabled"
         static let webhookPort = "settings.webhookPort"
+        static let webhookDismissMode = "settings.webhookDismissMode"
+        static let webhookAutoDismissSeconds = "settings.webhookAutoDismissSeconds"
         static let webhookSecretAccount = "webhook.sharedSecret"
     }
 
@@ -23,6 +25,8 @@ final class AppSettings {
     /// Pet image size as a percentage of the base 96pt sprite. Range 0…200; default 100.
     static let defaultPetScalePercent: Double = 100
     static let petScalePercentRange: ClosedRange<Double> = 0...200
+    static let defaultWebhookAutoDismissSeconds = 12
+    static let webhookAutoDismissSecondsRange = 1...600
 
     var bubblePlacement: BubblePlacement {
         didSet {
@@ -80,6 +84,27 @@ final class AppSettings {
         }
     }
 
+    /// Default `.onClick` — webhook bubbles stay until the user dismisses them.
+    var webhookDismissMode: WebhookDismissMode {
+        didSet {
+            guard oldValue != webhookDismissMode else { return }
+            UserDefaults.standard.set(webhookDismissMode.rawValue, forKey: Keys.webhookDismissMode)
+        }
+    }
+
+    /// Used when `webhookDismissMode == .afterSeconds`.
+    var webhookAutoDismissSeconds: Int {
+        didSet {
+            let clamped = Self.clampWebhookAutoDismissSeconds(webhookAutoDismissSeconds)
+            if clamped != webhookAutoDismissSeconds {
+                webhookAutoDismissSeconds = clamped
+                return
+            }
+            guard oldValue != webhookAutoDismissSeconds else { return }
+            UserDefaults.standard.set(webhookAutoDismissSeconds, forKey: Keys.webhookAutoDismissSeconds)
+        }
+    }
+
     private(set) var webhookSecret: String
 
     var webhookURLString: String {
@@ -111,6 +136,18 @@ final class AppSettings {
             webhookPort = Self.defaultWebhookPort
         }
 
+        let dismissRaw = UserDefaults.standard.string(forKey: Keys.webhookDismissMode)
+            ?? WebhookDismissMode.onClick.rawValue
+        webhookDismissMode = WebhookDismissMode(rawValue: dismissRaw) ?? .onClick
+
+        if UserDefaults.standard.object(forKey: Keys.webhookAutoDismissSeconds) != nil {
+            webhookAutoDismissSeconds = Self.clampWebhookAutoDismissSeconds(
+                UserDefaults.standard.integer(forKey: Keys.webhookAutoDismissSeconds)
+            )
+        } else {
+            webhookAutoDismissSeconds = Self.defaultWebhookAutoDismissSeconds
+        }
+
         if let existing = KeychainStore.string(forAccount: Keys.webhookSecretAccount), !existing.isEmpty {
             webhookSecret = existing
         } else {
@@ -131,6 +168,10 @@ final class AppSettings {
 
     private static func clampPetScalePercent(_ value: Double) -> Double {
         min(max(value, petScalePercentRange.lowerBound), petScalePercentRange.upperBound)
+    }
+
+    private static func clampWebhookAutoDismissSeconds(_ value: Int) -> Int {
+        min(max(value, webhookAutoDismissSecondsRange.lowerBound), webhookAutoDismissSecondsRange.upperBound)
     }
 
     private static func makeSecret() -> String {

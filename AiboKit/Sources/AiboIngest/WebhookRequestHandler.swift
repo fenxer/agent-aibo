@@ -47,6 +47,8 @@ public enum WebhookRequestHandler {
             delivery: WebhookDelivery(
                 id: deliveryID,
                 source: parsed.source,
+                status: parsed.status,
+                summary: parsed.summary,
                 displayText: parsed.displayText,
                 receivedAt: now
             )
