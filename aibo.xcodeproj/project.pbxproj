@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		3A3091E43017080000431C96 /* AiboIngest in Frameworks */ = {isa = PBXBuildFile; productRef = 3A3091E13017080000431C96 /* AiboIngest */; };
 		3A3091E53017080000431C96 /* AiboLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 3A3091E23017080000431C96 /* AiboLLM */; };
+		A1B0P0W43017080000431C96 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = A1B0P0W23017080000431C96 /* Pow */; };
 		3A3091F53017090000431C96 /* AiboHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3091F43017090000431C96 /* AiboHook.swift */; };
 		3A3091F83017090000431C96 /* aibo-hook in Copy Helpers */ = {isa = PBXBuildFile; fileRef = 3A3091F03017090000431C96 /* aibo-hook */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -55,6 +56,7 @@
 			files = (
 				3A3091E43017080000431C96 /* AiboIngest in Frameworks */,
 				3A3091E53017080000431C96 /* AiboLLM in Frameworks */,
+				A1B0P0W43017080000431C96 /* Pow in Frameworks */,
 			);
 		};
 		3A3091F33017090000431C96 /* Frameworks */ = {
@@ -115,6 +117,7 @@
 			packageProductDependencies = (
 				3A3091E13017080000431C96 /* AiboIngest */,
 				3A3091E23017080000431C96 /* AiboLLM */,
+				A1B0P0W23017080000431C96 /* Pow */,
 			);
 			productName = aibo;
 			productReference = 3A3091CD3017070E00431C96 /* aibo.app */;
@@ -163,6 +166,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				3A3091E03017080000431C96 /* XCLocalSwiftPackageReference "AiboKit" */,
+				A1B0P0W13017080000431C96 /* XCRemoteSwiftPackageReference "Pow" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3A3091CE3017070E00431C96 /* Products */;
@@ -464,6 +468,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A1B0P0W13017080000431C96 /* XCRemoteSwiftPackageReference "Pow" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/EmergeTools/Pow";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.5;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		3A3091E13017080000431C96 /* AiboIngest */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -474,6 +489,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 3A3091E03017080000431C96 /* XCLocalSwiftPackageReference "AiboKit" */;
 			productName = AiboLLM;
+		};
+		A1B0P0W23017080000431C96 /* Pow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B0P0W13017080000431C96 /* XCRemoteSwiftPackageReference "Pow" */;
+			productName = Pow;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

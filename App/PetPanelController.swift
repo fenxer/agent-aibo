@@ -62,13 +62,41 @@ final class PetPanelController {
     }
 
     func refreshContent() {
+        guard panel != nil else { return }
+        let bubbleCount = PetRuntime.shared.bubbleItems.count
+        // PetView observes runtime/settings; this only resizes the NSPanel.
+        // Grow immediately so insertion isn't clipped; delay shrink so removal can finish.
+        if bubbleCount < laidOutBubbleCount {
+            scheduleShrinkGeometry()
+            return
+        }
+        applyGeometryPreservingPetCenter()
+        clampToVisibleScreen()
+    }
+
+    private var pendingShrinkTask: Task<Void, Never>?
+
+    private func scheduleShrinkGeometry() {
+        pendingShrinkTask?.cancel()
+        pendingShrinkTask = Task { @MainActor in
+            // Match Pow poof (0.4s) so the cloud isn't clipped by panel shrink.
+            try? await Task.sleep(for: .milliseconds(420))
+            guard !Task.isCancelled else { return }
+            applyGeometryPreservingPetCenter()
+            clampToVisibleScreen()
+        }
+    }
+
+    private func applyGeometryPreservingPetCenter() {
+        guard let panel else { return }
+        pendingShrinkTask?.cancel()
+        pendingShrinkTask = nil
+
         let items = PetRuntime.shared.bubbleItems
         let placement = AppSettings.shared.bubblePlacement
         let petSize = currentPetSize
         let bubbleCount = items.count
-        guard let panel else { return }
 
-        // Snapshot before rootView update — hosting view must not drive window size.
         let oldFrame = panel.frame
         let oldPetCenter = petCenter(
             in: oldFrame.size,
@@ -81,37 +109,40 @@ final class PetPanelController {
             y: oldFrame.origin.y + oldPetCenter.y
         )
 
-        let rootView = PetView(bubbleItems: items, placement: placement, petSize: petSize)
-        if let hostingView {
-            hostingView.rootView = rootView
-        }
-
         let newSize = panelSize(items: items, petSize: petSize, placement: placement)
+        // Never allow a zero frame — SwiftUI + NSPanel constraint loops crash
+        // with "more Update Constraints in Window passes than there are views".
+        let safeSize = NSSize(
+            width: max(newSize.width, petBlockMinimum(petSize: petSize)),
+            height: max(newSize.height, petBlockMinimum(petSize: petSize))
+        )
         let newPetCenter = petCenter(
-            in: newSize,
+            in: safeSize,
             petSize: petSize,
             placement: placement,
             bubbleCount: bubbleCount
         )
 
         var newFrame = oldFrame
-        newFrame.size = newSize
+        newFrame.size = safeSize
         newFrame.origin.x = petOnScreen.x - newPetCenter.x
         newFrame.origin.y = petOnScreen.y - newPetCenter.y
-        panel.setFrame(newFrame, display: true)
-        hostingView?.frame = NSRect(origin: .zero, size: newSize)
 
+        panel.setFrame(newFrame, display: true)
+        hostingView?.frame = NSRect(origin: .zero, size: safeSize)
         laidOutBubbleCount = bubbleCount
         laidOutPlacement = placement
         laidOutPetSize = petSize
-
         updatePetHitRect(
-            panelSize: newSize,
+            panelSize: safeSize,
             petSize: petSize,
             placement: placement,
             bubbleCount: bubbleCount
         )
-        clampToVisibleScreen()
+    }
+
+    private func petBlockMinimum(petSize: CGFloat) -> CGFloat {
+        max(petSize + contentPadding * 2, 1)
     }
 
     private var currentPetSize: CGFloat {
@@ -125,7 +156,7 @@ final class PetPanelController {
         let initialSize = panelSize(items: items, petSize: petSize, placement: placement)
         let panel = PetPanel(contentRect: NSRect(origin: .zero, size: initialSize))
         let hostingView = PassThroughHostingView(
-            rootView: PetView(bubbleItems: items, placement: placement, petSize: petSize),
+            rootView: PetView(),
             hitTestImage: NSImage(named: "DefaultPet")
         )
         // We size the panel explicitly; don't let SwiftUI intrinsic size move the window.
@@ -308,6 +339,8 @@ final class PetPanelController {
         if frame.height > visible.height {
             frame.size.height = visible.height
         }
+        frame.size.width = max(frame.size.width, 1)
+        frame.size.height = max(frame.size.height, 1)
 
         if frame.maxX > visible.maxX {
             frame.origin.x = visible.maxX - frame.width

@@ -1,6 +1,7 @@
 import AiboCore
 import AiboIngest
 import Foundation
+import SwiftUI
 
 @MainActor
 @Observable
@@ -419,7 +420,24 @@ final class PetRuntime {
             items.append(debugBubbleItem)
         }
         #endif
-        bubbleItems = items.sorted { $0.lastEventAt > $1.lastEventAt }
+        let next = items.sorted { $0.lastEventAt > $1.lastEventAt }
+        let oldIDs = Set(bubbleItems.map(\.id))
+        let newIDs = Set(next.map(\.id))
+        guard oldIDs != newIDs else {
+            bubbleItems = next
+            return
+        }
+        // Only animate the assignment for pure removals (Pow poof). Inserts are
+        // driven by AnimatedStatusBubble.onAppear — wrapping inserts in
+        // withAnimation fights the initial @State and can zero the NSPanel.
+        let onlyRemovals = newIDs.isSubset(of: oldIDs)
+        if onlyRemovals {
+            withAnimation(BubbleMotion.disappear) {
+                bubbleItems = next
+            }
+        } else {
+            bubbleItems = next
+        }
     }
 
     private static func iconAssetName(for agent: AgentKind) -> String? {

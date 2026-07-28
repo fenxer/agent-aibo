@@ -1,24 +1,44 @@
 import SwiftUI
 
 struct PetView: View {
-    var bubbleItems: [StatusBubbleItem] = []
-    var placement: BubblePlacement = .top
-    /// Rendered pet size in points (base 96 × scale%).
-    var petSize: CGFloat = 96
+    /// Preview / test override; `nil` reads `PetRuntime.shared`.
+    var bubbleItemsOverride: [StatusBubbleItem]? = nil
+    /// Preview / test override; `nil` reads `AppSettings.shared`.
+    var placementOverride: BubblePlacement? = nil
+    /// Preview / test override; `nil` derives from `AppSettings.shared.petScalePercent`.
+    var petSizeOverride: CGFloat? = nil
+
     private let stackSpacing: CGFloat = 4
     private let petBubbleSpacing: CGFloat = 6
+    private let basePetSize: CGFloat = 96
+
+    private var bubbleItems: [StatusBubbleItem] {
+        bubbleItemsOverride ?? PetRuntime.shared.bubbleItems
+    }
+
+    private var placement: BubblePlacement {
+        placementOverride ?? AppSettings.shared.bubblePlacement
+    }
+
+    private var petSize: CGFloat {
+        petSizeOverride ?? basePetSize * CGFloat(AppSettings.shared.petScalePercent / 100)
+    }
+
+    private var glassStyle: BubbleGlassStyle {
+        AppSettings.shared.bubbleGlassStyle
+    }
+
+    private var glassTint: Color? {
+        AppSettings.shared.bubbleGlassTint
+    }
 
     var body: some View {
-        Group {
-            if bubbleItems.isEmpty {
-                petImage
-            } else {
-                positionedContent
-            }
-        }
-        .padding(8)
-        .gesture(WindowDragGesture())
-        .allowsWindowActivationEvents()
+        // Keep one layout tree (even with zero bubbles) so insert/remove
+        // transitions are not torn down by switching to a pet-only branch.
+        positionedContent
+            .padding(8)
+            .gesture(WindowDragGesture())
+            .allowsWindowActivationEvents()
     }
 
     @ViewBuilder
@@ -63,28 +83,30 @@ struct PetView: View {
     private func bubbleStack(items: [StatusBubbleItem], nearPetIndex: Int) -> some View {
         VStack(alignment: stackAlignment, spacing: stackSpacing) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                StatusBubble(
+                AnimatedStatusBubble(
                     item: item,
                     placement: placement,
                     showsArrow: index == nearPetIndex,
                     onDismiss: item.isDismissible
                         ? { PetRuntime.shared.dismissBubble(id: item.id) }
-                        : nil
+                        : nil,
+                    glassStyle: glassStyle,
+                    glassTint: glassTint
                 )
             }
         }
+        .animation(nil, value: items.map(\.id))
     }
 
     /// Keeps the near-pet (arrow) bubble vertically centered with the pet;
     /// newer bubbles stack upward without shifting that anchor.
+    ///
+    /// Uses `.overlay` (not `ZStack`) so layout height stays the near-pet bubble
+    /// only; the stack may draw upward outside that frame. A `ZStack` would
+    /// expand to the full stack and collapse the panel into a constraint loop.
     @ViewBuilder
     private func sideAnchoredBubbleStack(nearPetIndex: Int) -> some View {
-        if bubbleItems.indices.contains(nearPetIndex) {
-            StatusBubble(
-                item: bubbleItems[nearPetIndex],
-                placement: placement,
-                showsArrow: true
-            )
+        sideAnchor(nearPetIndex: nearPetIndex)
             .hidden()
             .accessibilityHidden(true)
             .overlay(alignment: .bottom) {
@@ -93,6 +115,21 @@ struct PetView: View {
                     // so multi-line bubbles aren't crushed to one line.
                     .fixedSize(horizontal: false, vertical: true)
             }
+    }
+
+    /// Stable size anchor: near-pet bubble when present, otherwise pet height.
+    @ViewBuilder
+    private func sideAnchor(nearPetIndex: Int) -> some View {
+        if bubbleItems.indices.contains(nearPetIndex) {
+            StatusBubble(
+                item: bubbleItems[nearPetIndex],
+                placement: placement,
+                showsArrow: true,
+                glassStyle: glassStyle,
+                glassTint: glassTint
+            )
+        } else {
+            Color.clear.frame(width: 1, height: petSize)
         }
     }
 
@@ -117,7 +154,7 @@ struct PetView: View {
 
 #Preview("stack above") {
     PetView(
-        bubbleItems: [
+        bubbleItemsOverride: [
             StatusBubbleItem(
                 id: "1",
                 text: "is waiting for you",
@@ -135,13 +172,13 @@ struct PetView: View {
                 modelName: "Grok 4.5 High Fast"
             ),
         ],
-        placement: .top
+        placementOverride: .top
     )
 }
 
 #Preview("left stack") {
     PetView(
-        bubbleItems: [
+        bubbleItemsOverride: [
             StatusBubbleItem(
                 id: "1",
                 text: "is thinking",
@@ -166,6 +203,6 @@ struct PetView: View {
                 iconAssetName: "cursor"
             ),
         ],
-        placement: .left
+        placementOverride: .left
     )
 }
