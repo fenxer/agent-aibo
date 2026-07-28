@@ -7,7 +7,7 @@ import SwiftUI
 /// lives on the content view. The alpha mask is built once from the pet image.
 final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     private let opaqueAlphaThreshold: UInt8 = 26 // ~10%
-    private let hitTestImage: NSImage?
+    private var hitTestImage: NSImage?
     private var alphaMask: AlphaMask?
 
     /// Bottom-centered rect used for pet-image alpha hit testing (window coordinates of content view).
@@ -16,6 +16,11 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     init(rootView: Content, hitTestImage: NSImage?) {
         self.hitTestImage = hitTestImage
         super.init(rootView: rootView)
+    }
+
+    func updateHitTestImage(_ image: NSImage?) {
+        hitTestImage = image
+        alphaMask = nil
     }
 
     @available(*, unavailable)

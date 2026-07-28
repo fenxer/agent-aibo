@@ -1,7 +1,9 @@
+import AiboCore
 import AppKit
 import SwiftUI
 
 /// Visual constants derived from the pet artwork.
+@MainActor
 enum PetAppearance {
     /// Pow `.movingParts.vanish` default timing.
     static let vanishAnimation: Animation = .easeOut(duration: 0.9)
@@ -11,17 +13,21 @@ enum PetAppearance {
     /// makes NSHostingView rewrite PetPanel's content size (width→0) and crash.
     static let boingAnimation: Animation = .interpolatingSpring(stiffness: 220, damping: 14)
 
-    /// Dominant opaque color of `DefaultPet` (cached once).
-    static let dominantColor: Color = Color(nsColor: dominantNSColor)
+    private static var dominantColorCache: [String: Color] = [:]
 
-    private static let dominantNSColor: NSColor = {
-        guard let image = NSImage(named: "DefaultPet"),
-              let color = DominantColorSampler.sample(from: image)
-        else {
-            return .systemPink
-        }
+    /// Dominant opaque color of the current pet artwork (cached per pet id).
+    static func dominantColor(for record: PetLibraryRecord) -> Color {
+        if let cached = dominantColorCache[record.id] { return cached }
+        let image = PetSpriteCache.shared.previewImage(for: record) ?? NSImage(named: "DefaultPet")
+        let nsColor = image.flatMap(DominantColorSampler.sample) ?? .systemPink
+        let color = Color(nsColor: nsColor)
+        dominantColorCache[record.id] = color
         return color
-    }()
+    }
+
+    static func invalidateDominantColorCache() {
+        dominantColorCache.removeAll()
+    }
 }
 
 /// Histogram-based dominant color from opaque sprite pixels.

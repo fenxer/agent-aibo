@@ -1,3 +1,4 @@
+import AiboCore
 import Pow
 import SwiftUI
 
@@ -10,13 +11,15 @@ struct PetView: View {
     var petSizeOverride: CGFloat? = nil
 
     @State private var panelController = PetPanelController.shared
+    private var library = PetLibraryStore.shared
+    private var runtime = PetRuntime.shared
 
     private let stackSpacing: CGFloat = 4
     private let petBubbleSpacing: CGFloat = 6
     private let basePetSize: CGFloat = 96
 
     private var bubbleItems: [StatusBubbleItem] {
-        bubbleItemsOverride ?? PetRuntime.shared.bubbleItems
+        bubbleItemsOverride ?? runtime.bubbleItems
     }
 
     private var placement: BubblePlacement {
@@ -177,26 +180,27 @@ struct PetView: View {
                 .frame(width: petSize, height: petSize)
 
             if panelController.isContentPresented {
-                Image("DefaultPet")
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: petSize, height: petSize)
-                    .scaleEffect(x: widen, y: squash, anchor: .bottom)
-                    .offset(y: (1 - clamped) * -petSize * 1.35)
-                    .contentShape(Rectangle())
-                    .contextMenu { AiboAppMenu() }
-                    // Insertion must stay `.identity` — Pow `.boing` is a GeometryEffect
-                    // that makes NSHostingView zero out PetPanel's width.
-                    .transition(
-                        .asymmetric(
-                            insertion: .identity,
-                            removal: .movingParts.vanish(
-                                PetAppearance.dominantColor,
-                                increasedBrightness: false
-                            )
+                PetSpriteView(
+                    record: library.selectedRecord,
+                    activity: runtime.world.primarySession?.snapshot.activity ?? .idle,
+                    size: petSize
+                )
+                .id(library.selectedID)
+                .scaleEffect(x: widen, y: squash, anchor: .bottom)
+                .offset(y: (1 - clamped) * -petSize * 1.35)
+                .contentShape(Rectangle())
+                .contextMenu { AiboAppMenu() }
+                // Insertion must stay `.identity` — Pow `.boing` is a GeometryEffect
+                // that makes NSHostingView zero out PetPanel's width.
+                .transition(
+                    .asymmetric(
+                        insertion: .identity,
+                        removal: .movingParts.vanish(
+                            PetAppearance.dominantColor(for: library.selectedRecord),
+                            increasedBrightness: false
                         )
                     )
+                )
             }
         }
         .accessibilityLabel(String(localized: "Desktop pet"))

@@ -24,4 +24,29 @@ public enum AiboPaths: Sendable {
     public static var receiveLogURL: URL {
         applicationSupportDirectory.appendingPathComponent(receiveLogFileName, isDirectory: false)
     }
+
+    public static let petsDirectoryName = "pets"
+    public static let petLibraryFileName = "library.json"
+    public static let petdexPetsDirectoryName = "petdex"
+    public static let staticPetsDirectoryName = "static"
+
+    public static var petsDirectory: URL {
+        applicationSupportDirectory.appendingPathComponent(petsDirectoryName, isDirectory: true)
+    }
+
+    public static var petLibraryURL: URL {
+        petsDirectory.appendingPathComponent(petLibraryFileName, isDirectory: false)
+    }
+
+    public static var petdexPetsDirectory: URL {
+        petsDirectory.appendingPathComponent(petdexPetsDirectoryName, isDirectory: true)
+    }
+
+    public static var staticPetsDirectory: URL {
+        petsDirectory.appendingPathComponent(staticPetsDirectoryName, isDirectory: true)
+    }
+
+    public static func petdexPetDirectory(slug: String) -> URL {
+        petdexPetsDirectory.appendingPathComponent(slug, isDirectory: true)
+    }
 }

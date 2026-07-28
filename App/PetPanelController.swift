@@ -163,6 +163,13 @@ final class PetPanelController {
         }
     }
 
+    func updateHitTestImage() {
+        let image = PetSpriteCache.shared.previewImage(for: PetLibraryStore.shared.selectedRecord)
+            ?? NSImage(named: "DefaultPet")
+        hostingView?.updateHitTestImage(image)
+        PetAppearance.invalidateDominantColorCache()
+    }
+
     /// Flush any pending resize and apply now. Caller must not be mid-layout.
     private func applyGeometryNow() {
         pendingGeometryTask?.cancel()
@@ -268,7 +275,8 @@ final class PetPanelController {
         let rootView = PetPanelRootView(frame: NSRect(origin: .zero, size: safeInitial))
         let hostingView = PassThroughHostingView(
             rootView: PetView(),
-            hitTestImage: NSImage(named: "DefaultPet")
+            hitTestImage: PetSpriteCache.shared.previewImage(for: PetLibraryStore.shared.selectedRecord)
+                ?? NSImage(named: "DefaultPet")
         )
         hostingView.sizingOptions = []
         hostingView.clipsToBounds = false

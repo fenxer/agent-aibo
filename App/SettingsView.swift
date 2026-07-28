@@ -77,11 +77,72 @@ struct SettingsView: View {
 
 private struct AppearanceSettingsPane: View {
     @Bindable private var settings = AppSettings.shared
+    @Bindable private var library = PetLibraryStore.shared
+    @State private var petdexInput = ""
+    @State private var isImportingImage = false
 
     private static let petScaleTickStep: Double = 50
 
     var body: some View {
         Form {
+            Section {
+                Picker(String(localized: "Active Pet"), selection: selectedPetBinding) {
+                    ForEach(library.records) { record in
+                        Text(record.displayName).tag(record.id)
+                    }
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    TextField(
+                        String(localized: "Petdex slug or URL"),
+                        text: $petdexInput
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(library.isInstalling)
+
+                    Button(String(localized: "Install")) {
+                        let input = petdexInput
+                        Task {
+                            await library.installPetdex(from: input)
+                            if library.lastErrorMessage == nil {
+                                petdexInput = ""
+                            }
+                        }
+                    }
+                    .disabled(library.isInstalling || petdexInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+
+                HStack {
+                    Button(String(localized: "Add Image…")) {
+                        isImportingImage = true
+                    }
+                    .disabled(library.isInstalling)
+
+                    if library.selectedRecord.isRemovable {
+                        Button(String(localized: "Remove Selected"), role: .destructive) {
+                            library.remove(id: library.selectedID)
+                        }
+                    }
+                }
+
+                if library.isInstalling {
+                    ProgressView(String(localized: "Installing…"))
+                        .controlSize(.small)
+                }
+
+                if let error = library.lastErrorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Text(String(localized: "Install a Petdex pet by slug (e.g. boba) or page URL. Or add a local square image. Default stays available."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(String(localized: "Pet Library"))
+            }
+
             Section {
                 Slider(
                     value: $settings.petScalePercent,
@@ -161,6 +222,20 @@ private struct AppearanceSettingsPane: View {
         }
         .formStyle(.grouped)
         .padding()
+        .fileImporter(
+            isPresented: $isImportingImage,
+            allowedContentTypes: [.png, .jpeg, .webP, .heic, .tiff, .image],
+            allowsMultipleSelection: false
+        ) { result in
+            handleImageImport(result)
+        }
+    }
+
+    private var selectedPetBinding: Binding<String> {
+        Binding(
+            get: { library.selectedID },
+            set: { library.select(id: $0) }
+        )
     }
 
     private var petScalePercentLabel: String {
@@ -184,6 +259,20 @@ private struct AppearanceSettingsPane: View {
             get: { settings.bubbleGlassTint ?? .accentColor },
             set: { settings.bubbleGlassTint = $0 }
         )
+    }
+
+    private func handleImageImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer {
+                if accessed { url.stopAccessingSecurityScopedResource() }
+            }
+            library.importStaticImage(from: url)
+        case .failure:
+            break
+        }
     }
 }
 
