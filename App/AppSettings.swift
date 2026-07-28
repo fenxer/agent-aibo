@@ -13,17 +13,35 @@ final class AppSettings {
         static let bubblePlacement = "settings.bubblePlacement"
         static let bubbleGlassStyle = "settings.bubbleGlassStyle"
         static let bubbleGlassTint = "settings.bubbleGlassTint"
+        static let petScalePercent = "settings.petScalePercent"
         static let webhookEnabled = "settings.webhookEnabled"
         static let webhookPort = "settings.webhookPort"
         static let webhookSecretAccount = "webhook.sharedSecret"
     }
 
     static let defaultWebhookPort: UInt16 = 8787
+    /// Pet image size as a percentage of the base 96pt sprite. Range 0…200; default 100.
+    static let defaultPetScalePercent: Double = 100
+    static let petScalePercentRange: ClosedRange<Double> = 0...200
 
     var bubblePlacement: BubblePlacement {
         didSet {
             guard oldValue != bubblePlacement else { return }
             UserDefaults.standard.set(bubblePlacement.rawValue, forKey: Keys.bubblePlacement)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Pet sprite scale relative to the default size (`100` = 96×96 pt).
+    var petScalePercent: Double {
+        didSet {
+            let clamped = Self.clampPetScalePercent(petScalePercent)
+            if clamped != petScalePercent {
+                petScalePercent = clamped
+                return
+            }
+            guard oldValue != petScalePercent else { return }
+            UserDefaults.standard.set(petScalePercent, forKey: Keys.petScalePercent)
             PetPanelController.shared.refreshContent()
         }
     }
@@ -77,6 +95,14 @@ final class AppSettings {
         bubbleGlassStyle = BubbleGlassStyle(rawValue: glassRaw) ?? .clear
         bubbleGlassTint = Self.loadTint()
 
+        if UserDefaults.standard.object(forKey: Keys.petScalePercent) != nil {
+            petScalePercent = Self.clampPetScalePercent(
+                UserDefaults.standard.double(forKey: Keys.petScalePercent)
+            )
+        } else {
+            petScalePercent = Self.defaultPetScalePercent
+        }
+
         webhookEnabled = UserDefaults.standard.bool(forKey: Keys.webhookEnabled)
         let storedPort = UserDefaults.standard.integer(forKey: Keys.webhookPort)
         if storedPort > 0, storedPort <= Int(UInt16.max) {
@@ -97,6 +123,14 @@ final class AppSettings {
         webhookSecret = Self.makeSecret()
         try? KeychainStore.setString(webhookSecret, forAccount: Keys.webhookSecretAccount)
         PetRuntime.shared.syncWebhookServer()
+    }
+
+    func resetPetScalePercent() {
+        petScalePercent = Self.defaultPetScalePercent
+    }
+
+    private static func clampPetScalePercent(_ value: Double) -> Double {
+        min(max(value, petScalePercentRange.lowerBound), petScalePercentRange.upperBound)
     }
 
     private static func makeSecret() -> String {

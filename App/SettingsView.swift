@@ -78,8 +78,41 @@ struct SettingsView: View {
 private struct AppearanceSettingsPane: View {
     @Bindable private var settings = AppSettings.shared
 
+    private static let petScaleTickStep: Double = 50
+
     var body: some View {
         Form {
+            Section {
+                Slider(
+                    value: $settings.petScalePercent,
+                    in: AppSettings.petScalePercentRange,
+                    step: 1
+                ) {
+                    Text(String(localized: "Pet Size"))
+                } currentValueLabel: {
+                    Text(petScalePercentLabel)
+                        .monospacedDigit()
+                } minimumValueLabel: {
+                    Text("0%")
+                } maximumValueLabel: {
+                    Text("200%")
+                } tick: { value in
+                    petScaleTick(for: value)
+                }
+
+                if Int(settings.petScalePercent.rounded()) != Int(AppSettings.defaultPetScalePercent) {
+                    Button(String(localized: "Reset Size")) {
+                        settings.resetPetScalePercent()
+                    }
+                }
+
+                Text(String(localized: "Scale the desktop pet image. 100% is the default size."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(String(localized: "Pet"))
+            }
+
             Section {
                 Picker(String(localized: "Bubble Position"), selection: $settings.bubblePlacement) {
                     ForEach(BubblePlacement.allCases) { placement in
@@ -128,6 +161,21 @@ private struct AppearanceSettingsPane: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private var petScalePercentLabel: String {
+        "\(Int(settings.petScalePercent.rounded()))%"
+    }
+
+    /// Marks every 50%; intermediate 1% steps stay unlabeled.
+    private func petScaleTick(for value: Double) -> SliderTick<Double>? {
+        let percent = Int(value.rounded())
+        guard percent % Int(Self.petScaleTickStep) == 0 else { return nil }
+        return SliderTick(Double(percent)) {
+            Text("\(percent)%")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 
     /// ColorPicker needs a non-optional `Color`; writing always enables a custom tint.

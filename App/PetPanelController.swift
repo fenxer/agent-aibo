@@ -15,8 +15,9 @@ final class PetPanelController {
     /// Last layout we sized/positioned for — used to keep the pet fixed on screen.
     private var laidOutBubbleCount = 0
     private var laidOutPlacement: BubblePlacement = .top
+    private var laidOutPetSize: CGFloat = 96
 
-    private let petSize: CGFloat = 96
+    private let basePetSize: CGFloat = 96
     private let contentPadding: CGFloat = 8
     private let screenPadding: CGFloat = 24
     private let bubbleMaxWidth: CGFloat = 320
@@ -63,6 +64,7 @@ final class PetPanelController {
     func refreshContent() {
         let items = PetRuntime.shared.bubbleItems
         let placement = AppSettings.shared.bubblePlacement
+        let petSize = currentPetSize
         let bubbleCount = items.count
         guard let panel else { return }
 
@@ -70,6 +72,7 @@ final class PetPanelController {
         let oldFrame = panel.frame
         let oldPetCenter = petCenter(
             in: oldFrame.size,
+            petSize: laidOutPetSize,
             placement: laidOutPlacement,
             bubbleCount: laidOutBubbleCount
         )
@@ -78,14 +81,15 @@ final class PetPanelController {
             y: oldFrame.origin.y + oldPetCenter.y
         )
 
-        let rootView = PetView(bubbleItems: items, placement: placement)
+        let rootView = PetView(bubbleItems: items, placement: placement, petSize: petSize)
         if let hostingView {
             hostingView.rootView = rootView
         }
 
-        let newSize = panelSize(items: items, placement: placement)
+        let newSize = panelSize(items: items, petSize: petSize, placement: placement)
         let newPetCenter = petCenter(
             in: newSize,
+            petSize: petSize,
             placement: placement,
             bubbleCount: bubbleCount
         )
@@ -99,18 +103,29 @@ final class PetPanelController {
 
         laidOutBubbleCount = bubbleCount
         laidOutPlacement = placement
+        laidOutPetSize = petSize
 
-        updatePetHitRect(panelSize: newSize, placement: placement, bubbleCount: bubbleCount)
+        updatePetHitRect(
+            panelSize: newSize,
+            petSize: petSize,
+            placement: placement,
+            bubbleCount: bubbleCount
+        )
         clampToVisibleScreen()
+    }
+
+    private var currentPetSize: CGFloat {
+        basePetSize * CGFloat(AppSettings.shared.petScalePercent / 100)
     }
 
     private func makePanel() -> PetPanel {
         let placement = AppSettings.shared.bubblePlacement
         let items = PetRuntime.shared.bubbleItems
-        let initialSize = panelSize(items: items, placement: placement)
+        let petSize = currentPetSize
+        let initialSize = panelSize(items: items, petSize: petSize, placement: placement)
         let panel = PetPanel(contentRect: NSRect(origin: .zero, size: initialSize))
         let hostingView = PassThroughHostingView(
-            rootView: PetView(bubbleItems: items, placement: placement),
+            rootView: PetView(bubbleItems: items, placement: placement, petSize: petSize),
             hitTestImage: NSImage(named: "DefaultPet")
         )
         // We size the panel explicitly; don't let SwiftUI intrinsic size move the window.
@@ -120,15 +135,25 @@ final class PetPanelController {
         self.hostingView = hostingView
         laidOutBubbleCount = items.count
         laidOutPlacement = placement
-        updatePetHitRect(panelSize: initialSize, placement: placement, bubbleCount: items.count)
+        laidOutPetSize = petSize
+        updatePetHitRect(
+            panelSize: initialSize,
+            petSize: petSize,
+            placement: placement,
+            bubbleCount: items.count
+        )
         return panel
     }
 
-    private func panelSize(items: [StatusBubbleItem], placement: BubblePlacement) -> NSSize {
+    private func panelSize(
+        items: [StatusBubbleItem],
+        petSize: CGFloat,
+        placement: BubblePlacement
+    ) -> NSSize {
         let petBlock = petSize + contentPadding * 2
         let bubbleCount = items.count
         guard bubbleCount > 0 else {
-            return NSSize(width: petBlock, height: petBlock)
+            return NSSize(width: max(petBlock, 1), height: max(petBlock, 1))
         }
 
         let heights = items.map(estimatedBubbleHeight(for:))
@@ -140,7 +165,7 @@ final class PetPanelController {
         case .top, .bottom:
             return NSSize(
                 width: max(petBlock, bubbleMaxWidth + contentPadding * 2),
-                height: petBlock + stackHeight + 20
+                height: max(petBlock + stackHeight + 20, 1)
             )
         case .left, .right:
             // Near-pet bubble stays vertically centered with the pet; older
@@ -153,8 +178,8 @@ final class PetPanelController {
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
             let halfAbove = contentPadding + stackAbove + nearHeight / 2
             return NSSize(
-                width: petBlock + bubbleMaxWidth + 20,
-                height: max(petBlock, halfAbove * 2)
+                width: max(petBlock + bubbleMaxWidth + 20, 1),
+                height: max(petBlock, halfAbove * 2, 1)
             )
         }
     }
@@ -182,25 +207,38 @@ final class PetPanelController {
 
     private func updatePetHitRect(
         panelSize: NSSize,
+        petSize: CGFloat,
         placement: BubblePlacement,
         bubbleCount: Int
     ) {
-        let origin = petOrigin(in: panelSize, placement: placement, bubbleCount: bubbleCount)
+        let origin = petOrigin(
+            in: panelSize,
+            petSize: petSize,
+            placement: placement,
+            bubbleCount: bubbleCount
+        )
         hostingView?.petHitRect = CGRect(origin: origin, size: CGSize(width: petSize, height: petSize))
     }
 
     /// Pet image center inside the panel (AppKit coords, origin bottom-left).
     private func petCenter(
         in panelSize: NSSize,
+        petSize: CGFloat,
         placement: BubblePlacement,
         bubbleCount: Int
     ) -> CGPoint {
-        let origin = petOrigin(in: panelSize, placement: placement, bubbleCount: bubbleCount)
+        let origin = petOrigin(
+            in: panelSize,
+            petSize: petSize,
+            placement: placement,
+            bubbleCount: bubbleCount
+        )
         return CGPoint(x: origin.x + petSize / 2, y: origin.y + petSize / 2)
     }
 
     private func petOrigin(
         in panelSize: NSSize,
+        petSize: CGFloat,
         placement: BubblePlacement,
         bubbleCount: Int
     ) -> CGPoint {

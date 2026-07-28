@@ -3,7 +3,8 @@ import SwiftUI
 struct PetView: View {
     var bubbleItems: [StatusBubbleItem] = []
     var placement: BubblePlacement = .top
-    private let petSize: CGFloat = 96
+    /// Rendered pet size in points (base 96 × scale%).
+    var petSize: CGFloat = 96
     private let stackSpacing: CGFloat = 4
     private let petBubbleSpacing: CGFloat = 6
 
