@@ -13,6 +13,7 @@ struct PetView: View {
     @State private var panelController = PetPanelController.shared
     private var library = PetLibraryStore.shared
     private var runtime = PetRuntime.shared
+    private var hookSprites = HookSpriteSettings.shared
 
     private let stackSpacing: CGFloat = 4
     private let petBubbleSpacing: CGFloat = 6
@@ -20,6 +21,11 @@ struct PetView: View {
 
     private var bubbleItems: [StatusBubbleItem] {
         bubbleItemsOverride ?? runtime.bubbleItems
+    }
+
+    private var resolvedSpriteState: PetdexSpriteState {
+        _ = hookSprites.file
+        return runtime.primarySpriteState
     }
 
     private var placement: BubblePlacement {
@@ -183,6 +189,7 @@ struct PetView: View {
                 PetSpriteView(
                     record: library.selectedRecord,
                     activity: runtime.world.primarySession?.snapshot.activity ?? .idle,
+                    spriteState: resolvedSpriteState,
                     size: petSize
                 )
                 .id(library.selectedID)

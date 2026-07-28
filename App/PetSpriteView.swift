@@ -6,6 +6,7 @@ import SwiftUI
 struct PetSpriteView: View {
     var record: PetLibraryRecord
     var activity: PetActivityState
+    var spriteState: PetdexSpriteState
     var size: CGFloat
 
     var body: some View {
@@ -39,7 +40,6 @@ struct PetSpriteView: View {
 
     @ViewBuilder
     private var petdexPetImage: some View {
-        let spriteState = PetdexSpriteStateMapper.state(for: activity)
         if shouldAnimate(spriteState) {
             TimelineView(.animation(minimumInterval: frameInterval(for: spriteState))) { timeline in
                 let index = frameIndex(at: timeline.date, state: spriteState)

@@ -30,10 +30,21 @@ final class PetRuntime {
     private var webhookExpiryTasks: [String: Task<Void, Never>] = [:]
     /// Project / model labels keyed by session; merged across hook events.
     private var sessionDisplayMeta: [SessionKey: SessionDisplayMeta] = [:]
+    /// Last hook event name per session — drives Petdex sprite row lookup.
+    private var sessionHookEvents: [SessionKey: String] = [:]
     #if DEBUG
     private var debugBubbleItem: StatusBubbleItem?
     #endif
 
+    /// Sprite row for the primary session (idle when none).
+    var primarySpriteState: PetdexSpriteState {
+        guard let primary = world.primarySession else { return .idle }
+        return HookSpriteSettings.shared.resolve(
+            agent: primary.key.agent,
+            hookEventName: sessionHookEvents[primary.key],
+            activity: primary.snapshot.activity
+        )
+    }
     private struct SessionDisplayMeta: Equatable, Sendable {
         var projectName: String?
         var modelName: String?
@@ -358,6 +369,9 @@ final class PetRuntime {
             )
             if case .removeSession = parsed.transition {
                 sessionDisplayMeta.removeValue(forKey: parsed.session)
+                sessionHookEvents.removeValue(forKey: parsed.session)
+            } else if case .apply = parsed.transition {
+                sessionHookEvents[parsed.session] = parsed.eventName
             }
             apply(
                 .agent(session: parsed.session, transition: parsed.transition, at: date)

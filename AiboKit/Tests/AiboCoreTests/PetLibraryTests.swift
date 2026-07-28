@@ -84,6 +84,32 @@ import Testing
     #expect(PetdexSpriteStateMapper.state(for: .done) == .waving)
 }
 
+@Test func hookSpriteMappingDefaultsAndOverrides() {
+    #expect(HookSpriteMapping.defaultSprite(agent: .cursor, hookEventName: "preToolUse") == .running)
+    #expect(HookSpriteMapping.defaultSprite(agent: .codex, hookEventName: "PermissionRequest") == .waiting)
+
+    var file = HookSpriteMappingFile()
+    file.cursor["preToolUse"] = PetdexSpriteState.review.rawValue
+    #expect(
+        HookSpriteMapping.resolve(
+            agent: .cursor,
+            hookEventName: "preToolUse",
+            activity: .usingTool("Shell"),
+            overrides: file
+        ) == .review
+    )
+    #expect(
+        HookSpriteMapping.resolve(
+            agent: .cursor,
+            hookEventName: nil,
+            activity: .idle,
+            overrides: file
+        ) == .idle
+    )
+    #expect(HookSpriteMapping.configurableHooks(for: .cursor).contains("stop"))
+    #expect(HookSpriteMapping.configurableHooks(for: .codex).contains("Stop"))
+}
+
 @Test func petdexInstallerWritesPackViaInjectedFetch() async throws {
     let slug = "test-pet-\(UUID().uuidString.prefix(8).lowercased())"
     let petJSON = #"{"id":"\#(slug)","displayName":"Test","spriteVersionNumber":2,"spritesheetPath":"spritesheet.webp"}"#

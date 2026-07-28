@@ -45,33 +45,41 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(SettingsPane.allCases, selection: $selection) { pane in
-                NavigationLink(value: pane) {
-                    Label(pane.title, systemImage: pane.systemImage)
-                }
+                Label(pane.title, systemImage: pane.systemImage)
+                    .tag(pane)
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
             .toolbar(removing: .sidebarToggle)
         } detail: {
-            Group {
-                switch selection ?? .appearance {
-                case .appearance:
-                    AppearanceSettingsPane()
-                case .integrations:
-                    IntegrationsSettingsPane()
-                case .receiveLog:
-                    ReceiveLogSettingsPane()
-                case .about:
-                    AboutSettingsPane()
-                #if DEBUG
-                case .development:
-                    DevelopmentSettingsPane()
-                #endif
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // Avoid nesting NavigationStack inside the Settings scene — on recent
+            // macOS the pushed back control lands under the title instead of the
+            // window toolbar. Detail panes own any in-column sub-navigation.
+            detailRoot
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .navigationTitle(selection?.title ?? String(localized: "Settings"))
         .frame(minWidth: 680, minHeight: 420)
+    }
+
+    @ViewBuilder
+    private var detailRoot: some View {
+        switch selection ?? .appearance {
+        case .appearance:
+            AppearanceSettingsPane()
+                .navigationTitle(SettingsPane.appearance.title)
+        case .integrations:
+            IntegrationsSettingsPane()
+        case .receiveLog:
+            ReceiveLogSettingsPane()
+                .navigationTitle(SettingsPane.receiveLog.title)
+        case .about:
+            AboutSettingsPane()
+                .navigationTitle(SettingsPane.about.title)
+        #if DEBUG
+        case .development:
+            DevelopmentSettingsPane()
+                .navigationTitle(SettingsPane.development.title)
+        #endif
+        }
     }
 }
 
@@ -279,8 +287,23 @@ private struct AppearanceSettingsPane: View {
 private struct IntegrationsSettingsPane: View {
     @State private var runtime = PetRuntime.shared
     @Bindable private var settings = AppSettings.shared
+    @State private var advancedAgent: AgentKind?
 
     var body: some View {
+        Group {
+            if let advancedAgent {
+                AgentHookSpriteSettingsView(agent: advancedAgent) {
+                    self.advancedAgent = nil
+                }
+                .navigationTitle("")
+            } else {
+                integrationsForm
+                    .navigationTitle(SettingsPane.integrations.title)
+            }
+        }
+    }
+
+    private var integrationsForm: some View {
         Form {
             Section {
                 LabeledContent(String(localized: "Status")) {
@@ -304,6 +327,10 @@ private struct IntegrationsSettingsPane: View {
                 Text(String(localized: "Cursor has no waiting-for-user hook event yet."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Button(String(localized: "Advanced Settings")) {
+                    advancedAgent = .cursor
+                }
             } header: {
                 Text(String(localized: "Cursor"))
             }
@@ -330,6 +357,10 @@ private struct IntegrationsSettingsPane: View {
                 Text(String(localized: "Codex supports waiting-for-you via PermissionRequest."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Button(String(localized: "Advanced Settings")) {
+                    advancedAgent = .codex
+                }
             } header: {
                 Text(String(localized: "Codex"))
             }
