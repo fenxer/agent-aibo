@@ -146,9 +146,21 @@ struct AgentHookSpriteSettingsView: View {
         Form {
             Section {
                 ForEach(hooks, id: \.self) { hook in
-                    Picker(hook, selection: binding(for: hook)) {
+                    Picker(selection: binding(for: hook)) {
                         ForEach(PetdexSpriteState.allCases, id: \.self) { state in
                             Text(localizedSpriteName(state)).tag(state)
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(hook)
+                            if let example = StatusCopy.exampleBubblePhrase(
+                                agent: agent,
+                                hookEventName: hook
+                            ) {
+                                Text("\(String(localized: "示例："))\(example)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                     .contentShape(Rectangle())

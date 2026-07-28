@@ -35,6 +35,43 @@ public enum StatusCopy {
         }
     }
 
+    /// Bubble-style example under a hook name in Settings → Sprite Actions.
+    ///
+    /// Uses the same phrases as live bubbles (`statusPhrase`), with sample tool names.
+    public static func exampleBubblePhrase(
+        agent: AgentKind,
+        hookEventName: String
+    ) -> String? {
+        // Cursor `stop` maps to done / interrupted / failed depending on status.
+        if agent == .cursor, hookEventName == "stop" {
+            return "finished · was interrupted · failed"
+        }
+
+        let transition: StateTransition?
+        switch agent {
+        case .cursor:
+            transition = CursorEventMapper.transition(
+                eventName: hookEventName,
+                toolName: "Shell",
+                stopStatus: "completed"
+            )
+        case .codex:
+            transition = CodexEventMapper.transition(
+                eventName: hookEventName,
+                toolName: "Bash"
+            )
+        }
+
+        switch transition {
+        case .apply(let activity):
+            return statusPhrase(for: activity)
+        case .removeSession:
+            return "clears session"
+        case nil:
+            return nil
+        }
+    }
+
     public static func displayName(_ agent: AgentKind) -> String {
         switch agent {
         case .cursor: "Cursor"
