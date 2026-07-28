@@ -7,7 +7,7 @@ macOS 原生桌面宠物。宠物常驻桌面，用气泡播报两类信息：
 
 ## 要求
 
-- 仅 macOS，SwiftUI + AppKit，无第三方依赖
+- 仅 macOS，SwiftUI + AppKit
 - 最低 macOS 26
 
 ## 构建

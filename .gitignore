@@ -27,10 +27,11 @@ DerivedData/
 # macOS
 .DS_Store
 
-# Cursor local state (keep rules/settings)
-.cursor/
+# Cursor local state
+/.cursor
 
 # Local agent / planning docs (not for public repo)
 AGENTS.md
 AGENTS_LEARNED.md
 PLANS.md
+
