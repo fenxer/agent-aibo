@@ -9,9 +9,9 @@
 /* Begin PBXBuildFile section */
 		3A3091E43017080000431C96 /* AiboIngest in Frameworks */ = {isa = PBXBuildFile; productRef = 3A3091E13017080000431C96 /* AiboIngest */; };
 		3A3091E53017080000431C96 /* AiboLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 3A3091E23017080000431C96 /* AiboLLM */; };
-		A1B0P0W43017080000431C96 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = A1B0P0W23017080000431C96 /* Pow */; };
 		3A3091F53017090000431C96 /* AiboHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3091F43017090000431C96 /* AiboHook.swift */; };
 		3A3091F83017090000431C96 /* aibo-hook in Copy Helpers */ = {isa = PBXBuildFile; fileRef = 3A3091F03017090000431C96 /* aibo-hook */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		A1B0P0W43017080000431C96 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = A1B0P0W23017080000431C96 /* Pow */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
