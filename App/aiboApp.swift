@@ -17,5 +17,12 @@ struct aiboApp: App {
         Settings {
             SettingsView()
         }
+        // contentMinSize matches normal windows / System Settings. Settings still
+        // needs AppKit `.resizable` via SettingsWindowConfigurator (SO 79532884).
+        .defaultSize(
+            width: AppSettings.settingsWindowWidth,
+            height: AppSettings.defaultSettingsWindowHeight
+        )
+        .windowResizability(.contentMinSize)
     }
 }

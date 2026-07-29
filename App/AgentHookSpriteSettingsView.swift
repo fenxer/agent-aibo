@@ -10,7 +10,7 @@ struct AgentHookSpriteSettingsView: View {
     @Bindable private var hookSprites = HookSpriteSettings.shared
     private var library = PetLibraryStore.shared
 
-    /// Which Sprite Actions row the pointer is over; drives the left preview.
+    /// Which Sprite Actions row the pointer is over; drives the sticky preview.
     @State private var hoveredHook: String?
 
     private var hooks: [String] {
@@ -48,19 +48,15 @@ struct AgentHookSpriteSettingsView: View {
 
             Divider()
 
-            HStack(alignment: .top, spacing: 0) {
-                previewColumn
-                    .frame(width: 240)
-                    .frame(maxHeight: .infinity, alignment: .top)
+            previewSection
 
-                Divider()
+            Divider()
 
-                ScrollView {
-                    actionsColumn
-                        .padding()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ScrollView {
+                actionsColumn
+                    .padding()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         // Suppress the split-view centered title so only our header shows.
         .navigationTitle("")
@@ -96,7 +92,8 @@ struct AgentHookSpriteSettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var previewColumn: some View {
+    /// Stays above the Sprite Actions scroll region (sticky header band).
+    private var previewSection: some View {
         VStack(spacing: 12) {
             Text(String(localized: "Animation Preview"))
                 .font(.headline)
@@ -132,14 +129,13 @@ struct AgentHookSpriteSettingsView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Text(String(localized: "Hover a Sprite Action on the right to preview it."))
+            Text(String(localized: "Hover a Sprite Action below to preview it."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-
-            Spacer(minLength: 0)
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private var actionsColumn: some View {

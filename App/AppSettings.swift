@@ -23,6 +23,7 @@ final class AppSettings {
         static let webhookPort = "settings.webhookPort"
         static let webhookDismissMode = "settings.webhookDismissMode"
         static let webhookAutoDismissSeconds = "settings.webhookAutoDismissSeconds"
+        static let settingsWindowHeight = "settings.windowHeight"
         static let webhookSecretAccount = "webhook.sharedSecret"
     }
 
@@ -32,6 +33,11 @@ final class AppSettings {
     static let petScalePercentRange: ClosedRange<Double> = 0...200
     static let defaultWebhookAutoDismissSeconds = 12
     static let webhookAutoDismissSecondsRange = 1...600
+
+    /// Settings window content width (fixed; only height is user-resizable).
+    static let settingsWindowWidth: CGFloat = 680
+    static let defaultSettingsWindowHeight: CGFloat = 720
+    static let settingsWindowMinHeight: CGFloat = 420
 
     var bubblePlacement: BubblePlacement {
         didSet {
@@ -144,6 +150,9 @@ final class AppSettings {
 
     private(set) var webhookSecret: String
 
+    /// Last Settings window content height. Width stays `settingsWindowWidth`.
+    private(set) var settingsWindowHeight: CGFloat
+
     var webhookURLString: String {
         "http://127.0.0.1:\(webhookPort)\(WebhookRequestHandler.path)"
     }
@@ -209,6 +218,14 @@ final class AppSettings {
             webhookAutoDismissSeconds = Self.defaultWebhookAutoDismissSeconds
         }
 
+        if UserDefaults.standard.object(forKey: Keys.settingsWindowHeight) != nil {
+            settingsWindowHeight = Self.clampSettingsWindowHeight(
+                CGFloat(UserDefaults.standard.double(forKey: Keys.settingsWindowHeight))
+            )
+        } else {
+            settingsWindowHeight = Self.defaultSettingsWindowHeight
+        }
+
         if let existing = KeychainStore.string(forAccount: Keys.webhookSecretAccount), !existing.isEmpty {
             webhookSecret = existing
         } else {
@@ -238,8 +255,19 @@ final class AppSettings {
         UserDefaults.standard.set(y, forKey: Keys.petPositionYPercent)
     }
 
+    func saveSettingsWindowHeight(_ height: CGFloat) {
+        let clamped = Self.clampSettingsWindowHeight(height)
+        guard abs(settingsWindowHeight - clamped) >= 0.5 else { return }
+        settingsWindowHeight = clamped
+        UserDefaults.standard.set(Double(clamped), forKey: Keys.settingsWindowHeight)
+    }
+
     private static func clampPetScalePercent(_ value: Double) -> Double {
         min(max(value, petScalePercentRange.lowerBound), petScalePercentRange.upperBound)
+    }
+
+    private static func clampSettingsWindowHeight(_ value: CGFloat) -> CGFloat {
+        min(max(value, settingsWindowMinHeight), 4000)
     }
 
     private static func clampWebhookAutoDismissSeconds(_ value: Int) -> Int {

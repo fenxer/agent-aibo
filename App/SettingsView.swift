@@ -57,7 +57,10 @@ struct SettingsView: View {
             detailRoot
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(minWidth: 680, minHeight: 420)
+        // Fixed width; min height only so the window can grow (contentMinSize).
+        .frame(width: AppSettings.settingsWindowWidth)
+        .frame(minHeight: AppSettings.settingsWindowMinHeight)
+        .background { SettingsWindowConfigurator() }
     }
 
     @ViewBuilder
