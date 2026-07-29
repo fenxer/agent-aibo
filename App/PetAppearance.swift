@@ -30,6 +30,38 @@ enum PetAppearance {
     }
 }
 
+/// Padding around pet content; grows NE when music notes are enabled so Pow rise isn't clipped.
+struct PetContentInsets: Equatable, Sendable {
+    var top: CGFloat
+    var leading: CGFloat
+    var bottom: CGFloat
+    var trailing: CGFloat
+
+    static let base: CGFloat = 8
+    /// Matches Pow rise canvas (~80 top / ~40 side) plus a little travel room.
+    static let musicOverflowTop: CGFloat = 72
+    static let musicOverflowTrailing: CGFloat = 48
+
+    static func current(musicNotesEnabled: Bool) -> Self {
+        if musicNotesEnabled {
+            return Self(
+                top: base + musicOverflowTop,
+                leading: base,
+                bottom: base,
+                trailing: base + musicOverflowTrailing
+            )
+        }
+        return Self(top: base, leading: base, bottom: base, trailing: base)
+    }
+
+    var horizontal: CGFloat { leading + trailing }
+    var vertical: CGFloat { top + bottom }
+
+    var edgeInsets: EdgeInsets {
+        EdgeInsets(top: top, leading: leading, bottom: bottom, trailing: trailing)
+    }
+}
+
 /// Histogram-based dominant color from opaque sprite pixels.
 enum DominantColorSampler {
     static func sample(from image: NSImage) -> NSColor? {

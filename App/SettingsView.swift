@@ -183,6 +183,33 @@ private struct AppearanceSettingsPane: View {
             }
 
             Section {
+                Toggle(
+                    String(localized: "Music Notes"),
+                    isOn: $settings.musicNotesEnabled
+                )
+
+                Text(String(localized: "When Apple Music or Spotify is playing, notes float up from the pet. NetEase / QQ Music usually do not broadcast playback — add their notification name below if you have one."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                DisclosureGroup(String(localized: "Advanced")) {
+                    TextField(
+                        String(localized: "Custom notification names"),
+                        text: $settings.customMusicNotificationNames,
+                        prompt: Text("com.example.playerInfo"),
+                        axis: .vertical
+                    )
+                    .lineLimit(3...6)
+
+                    Text(String(localized: "One distributed notification name per line. Payload should include Player State = Playing / Paused (same shape as Apple Music)."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text(String(localized: "Music"))
+            }
+
+            Section {
                 Picker(String(localized: "Bubble Position"), selection: $settings.bubblePlacement) {
                     ForEach(BubblePlacement.allCases) { placement in
                         Text(placement.title).tag(placement)
@@ -669,9 +696,29 @@ private struct DevelopmentSettingsPane: View {
             } header: {
                 Text(String(localized: "Webhook Preview"))
             }
+
+            Section {
+                Toggle(
+                    String(localized: "Simulate Music Playing"),
+                    isOn: debugMusicPlayingBinding
+                )
+
+                Text(String(localized: "Forces the music-note rise overlay without a real player. Appearance → Music Notes must stay on (default)."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text(String(localized: "Music Notes"))
+            }
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    private var debugMusicPlayingBinding: Binding<Bool> {
+        Binding(
+            get: { MusicPlaybackMonitor.shared.debugForcePlaying },
+            set: { MusicPlaybackMonitor.shared.debugForcePlaying = $0 }
+        )
     }
 
     private func injectWebhook() {

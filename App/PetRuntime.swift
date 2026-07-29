@@ -82,6 +82,7 @@ final class PetRuntime {
         }
 
         syncWebhookServer()
+        syncMusicPlaybackMonitor()
         scheduleWatchdog()
     }
 
@@ -99,6 +100,15 @@ final class PetRuntime {
         webhookServer?.stop()
         webhookServer = nil
         webhookListening = false
+        MusicPlaybackMonitor.shared.stop()
+    }
+
+    func syncMusicPlaybackMonitor() {
+        if AppSettings.shared.musicNotesEnabled {
+            MusicPlaybackMonitor.shared.start()
+        } else {
+            MusicPlaybackMonitor.shared.stop()
+        }
     }
 
     func syncWebhookServer() {

@@ -24,7 +24,6 @@ final class PetPanelController {
     private var laidOutPetSize: CGFloat = 96
 
     private let basePetSize: CGFloat = 96
-    private let contentPadding: CGFloat = 8
     private let screenPadding: CGFloat = 24
     private let bubbleMaxWidth: CGFloat = 320
     private let bubbleEstimatedHeight: CGFloat = 88
@@ -36,6 +35,10 @@ final class PetPanelController {
     private let bubbleCapsuleWidthEstimate: CGFloat = 88
     private let bubbleArrowSlack: CGFloat = 6
     private let bubbleRowSpacing: CGFloat = 8
+
+    private var contentInsets: PetContentInsets {
+        PetContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled)
+    }
 
     private init() {}
 
@@ -253,7 +256,8 @@ final class PetPanelController {
     }
 
     private func petBlockMinimum(petSize: CGFloat) -> CGFloat {
-        max(petSize + contentPadding * 2, 1)
+        let insets = contentInsets
+        return max(petSize + max(insets.horizontal, insets.vertical), 1)
     }
 
     private var currentPetSize: CGFloat {
@@ -273,6 +277,8 @@ final class PetPanelController {
 
         // Hosting view must NOT be the window contentView — see PetPanelRootView.
         let rootView = PetPanelRootView(frame: NSRect(origin: .zero, size: safeInitial))
+        rootView.wantsLayer = true
+        rootView.layer?.masksToBounds = false
         let hostingView = PassThroughHostingView(
             rootView: PetView(),
             hitTestImage: PetSpriteCache.shared.previewImage(for: PetLibraryStore.shared.selectedRecord)
@@ -280,6 +286,8 @@ final class PetPanelController {
         )
         hostingView.sizingOptions = []
         hostingView.clipsToBounds = false
+        hostingView.wantsLayer = true
+        hostingView.layer?.masksToBounds = false
         hostingView.frame = rootView.bounds
         hostingView.autoresizingMask = [.width, .height]
         rootView.addSubview(hostingView)
@@ -305,10 +313,12 @@ final class PetPanelController {
         petSize: CGFloat,
         placement: BubblePlacement
     ) -> NSSize {
-        let petBlock = petSize + contentPadding * 2
+        let insets = contentInsets
+        let petBlockWidth = petSize + insets.horizontal
+        let petBlockHeight = petSize + insets.vertical
         let bubbleCount = items.count
         guard bubbleCount > 0 else {
-            return NSSize(width: max(petBlock, 1), height: max(petBlock, 1))
+            return NSSize(width: max(petBlockWidth, 1), height: max(petBlockHeight, 1))
         }
 
         let heights = items.map(estimatedBubbleHeight(for:))
@@ -319,8 +329,8 @@ final class PetPanelController {
         switch placement {
         case .top, .bottom:
             return NSSize(
-                width: max(petBlock, bubbleMaxWidth + contentPadding * 2),
-                height: max(petBlock + stackHeight + 20, 1)
+                width: max(petBlockWidth, bubbleMaxWidth + insets.horizontal),
+                height: max(petBlockHeight + stackHeight + 20, 1)
             )
         case .left, .right:
             // Near-pet bubble stays vertically centered with the pet; older
@@ -331,10 +341,10 @@ final class PetPanelController {
             let stackAbove =
                 aboveHeights.reduce(0, +)
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
-            let halfAbove = contentPadding + stackAbove + nearHeight / 2
+            let halfAbove = insets.top + stackAbove + nearHeight / 2
             return NSSize(
-                width: max(petBlock + bubbleMaxWidth + 20, 1),
-                height: max(petBlock, halfAbove * 2, 1)
+                width: max(petBlockWidth + bubbleMaxWidth + 20, 1),
+                height: max(petBlockHeight, halfAbove * 2, 1)
             )
         }
     }
@@ -402,26 +412,58 @@ final class PetPanelController {
         placement: BubblePlacement,
         bubbleCount: Int
     ) -> CGPoint {
-        let pad = contentPadding
+        let insets = contentInsets
+        let contentWidth = panelSize.width - insets.horizontal
+        let contentHeight = panelSize.height - insets.vertical
         if bubbleCount == 0 {
-            return CGPoint(
-                x: (panelSize.width - petSize) / 2,
-                y: (panelSize.height - petSize) / 2
-            )
+            switch placement {
+            case .top:
+                return CGPoint(
+                    x: insets.leading + (contentWidth - petSize) / 2,
+                    y: insets.bottom
+                )
+            case .bottom:
+                return CGPoint(
+                    x: insets.leading + (contentWidth - petSize) / 2,
+                    y: panelSize.height - insets.top - petSize
+                )
+            case .left:
+                return CGPoint(
+                    x: panelSize.width - insets.trailing - petSize,
+                    y: insets.bottom + (contentHeight - petSize) / 2
+                )
+            case .right:
+                return CGPoint(
+                    x: insets.leading,
+                    y: insets.bottom + (contentHeight - petSize) / 2
+                )
+            }
         }
         switch placement {
         case .top:
             // SwiftUI: bubble stack above, pet below → pet near AppKit bottom.
-            return CGPoint(x: (panelSize.width - petSize) / 2, y: pad)
+            return CGPoint(
+                x: insets.leading + (contentWidth - petSize) / 2,
+                y: insets.bottom
+            )
         case .bottom:
             // Pet above → near AppKit top.
-            return CGPoint(x: (panelSize.width - petSize) / 2, y: panelSize.height - pad - petSize)
+            return CGPoint(
+                x: insets.leading + (contentWidth - petSize) / 2,
+                y: panelSize.height - insets.top - petSize
+            )
         case .left:
             // Pet on trailing side.
-            return CGPoint(x: panelSize.width - pad - petSize, y: (panelSize.height - petSize) / 2)
+            return CGPoint(
+                x: panelSize.width - insets.trailing - petSize,
+                y: insets.bottom + (contentHeight - petSize) / 2
+            )
         case .right:
             // Pet on leading side.
-            return CGPoint(x: pad, y: (panelSize.height - petSize) / 2)
+            return CGPoint(
+                x: insets.leading,
+                y: insets.bottom + (contentHeight - petSize) / 2
+            )
         }
     }
 

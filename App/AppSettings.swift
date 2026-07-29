@@ -14,6 +14,8 @@ final class AppSettings {
         static let bubbleGlassStyle = "settings.bubbleGlassStyle"
         static let bubbleGlassTint = "settings.bubbleGlassTint"
         static let petScalePercent = "settings.petScalePercent"
+        static let musicNotesEnabled = "settings.musicNotesEnabled"
+        static let customMusicNotificationNames = "settings.customMusicNotificationNames"
         static let webhookEnabled = "settings.webhookEnabled"
         static let webhookPort = "settings.webhookPort"
         static let webhookDismissMode = "settings.webhookDismissMode"
@@ -47,6 +49,25 @@ final class AppSettings {
             guard oldValue != petScalePercent else { return }
             UserDefaults.standard.set(petScalePercent, forKey: Keys.petScalePercent)
             PetPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Overlay music-note rise effect while a known player is playing. Default on.
+    var musicNotesEnabled: Bool {
+        didSet {
+            guard oldValue != musicNotesEnabled else { return }
+            UserDefaults.standard.set(musicNotesEnabled, forKey: Keys.musicNotesEnabled)
+            PetRuntime.shared.syncMusicPlaybackMonitor()
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Extra distributed notification names (one per line) beyond built-in Music / Spotify.
+    var customMusicNotificationNames: String {
+        didSet {
+            guard oldValue != customMusicNotificationNames else { return }
+            UserDefaults.standard.set(customMusicNotificationNames, forKey: Keys.customMusicNotificationNames)
+            MusicPlaybackMonitor.shared.reloadObservers()
         }
     }
 
@@ -127,6 +148,14 @@ final class AppSettings {
         } else {
             petScalePercent = Self.defaultPetScalePercent
         }
+
+        if UserDefaults.standard.object(forKey: Keys.musicNotesEnabled) != nil {
+            musicNotesEnabled = UserDefaults.standard.bool(forKey: Keys.musicNotesEnabled)
+        } else {
+            musicNotesEnabled = true
+        }
+        customMusicNotificationNames =
+            UserDefaults.standard.string(forKey: Keys.customMusicNotificationNames) ?? ""
 
         webhookEnabled = UserDefaults.standard.bool(forKey: Keys.webhookEnabled)
         let storedPort = UserDefaults.standard.integer(forKey: Keys.webhookPort)

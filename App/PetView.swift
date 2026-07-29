@@ -11,13 +11,21 @@ struct PetView: View {
     var petSizeOverride: CGFloat? = nil
 
     @State private var panelController = PetPanelController.shared
+    @State private var musicNotePulse = 0
+    @State private var musicNoteTask: Task<Void, Never>?
     private var library = PetLibraryStore.shared
     private var runtime = PetRuntime.shared
     private var hookSprites = HookSpriteSettings.shared
+    private var musicMonitor = MusicPlaybackMonitor.shared
 
     private let stackSpacing: CGFloat = 4
     private let petBubbleSpacing: CGFloat = 6
     private let basePetSize: CGFloat = 96
+    /// Northeast of the pet bounds — floats notes toward upper-right.
+    private static let musicNoteOrigin = UnitPoint(x: 0.85, y: 0.2)
+    private static let musicNoteLayerName = "aibo.musicNotes"
+    private static let musicNotesPerBurst = 3
+    private static let musicNoteBurstSpacing: Duration = .milliseconds(280)
 
     private var bubbleItems: [StatusBubbleItem] {
         bubbleItemsOverride ?? runtime.bubbleItems
@@ -44,15 +52,29 @@ struct PetView: View {
         AppSettings.shared.bubbleGlassTint
     }
 
+    private var shouldEmitMusicNotes: Bool {
+        AppSettings.shared.musicNotesEnabled
+            && musicMonitor.isPlaying
+            && panelController.isContentPresented
+    }
+
     var body: some View {
         // Keep one layout tree (even with zero bubbles) so insert/remove
         // transitions are not torn down by switching to a pet-only branch.
         // Hide vanishes only the pet sprite (local transition) and fades bubbles —
         // never remove this root tree while resizing the NSPanel (constraint loop).
         positionedContent
-            .padding(8)
+            .padding(PetContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled).edgeInsets)
+            .particleLayer(name: Self.musicNoteLayerName)
             .gesture(WindowDragGesture())
             .allowsWindowActivationEvents()
+            .onChange(of: shouldEmitMusicNotes, initial: true) { _, active in
+                syncMusicNotePulse(active: active)
+            }
+            .onDisappear {
+                musicNoteTask?.cancel()
+                musicNoteTask = nil
+            }
     }
 
     @ViewBuilder
@@ -179,6 +201,7 @@ struct PetView: View {
         let clamped = max(progress, 0)
         let squash = min(max(0.72 + clamped * 0.28, 0.55), 1.2)
         let widen = min(max(1.18 - clamped * 0.18, 0.9), 1.25)
+        let noteColor = PetAppearance.dominantColor(for: library.selectedRecord)
 
         return ZStack {
             // Keep layout size while the sprite is removed for Pow vanish.
@@ -197,6 +220,20 @@ struct PetView: View {
                 .offset(y: (1 - clamped) * -petSize * 1.35)
                 .contentShape(Rectangle())
                 .contextMenu { AiboAppMenu() }
+                .changeEffect(
+                    .rise(origin: Self.musicNoteOrigin, layer: .named(Self.musicNoteLayerName)) {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(noteColor)
+                        Image(systemName: "music.note")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(noteColor.opacity(0.9))
+                        Image(systemName: "music.quarternote.3")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(noteColor)
+                    },
+                    value: musicNotePulse
+                )
                 // Insertion must stay `.identity` — Pow `.boing` is a GeometryEffect
                 // that makes NSHostingView zero out PetPanel's width.
                 .transition(
@@ -211,6 +248,22 @@ struct PetView: View {
             }
         }
         .accessibilityLabel(String(localized: "Desktop pet"))
+    }
+
+    private func syncMusicNotePulse(active: Bool) {
+        musicNoteTask?.cancel()
+        musicNoteTask = nil
+        guard active else { return }
+        musicNoteTask = Task { @MainActor in
+            while !Task.isCancelled {
+                for _ in 0..<Self.musicNotesPerBurst {
+                    guard !Task.isCancelled else { return }
+                    musicNotePulse &+= 1
+                    try? await Task.sleep(for: Self.musicNoteBurstSpacing)
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 }
 
