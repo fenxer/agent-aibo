@@ -92,7 +92,8 @@ private struct AppearanceSettingsPane: View {
     @State private var petdexInput = ""
     @State private var isImportingImage = false
 
-    private static let petScaleTickStep: Double = 50
+    /// Labeled scale only — avoid `step:` which paints a tick at every increment.
+    private static let petScaleTickPercents: [Double] = [0, 50, 100, 150, 200]
 
     var body: some View {
         Form {
@@ -155,21 +156,39 @@ private struct AppearanceSettingsPane: View {
             }
 
             Section {
-                Slider(
-                    value: $settings.petScalePercent,
-                    in: AppSettings.petScalePercentRange,
-                    step: 1
-                ) {
-                    Text(String(localized: "Pet Size"))
-                } currentValueLabel: {
-                    Text(petScalePercentLabel)
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        Slider(
+                            value: petScalePercentBinding,
+                            in: AppSettings.petScalePercentRange
+                        ) {
+                            EmptyView()
+                        } ticks: {
+                            SliderTickContentForEach(Self.petScaleTickPercents, id: \.self) { value in
+                                SliderTick(value) {
+                                    Text("\(Int(value))%")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+
+                        TextField(
+                            String(localized: "Pet Size"),
+                            value: petScalePercentIntBinding,
+                            format: .number
+                        )
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 48)
                         .monospacedDigit()
-                } minimumValueLabel: {
-                    Text("0%")
-                } maximumValueLabel: {
-                    Text("200%")
-                } tick: { value in
-                    petScaleTick(for: value)
+
+                        Text("%")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                } label: {
+                    Text(String(localized: "Pet Size"))
                 }
 
                 if Int(settings.petScalePercent.rounded()) != Int(AppSettings.defaultPetScalePercent) {
@@ -285,19 +304,18 @@ private struct AppearanceSettingsPane: View {
         )
     }
 
-    private var petScalePercentLabel: String {
-        "\(Int(settings.petScalePercent.rounded()))%"
+    private var petScalePercentBinding: Binding<Double> {
+        Binding(
+            get: { settings.petScalePercent },
+            set: { settings.petScalePercent = $0.rounded() }
+        )
     }
 
-    /// Marks every 50%; intermediate 1% steps stay unlabeled.
-    private func petScaleTick(for value: Double) -> SliderTick<Double>? {
-        let percent = Int(value.rounded())
-        guard percent % Int(Self.petScaleTickStep) == 0 else { return nil }
-        return SliderTick(Double(percent)) {
-            Text("\(percent)%")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
+    private var petScalePercentIntBinding: Binding<Int> {
+        Binding(
+            get: { Int(settings.petScalePercent.rounded()) },
+            set: { settings.petScalePercent = Double($0) }
+        )
     }
 
     /// ColorPicker needs a non-optional `Color`; writing always enables a custom tint.
