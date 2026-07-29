@@ -24,6 +24,9 @@ DerivedData/
 # Local xcodebuild output used by Scripts/run.sh
 .derivedData/
 
+# Distributable .app produced by Scripts/package.sh
+/.product/
+
 # macOS
 .DS_Store
 
@@ -35,3 +38,4 @@ AGENTS.md
 AGENTS_LEARNED.md
 PLANS.md
 
+Scripts/package.sh
