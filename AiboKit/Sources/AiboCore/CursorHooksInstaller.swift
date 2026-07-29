@@ -13,6 +13,8 @@ public enum CursorHooksInstaller {
         "postToolUseFailure",
         "beforeShellExecution",
         "afterAgentResponse",
+        "subagentStart",
+        "subagentStop",
         "stop",
     ]
 

@@ -26,6 +26,8 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
     var projectName: String? = nil
     /// Active model label, when known (agent only).
     var modelName: String? = nil
-    /// Webhook `status` shown inside the capsule.
+    /// Webhook `status` shown in the capsule.
     var statusLabel: String? = nil
+    /// Cursor Task/subagent: outline dashed capsule labeled “Subagent”.
+    var isSubagent: Bool = false
 }

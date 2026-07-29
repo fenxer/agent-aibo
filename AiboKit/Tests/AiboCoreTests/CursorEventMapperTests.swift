@@ -22,5 +22,14 @@ import Testing
         CursorEventMapper.transition(eventName: "stop", stopStatus: "error") == .apply(.failed)
     )
     #expect(CursorEventMapper.transition(eventName: "sessionEnd") == .removeSession)
+    #expect(CursorEventMapper.transition(eventName: "subagentStart") == .apply(.thinking))
+    #expect(
+        CursorEventMapper.transition(eventName: "subagentStop", stopStatus: "completed")
+            == .apply(.done)
+    )
+    #expect(
+        CursorEventMapper.transition(eventName: "subagentStop", stopStatus: "aborted")
+            == .apply(.interrupted)
+    )
     #expect(CursorEventMapper.transition(eventName: "unknownEvent") == nil)
 }

@@ -101,7 +101,11 @@ struct StatusBubble: View {
 
             // Capsule / status share line height; firstTextBaseline keeps glyphs aligned.
             HStack(alignment: .firstTextBaseline, spacing: headerSpacing) {
-                agentCapsule(fill: capsuleFill, content: capsuleContent)
+                if item.isSubagent {
+                    subagentCapsule(ink: ink)
+                } else {
+                    agentCapsule(fill: capsuleFill, content: capsuleContent)
+                }
                 statusText(ink: ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -223,6 +227,32 @@ struct StatusBubble: View {
         .padding(.trailing, 8)
         .frame(minHeight: capsuleHeight)
         .background(Capsule().fill(fill))
+    }
+
+    /// Outline capsule: 1pt dashed border (marching ants), no fill, label “Subagent”.
+    @ViewBuilder
+    private func subagentCapsule(ink: Color) -> some View {
+        HStack(spacing: 4) {
+            if let iconAssetName = item.iconAssetName {
+                Image(iconAssetName)
+                    .resizable()
+                    .renderingMode(.template)
+                    .frame(width: capsuleIconSize, height: capsuleIconSize)
+                    .foregroundStyle(ink)
+            }
+            Text(item.agentName.isEmpty ? "Subagent" : item.agentName)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(ink)
+                .lineLimit(1)
+        }
+        .padding(.top, 2)
+        .padding(.bottom, 2)
+        .padding(.leading, 4)
+        .padding(.trailing, 8)
+        .frame(minHeight: capsuleHeight)
+        .overlay {
+            MarchingAntsCapsuleStroke(stroke: ink)
+        }
     }
 
     /// Webhook status capsule: symmetric 8pt horizontal padding (no icon).
@@ -358,6 +388,24 @@ struct StatusBubble: View {
     .background(Color.secondary.opacity(0.25))
 }
 
+#Preview("subagent") {
+    StatusBubble(
+        item: StatusBubbleItem(
+            id: "sub",
+            text: "is thinking",
+            lastEventAt: .now,
+            agentName: "Subagent",
+            iconAssetName: "cursor",
+            projectName: "design-fragments",
+            modelName: "Grok 4.5 High Fast",
+            isSubagent: true
+        ),
+        placement: .top
+    )
+    .padding(40)
+    .background(Color.secondary.opacity(0.25))
+}
+
 #Preview("stacked") {
     StatusBubble(
         item: StatusBubbleItem(
@@ -406,5 +454,32 @@ private struct DismissTapModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// 1pt dashed capsule stroke with a looping dash-phase (“marching ants”).
+/// Driven by Core Animation — not display-link polling.
+private struct MarchingAntsCapsuleStroke: View {
+    let stroke: Color
+    /// Dash + gap; phase animates by one full cycle length.
+    private let dash: [CGFloat] = [3.5, 2.5]
+    @State private var phase: CGFloat = 0
+
+    private var cycleLength: CGFloat {
+        dash.reduce(0, +)
+    }
+
+    var body: some View {
+        Capsule()
+            .strokeBorder(
+                stroke,
+                style: StrokeStyle(lineWidth: 1, dash: dash, dashPhase: phase)
+            )
+            .onAppear {
+                phase = 0
+                withAnimation(.linear(duration: 0.55).repeatForever(autoreverses: false)) {
+                    phase = -cycleLength
+                }
+            }
     }
 }

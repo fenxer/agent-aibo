@@ -88,11 +88,11 @@ public enum HookSpriteMapping {
     private static func defaultCursorSprite(_ hook: String) -> PetdexSpriteState {
         switch hook {
         case "sessionStart", "beforeSubmitPrompt", "postToolUse", "postToolUseFailure",
-             "afterAgentResponse":
+             "afterAgentResponse", "subagentStart":
             return .jumping
         case "preToolUse", "beforeShellExecution":
             return .running
-        case "stop":
+        case "stop", "subagentStop":
             return .waving
         case "sessionEnd":
             return .idle

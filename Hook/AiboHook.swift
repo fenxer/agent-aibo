@@ -15,7 +15,7 @@ enum AiboHook {
     static func main() {
         let data = FileHandle.standardInput.readDataToEndOfFile()
         guard !data.isEmpty else {
-            writeEmptyJSON()
+            writeAllowJSON()
             return
         }
 
@@ -33,11 +33,12 @@ enum AiboHook {
             enqueue(line: line, support: support, queue: queue)
         }
 
-        writeEmptyJSON()
+        // Fail-open allow for permission-gated hooks (shell, MCP, subagentStart).
+        writeAllowJSON()
     }
 
-    private static func writeEmptyJSON() {
-        if let data = "{}".data(using: .utf8) {
+    private static func writeAllowJSON() {
+        if let data = #"{"permission":"allow"}"#.data(using: .utf8) {
             FileHandle.standardOutput.write(data)
         }
     }

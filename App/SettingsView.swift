@@ -581,6 +581,7 @@ private struct DevelopmentSettingsPane: View {
     @State private var modelName = "Grok 4.5 High Fast"
     @State private var agentName = "Cursor"
     @State private var showCursorIcon = true
+    @State private var isSubagent = false
     @State private var message = "is thinking"
     @State private var webhookJSON = """
         {
@@ -608,7 +609,9 @@ private struct DevelopmentSettingsPane: View {
                 TextField(String(localized: "Project Name"), text: $projectName)
                 TextField(String(localized: "Model Name"), text: $modelName)
                 TextField(String(localized: "Agent Name"), text: $agentName)
+                    .disabled(isSubagent)
                 Toggle(String(localized: "Show Cursor Icon"), isOn: $showCursorIcon)
+                Toggle(String(localized: "Subagent Capsule"), isOn: $isSubagent)
                 TextField(String(localized: "Status Text"), text: $message, axis: .vertical)
                     .lineLimit(2...5)
 
@@ -619,7 +622,8 @@ private struct DevelopmentSettingsPane: View {
                             agentName: agentName,
                             projectName: projectName,
                             modelName: modelName,
-                            showCursorIcon: showCursorIcon
+                            showCursorIcon: showCursorIcon,
+                            isSubagent: isSubagent
                         )
                     }
                     .disabled(!canShow)

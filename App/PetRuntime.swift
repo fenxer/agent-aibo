@@ -48,6 +48,7 @@ final class PetRuntime {
     private struct SessionDisplayMeta: Equatable, Sendable {
         var projectName: String?
         var modelName: String?
+        var isSubagent: Bool = false
     }
 
     private init() {}
@@ -299,7 +300,8 @@ final class PetRuntime {
         agentName: String = "Cursor",
         projectName: String? = nil,
         modelName: String? = nil,
-        showCursorIcon: Bool = true
+        showCursorIcon: Bool = true,
+        isSubagent: Bool = false
     ) {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty else { return }
@@ -312,10 +314,13 @@ final class PetRuntime {
             id: "debug",
             text: trimmedText,
             lastEventAt: Date.distantFuture,
-            agentName: trimmedAgent.isEmpty ? "Debug" : trimmedAgent,
+            agentName: isSubagent
+                ? "Subagent"
+                : (trimmedAgent.isEmpty ? "Debug" : trimmedAgent),
             iconAssetName: showCursorIcon ? "cursor" : nil,
             projectName: (trimmedProject?.isEmpty == false) ? trimmedProject : nil,
-            modelName: (trimmedModel?.isEmpty == false) ? trimmedModel : nil
+            modelName: (trimmedModel?.isEmpty == false) ? trimmedModel : nil,
+            isSubagent: isSubagent
         )
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
@@ -365,7 +370,8 @@ final class PetRuntime {
             mergeDisplayMeta(
                 for: parsed.session,
                 projectName: parsed.projectName,
-                modelName: parsed.modelName
+                modelName: parsed.modelName,
+                isSubagent: parsed.isSubagent
             )
             if case .removeSession = parsed.transition {
                 sessionDisplayMeta.removeValue(forKey: parsed.session)
@@ -390,12 +396,15 @@ final class PetRuntime {
     private func mergeDisplayMeta(
         for session: SessionKey,
         projectName: String?,
-        modelName: String?
+        modelName: String?,
+        isSubagent: Bool = false
     ) {
-        guard projectName != nil || modelName != nil else { return }
+        guard projectName != nil || modelName != nil || isSubagent else { return }
         var meta = sessionDisplayMeta[session] ?? SessionDisplayMeta()
         if let projectName { meta.projectName = projectName }
         if let modelName { meta.modelName = modelName }
+        // Sticky: once marked a subagent, keep the outline capsule for the session.
+        if isSubagent { meta.isSubagent = true }
         sessionDisplayMeta[session] = meta
     }
 
@@ -414,6 +423,7 @@ final class PetRuntime {
             }
             guard let text = StatusCopy.statusPhrase(for: snapshot.activity) else { continue }
             let meta = sessionDisplayMeta[key]
+            let isSubagent = meta?.isSubagent == true
             items.append(
                 StatusBubbleItem(
                     id: "\(key.agent.rawValue):\(key.conversationID)",
@@ -421,10 +431,11 @@ final class PetRuntime {
                     lastEventAt: snapshot.lastEventAt,
                     isDismissible: snapshot.activity == .failed,
                     animatesEllipsis: Self.animatesEllipsis(for: snapshot.activity),
-                    agentName: StatusCopy.displayName(key.agent),
+                    agentName: isSubagent ? "Subagent" : StatusCopy.displayName(key.agent),
                     iconAssetName: Self.iconAssetName(for: key.agent),
                     projectName: meta?.projectName,
-                    modelName: meta?.modelName
+                    modelName: meta?.modelName,
+                    isSubagent: isSubagent
                 )
             )
         }

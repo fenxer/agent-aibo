@@ -22,7 +22,9 @@ public enum CursorEventMapper {
             return .apply(.responding)
         case "afterAgentThought":
             return nil
-        case "stop":
+        case "subagentStart":
+            return .apply(.thinking)
+        case "stop", "subagentStop":
             switch stopStatus {
             case "completed", .none:
                 return .apply(.done)
