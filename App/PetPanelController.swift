@@ -51,7 +51,7 @@ final class PetPanelController {
         // Menu / launch path — safe to size synchronously (not inside a layout pass).
         applyGeometryNow()
         if !hasPlacedInitially {
-            placeAtDefaultCorner()
+            placeInitially()
             hasPlacedInitially = true
         } else {
             clampToVisibleScreen()
@@ -475,8 +475,32 @@ final class PetPanelController {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.clampToVisibleScreen()
+                self?.handleScreenParametersChanged()
             }
+        }
+    }
+
+    private func handleScreenParametersChanged() {
+        let settings = AppSettings.shared
+        if settings.restoreLastPetPosition,
+           let x = settings.savedPetCenterXPercent,
+           let y = settings.savedPetCenterYPercent
+        {
+            placeAtRelativePosition(xPercent: x, yPercent: y)
+        }
+        clampToVisibleScreen()
+    }
+
+    private func placeInitially() {
+        let settings = AppSettings.shared
+        if settings.restoreLastPetPosition,
+           let x = settings.savedPetCenterXPercent,
+           let y = settings.savedPetCenterYPercent
+        {
+            placeAtRelativePosition(xPercent: x, yPercent: y)
+            clampToVisibleScreen()
+        } else {
+            placeAtDefaultCorner()
         }
     }
 
@@ -488,6 +512,32 @@ final class PetPanelController {
         var frame = panel.frame
         frame.origin.x = visible.maxX - frame.width - screenPadding
         frame.origin.y = visible.minY + screenPadding
+        panel.setFrame(frame, display: false)
+    }
+
+    /// Place so the pet center lands at `(xPercent, yPercent)` of the screen visible frame.
+    private func placeAtRelativePosition(xPercent: Double, yPercent: Double) {
+        guard let panel else { return }
+        let screen = panel.screen ?? NSScreen.main
+        guard let screen else { return }
+
+        let visible = screen.visibleFrame
+        guard visible.width > 0, visible.height > 0 else { return }
+
+        let petOnScreen = CGPoint(
+            x: visible.minX + CGFloat(xPercent) * visible.width,
+            y: visible.minY + CGFloat(yPercent) * visible.height
+        )
+        let centerInPanel = petCenter(
+            in: panel.frame.size,
+            petSize: laidOutPetSize,
+            placement: laidOutPlacement,
+            bubbleCount: laidOutBubbleCount
+        )
+
+        var frame = panel.frame
+        frame.origin.x = petOnScreen.x - centerInPanel.x
+        frame.origin.y = petOnScreen.y - centerInPanel.y
         panel.setFrame(frame, display: false)
     }
 
@@ -524,5 +574,30 @@ final class PetPanelController {
         panel.setFrame(frame, display: false)
         applyContentFrame(frame.size)
         pinContentSize(frame.size)
+    }
+
+    /// Write the current pet-center fractions of the screen visible frame.
+    /// Call after the user finishes dragging, and on quit.
+    func persistRelativePositionNow() {
+        guard let panel else { return }
+        let screen = panel.screen ?? NSScreen.main
+        guard let screen else { return }
+
+        let visible = screen.visibleFrame
+        guard visible.width > 0, visible.height > 0 else { return }
+
+        let centerInPanel = petCenter(
+            in: panel.frame.size,
+            petSize: laidOutPetSize,
+            placement: laidOutPlacement,
+            bubbleCount: laidOutBubbleCount
+        )
+        let petOnScreen = CGPoint(
+            x: panel.frame.origin.x + centerInPanel.x,
+            y: panel.frame.origin.y + centerInPanel.y
+        )
+        let xPercent = Double((petOnScreen.x - visible.minX) / visible.width)
+        let yPercent = Double((petOnScreen.y - visible.minY) / visible.height)
+        AppSettings.shared.savePetCenterRelativePosition(xPercent: xPercent, yPercent: yPercent)
     }
 }

@@ -66,6 +66,7 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
         // (e.g. dismiss `.failed`).
         if isOpaquePetHit(at: point) {
             window?.performDrag(with: event)
+            PetPanelController.shared.persistRelativePositionNow()
             return
         }
         super.mouseDown(with: event)

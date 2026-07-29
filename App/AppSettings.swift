@@ -14,6 +14,9 @@ final class AppSettings {
         static let bubbleGlassStyle = "settings.bubbleGlassStyle"
         static let bubbleGlassTint = "settings.bubbleGlassTint"
         static let petScalePercent = "settings.petScalePercent"
+        static let restoreLastPetPosition = "settings.restoreLastPetPosition"
+        static let petPositionXPercent = "settings.petPositionXPercent"
+        static let petPositionYPercent = "settings.petPositionYPercent"
         static let musicNotesEnabled = "settings.musicNotesEnabled"
         static let customMusicNotificationNames = "settings.customMusicNotificationNames"
         static let webhookEnabled = "settings.webhookEnabled"
@@ -51,6 +54,19 @@ final class AppSettings {
             PetPanelController.shared.refreshContent()
         }
     }
+
+    /// When true, the pet opens at its last screen-relative position. Default on.
+    var restoreLastPetPosition: Bool {
+        didSet {
+            guard oldValue != restoreLastPetPosition else { return }
+            UserDefaults.standard.set(restoreLastPetPosition, forKey: Keys.restoreLastPetPosition)
+        }
+    }
+
+    /// Pet center X within the screen `visibleFrame`, 0…1. `nil` until the user has moved the pet.
+    private(set) var savedPetCenterXPercent: Double?
+    /// Pet center Y within the screen `visibleFrame`, 0…1. `nil` until the user has moved the pet.
+    private(set) var savedPetCenterYPercent: Double?
 
     /// Overlay music-note rise effect while a known player is playing. Default on.
     var musicNotesEnabled: Bool {
@@ -149,6 +165,22 @@ final class AppSettings {
             petScalePercent = Self.defaultPetScalePercent
         }
 
+        if UserDefaults.standard.object(forKey: Keys.restoreLastPetPosition) != nil {
+            restoreLastPetPosition = UserDefaults.standard.bool(forKey: Keys.restoreLastPetPosition)
+        } else {
+            restoreLastPetPosition = true
+        }
+
+        if UserDefaults.standard.object(forKey: Keys.petPositionXPercent) != nil,
+           UserDefaults.standard.object(forKey: Keys.petPositionYPercent) != nil
+        {
+            savedPetCenterXPercent = UserDefaults.standard.double(forKey: Keys.petPositionXPercent)
+            savedPetCenterYPercent = UserDefaults.standard.double(forKey: Keys.petPositionYPercent)
+        } else {
+            savedPetCenterXPercent = nil
+            savedPetCenterYPercent = nil
+        }
+
         if UserDefaults.standard.object(forKey: Keys.musicNotesEnabled) != nil {
             musicNotesEnabled = UserDefaults.standard.bool(forKey: Keys.musicNotesEnabled)
         } else {
@@ -193,6 +225,17 @@ final class AppSettings {
 
     func resetPetScalePercent() {
         petScalePercent = Self.defaultPetScalePercent
+    }
+
+    /// Persist pet center as fractions of the screen visible frame (resolution-independent).
+    func savePetCenterRelativePosition(xPercent: Double, yPercent: Double) {
+        let x = min(max(xPercent, 0), 1)
+        let y = min(max(yPercent, 0), 1)
+        guard savedPetCenterXPercent != x || savedPetCenterYPercent != y else { return }
+        savedPetCenterXPercent = x
+        savedPetCenterYPercent = y
+        UserDefaults.standard.set(x, forKey: Keys.petPositionXPercent)
+        UserDefaults.standard.set(y, forKey: Keys.petPositionYPercent)
     }
 
     private static func clampPetScalePercent(_ value: Double) -> Double {

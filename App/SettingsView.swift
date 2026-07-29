@@ -178,6 +178,15 @@ private struct AppearanceSettingsPane: View {
                 Text(String(localized: "Scale the desktop pet image. 100% is the default size."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Toggle(
+                    String(localized: "Restore Last Position"),
+                    isOn: $settings.restoreLastPetPosition
+                )
+
+                Text(String(localized: "Open the pet where you left it, using a screen-relative position so it adapts to different resolutions. Off always uses the bottom-right corner."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } header: {
                 Text(String(localized: "Pet"))
             }
