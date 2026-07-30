@@ -518,12 +518,19 @@ final class PetRuntime {
 
     private func scheduleIdleDeadline() {
         idleTask?.cancel()
+        let now = Date()
+        guard let nextDeadline = world.sessions.values.compactMap(\.idleAt).min() else { return }
+        let delay = max(0, nextDeadline.timeIntervalSince(now))
         idleTask = Task { [weak self] in
-            let delay = PetStateMachine.doneIdleDelay
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                self?.apply(.idleDeadline(at: Date()))
+                guard let self else { return }
+                self.apply(.idleDeadline(at: Date()))
+                // Other sessions may still have a later `idleAt` (e.g. responding @ 60s).
+                if self.world.sessions.values.contains(where: { $0.idleAt != nil }) {
+                    self.scheduleIdleDeadline()
+                }
             }
         }
     }

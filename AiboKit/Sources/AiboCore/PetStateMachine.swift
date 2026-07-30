@@ -16,15 +16,23 @@ public enum PetEvent: Equatable, Sendable {
 public enum PetStateMachine {
     /// Hold time before `.done` / `.registered` / `.interrupted` falls back to `.idle`.
     public static let doneIdleDelay: TimeInterval = 3
+    /// Hold time after `.responding` when Cursor never sends `stop` / `sessionEnd`.
+    public static let respondingIdleDelay: TimeInterval = 60
     /// Default silence timeout before a session is forced to `.idle`.
     public static let defaultWatchdogTimeout: TimeInterval = 120
 
+    /// Auto-clear delay for statuses that linger then fall back to `.idle`.
+    public static func idleFallbackDelay(for activity: PetActivityState) -> TimeInterval? {
+        switch activity {
+        case .done, .registered, .interrupted: doneIdleDelay
+        case .responding: respondingIdleDelay
+        default: nil
+        }
+    }
+
     /// Statuses that briefly linger on the bubble, then clear themselves.
     public static func schedulesIdleFallback(_ activity: PetActivityState) -> Bool {
-        switch activity {
-        case .done, .registered, .interrupted: true
-        default: false
-        }
+        idleFallbackDelay(for: activity) != nil
     }
 
     public static func reduce(_ state: PetWorldState, event: PetEvent) -> PetWorldState {
@@ -50,9 +58,7 @@ public enum PetStateMachine {
         case .removeSession:
             state.sessions.removeValue(forKey: session)
         case let .apply(activity):
-            let idleAt = schedulesIdleFallback(activity)
-                ? at.addingTimeInterval(doneIdleDelay)
-                : nil
+            let idleAt = idleFallbackDelay(for: activity).map { at.addingTimeInterval($0) }
             state.sessions[session] = SessionSnapshot(
                 activity: activity,
                 lastEventAt: at,

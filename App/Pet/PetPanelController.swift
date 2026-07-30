@@ -541,6 +541,8 @@ final class PetPanelController {
         panel.setFrame(frame, display: false)
     }
 
+    /// Keep the *pet* inside the padded visible frame. Stacked bubbles may
+    /// extend off-screen — clamping the whole panel would shove the pet up/down.
     private func clampToVisibleScreen() {
         guard let panel else { return }
         let screen = panel.screen ?? NSScreen.main
@@ -548,28 +550,41 @@ final class PetPanelController {
 
         let visible = screen.visibleFrame
         var frame = panel.frame
-
-        if frame.width > visible.width {
-            frame.size.width = visible.width
-        }
-        if frame.height > visible.height {
-            frame.size.height = visible.height
-        }
         frame.size.width = max(frame.size.width, 1)
         frame.size.height = max(frame.size.height, 1)
 
-        if frame.maxX > visible.maxX {
-            frame.origin.x = visible.maxX - frame.width
+        let centerInPanel = petCenter(
+            in: frame.size,
+            petSize: laidOutPetSize,
+            placement: laidOutPlacement,
+            bubbleCount: laidOutBubbleCount
+        )
+        var petOnScreen = CGPoint(
+            x: frame.origin.x + centerInPanel.x,
+            y: frame.origin.y + centerInPanel.y
+        )
+
+        // Shrink padding if the visible area is tiny so min ≤ max still holds.
+        let padX = min(screenPadding, max(0, visible.width / 2 - 1))
+        let padY = min(screenPadding, max(0, visible.height / 2 - 1))
+        let minX = visible.minX + padX
+        let maxX = visible.maxX - padX
+        let minY = visible.minY + padY
+        let maxY = visible.maxY - padY
+
+        if petOnScreen.x < minX {
+            petOnScreen.x = minX
+        } else if petOnScreen.x > maxX {
+            petOnScreen.x = maxX
         }
-        if frame.minX < visible.minX {
-            frame.origin.x = visible.minX
+        if petOnScreen.y < minY {
+            petOnScreen.y = minY
+        } else if petOnScreen.y > maxY {
+            petOnScreen.y = maxY
         }
-        if frame.maxY > visible.maxY {
-            frame.origin.y = visible.maxY - frame.height
-        }
-        if frame.minY < visible.minY {
-            frame.origin.y = visible.minY
-        }
+
+        frame.origin.x = petOnScreen.x - centerInPanel.x
+        frame.origin.y = petOnScreen.y - centerInPanel.y
 
         panel.setFrame(frame, display: false)
         applyContentFrame(frame.size)
