@@ -140,6 +140,9 @@ struct PetView: View {
                     item: item,
                     placement: placement,
                     showsArrow: index == nearPetIndex,
+                    onActivate: item.agent.map { agent in
+                        { SourceAppActivator.activate(agent) }
+                    },
                     onDismiss: item.isDismissible
                         ? { PetRuntime.shared.dismissBubble(id: item.id) }
                         : nil,

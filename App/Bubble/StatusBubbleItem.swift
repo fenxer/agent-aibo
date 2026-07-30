@@ -1,3 +1,4 @@
+import AiboCore
 import Foundation
 
 /// One status bubble in the stacked display.
@@ -30,4 +31,6 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
     var statusLabel: String? = nil
     /// Cursor Task/subagent: outline dashed capsule labeled “Subagent”.
     var isSubagent: Bool = false
+    /// Local hook agent; used to activate the source app on tap. Nil for webhook/debug.
+    var agent: AgentKind? = nil
 }

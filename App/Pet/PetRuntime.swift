@@ -444,7 +444,8 @@ final class PetRuntime {
                     iconAssetName: Self.iconAssetName(for: key.agent),
                     projectName: meta?.projectName,
                     modelName: meta?.modelName,
-                    isSubagent: isSubagent
+                    isSubagent: isSubagent,
+                    agent: key.agent
                 )
             )
         }

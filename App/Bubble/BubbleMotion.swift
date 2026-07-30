@@ -28,6 +28,7 @@ struct AnimatedStatusBubble: View {
     let item: StatusBubbleItem
     let placement: BubblePlacement
     var showsArrow: Bool = true
+    var onActivate: (() -> Void)? = nil
     var onDismiss: (() -> Void)? = nil
     var glassStyle: BubbleGlassStyle = AppSettings.shared.bubbleGlassStyle
     var glassTint: Color? = AppSettings.shared.bubbleGlassTint
@@ -40,6 +41,7 @@ struct AnimatedStatusBubble: View {
             item: item,
             placement: placement,
             showsArrow: showsArrow,
+            onActivate: onActivate,
             onDismiss: onDismiss,
             glassStyle: glassStyle,
             glassTint: glassTint

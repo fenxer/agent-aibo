@@ -6,6 +6,8 @@ struct StatusBubble: View {
     let placement: BubblePlacement
     /// Only the bubble nearest the pet keeps the popover arrow.
     var showsArrow: Bool = true
+    /// When set, a tap activates the source app (local agent bubbles).
+    var onActivate: (() -> Void)? = nil
     /// When set, a tap clears this bubble (e.g. `.failed`).
     var onDismiss: (() -> Void)? = nil
     /// Glass style / tint; defaults to live settings so previews can override.
@@ -58,7 +60,7 @@ struct StatusBubble: View {
                 showsArrow && placement == .right ? d[.leading] + arrowHeight : d[.leading]
             }
             .contentShape(Rectangle())
-            .modifier(DismissTapModifier(onDismiss: onDismiss))
+            .modifier(BubbleTapModifier(onActivate: onActivate, onDismiss: onDismiss))
     }
 
     @ViewBuilder
@@ -439,20 +441,37 @@ struct StatusBubble: View {
     .background(Color.secondary.opacity(0.25))
 }
 
-/// Applies a high-priority tap only when dismissible, so WindowDragGesture still works elsewhere.
-private struct DismissTapModifier: ViewModifier {
+/// High-priority tap for activate and/or dismiss, so WindowDragGesture still works elsewhere.
+private struct BubbleTapModifier: ViewModifier {
+    var onActivate: (() -> Void)?
     var onDismiss: (() -> Void)?
 
     func body(content: Content) -> some View {
-        if let onDismiss {
+        if onActivate != nil || onDismiss != nil {
             content
                 .highPriorityGesture(
-                    TapGesture().onEnded { onDismiss() }
+                    TapGesture().onEnded {
+                        onActivate?()
+                        onDismiss?()
+                    }
                 )
-                .accessibilityHint(String(localized: "Click to dismiss"))
+                .accessibilityHint(accessibilityHint)
                 .accessibilityAddTraits(.isButton)
         } else {
             content
+        }
+    }
+
+    private var accessibilityHint: String {
+        switch (onActivate != nil, onDismiss != nil) {
+        case (true, true):
+            String(localized: "Click to switch to app and dismiss")
+        case (true, false):
+            String(localized: "Click to switch to app")
+        case (false, true):
+            String(localized: "Click to dismiss")
+        case (false, false):
+            ""
         }
     }
 }
