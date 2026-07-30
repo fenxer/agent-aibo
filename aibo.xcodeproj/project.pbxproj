@@ -12,6 +12,8 @@
 		3A3091F53017090000431C96 /* AiboHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3091F43017090000431C96 /* AiboHook.swift */; };
 		3A3091F83017090000431C96 /* aibo-hook in Copy Helpers */ = {isa = PBXBuildFile; fileRef = 3A3091F03017090000431C96 /* aibo-hook */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A1B0P0W43017080000431C96 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = A1B0P0W23017080000431C96 /* Pow */; };
+		B2C0M3D13017310000431C96 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; };
+		B2C0M3D43017310000431C96 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,6 +35,17 @@
 				3A3091F83017090000431C96 /* aibo-hook in Copy Helpers */,
 			);
 			name = "Copy Helpers";
+		};
+		B2C0M3D33017310000431C96 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				B2C0M3D43017310000431C96 /* MediaRemoteAdapter in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
@@ -57,6 +70,7 @@
 				3A3091E43017080000431C96 /* AiboIngest in Frameworks */,
 				3A3091E53017080000431C96 /* AiboLLM in Frameworks */,
 				A1B0P0W43017080000431C96 /* Pow in Frameworks */,
+				B2C0M3D13017310000431C96 /* MediaRemoteAdapter in Frameworks */,
 			);
 		};
 		3A3091F33017090000431C96 /* Frameworks */ = {
@@ -104,6 +118,7 @@
 				3A3091CA3017070E00431C96 /* Frameworks */,
 				3A3091CB3017070E00431C96 /* Resources */,
 				3A3091F73017090000431C96 /* Copy Helpers */,
+				B2C0M3D33017310000431C96 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -118,6 +133,7 @@
 				3A3091E13017080000431C96 /* AiboIngest */,
 				3A3091E23017080000431C96 /* AiboLLM */,
 				A1B0P0W23017080000431C96 /* Pow */,
+				B2C0M3D23017310000431C96 /* MediaRemoteAdapter */,
 			);
 			productName = aibo;
 			productReference = 3A3091CD3017070E00431C96 /* aibo.app */;
@@ -167,6 +183,7 @@
 			packageReferences = (
 				3A3091E03017080000431C96 /* XCLocalSwiftPackageReference "AiboKit" */,
 				A1B0P0W13017080000431C96 /* XCRemoteSwiftPackageReference "Pow" */,
+				B2C0M3D03017310000431C96 /* XCLocalSwiftPackageReference "Vendor/MediaRemoteAdapter" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3A3091CE3017070E00431C96 /* Products */;
@@ -466,6 +483,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = AiboKit;
 		};
+		B2C0M3D03017310000431C96 /* XCLocalSwiftPackageReference "Vendor/MediaRemoteAdapter" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/MediaRemoteAdapter;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -494,6 +515,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B0P0W13017080000431C96 /* XCRemoteSwiftPackageReference "Pow" */;
 			productName = Pow;
+		};
+		B2C0M3D23017310000431C96 /* MediaRemoteAdapter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B2C0M3D03017310000431C96 /* XCLocalSwiftPackageReference "Vendor/MediaRemoteAdapter" */;
+			productName = MediaRemoteAdapter;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
