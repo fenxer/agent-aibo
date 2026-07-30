@@ -128,10 +128,15 @@ struct StatusBubble: View {
                         .foregroundStyle(ink)
                         .lineLimit(1)
                 }
-                Text(Self.relativeTimeString(from: item.lastEventAt))
-                    .font(.system(size: 12))
-                    .foregroundStyle(ink.opacity(0.6))
-                    .lineLimit(1)
+                // Keep aging while the bubble stays up (nudge to click / dismiss).
+                // Minute cadence matches RelativeDateTimeFormatter granularity —
+                // avoid .animation (would wake every display refresh).
+                TimelineView(.everyMinute) { context in
+                    Text(Self.relativeTimeString(from: item.lastEventAt, relativeTo: context.date))
+                        .font(.system(size: 12))
+                        .foregroundStyle(ink.opacity(0.6))
+                        .lineLimit(1)
+                }
             }
 
             HStack(alignment: .firstTextBaseline, spacing: headerSpacing) {
@@ -274,11 +279,13 @@ struct StatusBubble: View {
     private static let relativeTimeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
+        formatter.locale = .autoupdatingCurrent
+        formatter.calendar = .autoupdatingCurrent
         return formatter
     }()
 
-    private static func relativeTimeString(from date: Date) -> String {
-        relativeTimeFormatter.localizedString(for: date, relativeTo: Date())
+    private static func relativeTimeString(from date: Date, relativeTo now: Date) -> String {
+        relativeTimeFormatter.localizedString(for: date, relativeTo: now)
     }
 
     @ViewBuilder
