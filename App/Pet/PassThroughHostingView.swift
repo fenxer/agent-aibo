@@ -7,20 +7,25 @@ import SwiftUI
 /// lives on the content view. The alpha mask is built once from the pet image.
 final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     private let opaqueAlphaThreshold: UInt8 = 26 // ~10%
-    private var hitTestImage: NSImage?
     private var alphaMask: AlphaMask?
 
     /// Bottom-centered rect used for pet-image alpha hit testing (window coordinates of content view).
     var petHitRect: CGRect = .null
 
     init(rootView: Content, hitTestImage: NSImage?) {
-        self.hitTestImage = hitTestImage
+        self.alphaMask = Self.makeAlphaMask(from: hitTestImage)
         super.init(rootView: rootView)
     }
 
     func updateHitTestImage(_ image: NSImage?) {
-        hitTestImage = image
-        alphaMask = nil
+        alphaMask = Self.makeAlphaMask(from: image)
+    }
+
+    private static func makeAlphaMask(from image: NSImage?) -> AlphaMask? {
+        guard let image,
+              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return nil }
+        return AlphaMask(cgImage: cgImage)
     }
 
     @available(*, unavailable)
@@ -37,9 +42,6 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
         guard bounds.contains(point) else { return nil }
 
         if petHitRect.isNull == false, petHitRect.contains(point) {
-            if alphaMask == nil {
-                alphaMask = hitTestImage.flatMap(AlphaMask.init)
-            }
             if let alphaMask {
                 let local = CGPoint(x: point.x - petHitRect.minX, y: point.y - petHitRect.minY)
                 let localBounds = CGRect(origin: .zero, size: petHitRect.size)
@@ -74,9 +76,6 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
     private func isOpaquePetHit(at point: NSPoint) -> Bool {
         guard petHitRect.isNull == false, petHitRect.contains(point) else { return false }
-        if alphaMask == nil {
-            alphaMask = hitTestImage.flatMap(AlphaMask.init)
-        }
         guard let alphaMask else { return true }
         let local = CGPoint(x: point.x - petHitRect.minX, y: point.y - petHitRect.minY)
         let localBounds = CGRect(origin: .zero, size: petHitRect.size)
@@ -85,16 +84,13 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 }
 
 /// Cached alpha channel sampled in image pixel space.
-private struct AlphaMask: Sendable {
+/// Built on the main actor; read from AppKit hit-testing (`nonisolated`).
+nonisolated private struct AlphaMask: Sendable {
     private let width: Int
     private let height: Int
     private let alphas: [UInt8]
 
-    init?(image: NSImage) {
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            return nil
-        }
-
+    init?(cgImage: CGImage) {
         width = cgImage.width
         height = cgImage.height
         guard width > 0, height > 0 else { return nil }

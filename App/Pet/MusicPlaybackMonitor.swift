@@ -34,7 +34,8 @@ enum BuiltInMusicNotification: String, CaseIterable, Sendable {
 }
 
 /// Parses common now-playing distributed-notification payloads.
-enum MusicPlaybackPayload {
+/// `nonisolated` so Sendable notification observers can parse off the main actor.
+nonisolated enum MusicPlaybackPayload {
     /// Returns whether the payload indicates active playback.
     static func isPlaying(userInfo: [AnyHashable: Any]?) -> Bool {
         guard let userInfo, !userInfo.isEmpty else { return false }
@@ -133,9 +134,11 @@ final class MusicPlaybackMonitor {
             forName: NSWorkspace.didTerminateApplicationNotification,
             object: nil,
             queue: .main
-        ) { [weak self] notification in
+        ) { notification in
+            let bundleID = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
+                .bundleIdentifier
             Task { @MainActor in
-                self?.handleAppTerminated(notification)
+                MusicPlaybackMonitor.shared.handleAppTerminated(bundleID: bundleID)
             }
         }
     }
@@ -171,9 +174,10 @@ final class MusicPlaybackMonitor {
                 forName: Notification.Name(name),
                 object: nil,
                 queue: .main
-            ) { [weak self] notification in
+            ) { notification in
+                let playing = MusicPlaybackPayload.isPlaying(userInfo: notification.userInfo)
                 Task { @MainActor in
-                    self?.handlePlaybackNotification(name: name, userInfo: notification.userInfo)
+                    MusicPlaybackMonitor.shared.applyPlayback(name: name, isPlaying: playing)
                 }
             }
             observerTokens.append(token)
@@ -190,18 +194,16 @@ final class MusicPlaybackMonitor {
         return names
     }
 
-    private func handlePlaybackNotification(name: String, userInfo: [AnyHashable: Any]?) {
-        if MusicPlaybackPayload.isPlaying(userInfo: userInfo) {
+    private func applyPlayback(name: String, isPlaying playing: Bool) {
+        if playing {
             playingSources.insert(name)
         } else {
             playingSources.remove(name)
         }
     }
 
-    private func handleAppTerminated(_ notification: Notification) {
-        guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-              let bundleID = app.bundleIdentifier
-        else { return }
+    private func handleAppTerminated(bundleID: String?) {
+        guard let bundleID else { return }
 
         for builtIn in BuiltInMusicNotification.allCases where builtIn.bundleIDs.contains(bundleID) {
             playingSources.remove(builtIn.notificationName)

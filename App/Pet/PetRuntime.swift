@@ -121,10 +121,9 @@ final class PetRuntime {
         guard AppSettings.shared.webhookEnabled else { return }
 
         let port = AppSettings.shared.webhookPort
-        let secretBox = WebhookSecretBox(secret: AppSettings.shared.webhookSecret)
-        let server = WebhookServer(port: port, secretProvider: {
-            secretBox.secret
-        })
+        // Snapshot for the accept queue; regenerate restarts the server via syncWebhookServer().
+        let secret = AppSettings.shared.webhookSecret
+        let server = WebhookServer(port: port, secretProvider: { secret })
 
         do {
             let stream = try server.start()
@@ -549,21 +548,5 @@ final class PetRuntime {
             throw CocoaError(.fileNoSuchFile)
         }
         return candidate
-    }
-}
-
-/// Thread-safe secret snapshot for the webhook accept queue.
-private final class WebhookSecretBox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: String
-
-    init(secret: String) {
-        value = secret
-    }
-
-    var secret: String {
-        lock.lock()
-        defer { lock.unlock() }
-        return value
     }
 }
