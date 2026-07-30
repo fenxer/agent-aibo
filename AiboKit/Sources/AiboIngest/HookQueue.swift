@@ -1,6 +1,20 @@
 import AiboCore
 import Foundation
 
+/// One offline-queued hook line, with enqueue time parsed from the filename when possible.
+public struct QueuedHookLine: Sendable, Equatable {
+    public var line: String
+    /// From filename `{epoch}-{uuid}.json` written by `aibo-hook` / `enqueue`.
+    public var queuedAt: Date?
+    public var filename: String
+
+    public init(line: String, queuedAt: Date?, filename: String) {
+        self.line = line
+        self.queuedAt = queuedAt
+        self.filename = filename
+    }
+}
+
 public enum HookQueue {
     public static let maxFileCount = 200
     public static let maxTotalBytes = 5 * 1024 * 1024
@@ -36,9 +50,10 @@ public enum HookQueue {
         try Data(payload.utf8).write(to: url, options: .atomic)
     }
 
+    /// Drains the offline queue oldest-first and deletes each file.
     public static func drain(
         fileManager: FileManager = .default
-    ) throws -> [String] {
+    ) throws -> [QueuedHookLine] {
         try ensureDirectories(fileManager: fileManager)
         let urls = try fileManager.contentsOfDirectory(
             at: AiboPaths.queueDirectory,
@@ -48,18 +63,34 @@ public enum HookQueue {
         .filter { $0.pathExtension == "json" }
         .sorted { $0.lastPathComponent < $1.lastPathComponent }
 
-        var lines: [String] = []
+        var items: [QueuedHookLine] = []
         for url in urls {
+            let filename = url.lastPathComponent
             let data = try Data(contentsOf: url)
             if let text = String(data: data, encoding: .utf8) {
                 let trimmed = text.trimmingCharacters(in: .newlines)
                 if !trimmed.isEmpty {
-                    lines.append(trimmed)
+                    items.append(
+                        QueuedHookLine(
+                            line: trimmed,
+                            queuedAt: queuedAt(fromFilename: filename),
+                            filename: filename
+                        )
+                    )
                 }
             }
             try? fileManager.removeItem(at: url)
         }
-        return lines
+        return items
+    }
+
+    /// Parses `{epoch}-{uuid}.json` filenames produced by enqueue / aibo-hook.
+    public static func queuedAt(fromFilename filename: String) -> Date? {
+        let base = (filename as NSString).deletingPathExtension
+        guard let dash = base.firstIndex(of: "-") else { return nil }
+        let prefix = String(base[..<dash])
+        guard let interval = TimeInterval(prefix) else { return nil }
+        return Date(timeIntervalSince1970: interval)
     }
 
     public static func trimIfNeeded(fileManager: FileManager = .default) throws {

@@ -6,6 +6,7 @@ public enum AiboPaths: Sendable {
     public static let socketFileName = "aibo.sock"
     public static let queueDirectoryName = "queue"
     public static let receiveLogFileName = "receive-log.jsonl"
+    public static let ingestLogFileName = "ingest-log.jsonl"
 
     public static var applicationSupportDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -23,6 +24,10 @@ public enum AiboPaths: Sendable {
 
     public static var receiveLogURL: URL {
         applicationSupportDirectory.appendingPathComponent(receiveLogFileName, isDirectory: false)
+    }
+
+    public static var ingestLogURL: URL {
+        applicationSupportDirectory.appendingPathComponent(ingestLogFileName, isDirectory: false)
     }
 
     public static let petsDirectoryName = "pets"

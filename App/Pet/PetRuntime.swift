@@ -34,6 +34,10 @@ final class PetRuntime {
     private var sessionHookEvents: [SessionKey: String] = [:]
     #if DEBUG
     private var debugBubbleItem: StatusBubbleItem?
+    /// When true, every hook line (queue drain + live socket) is appended to ingest-log.jsonl.
+    private(set) var ingestLoggingEnabled: Bool
+    private(set) var ingestLogEntryCount = 0
+    private static let ingestLoggingDefaultsKey = "debug.ingestLoggingEnabled"
     #endif
 
     /// Sprite row for the primary session (idle when none).
@@ -51,7 +55,22 @@ final class PetRuntime {
         var isSubagent: Bool = false
     }
 
-    private init() {}
+    private enum HookIngestSource: String {
+        case queue
+        case socket
+    }
+
+    private init() {
+        #if DEBUG
+        if UserDefaults.standard.object(forKey: Self.ingestLoggingDefaultsKey) != nil {
+            ingestLoggingEnabled = UserDefaults.standard.bool(forKey: Self.ingestLoggingDefaultsKey)
+        } else {
+            // Default on in DEBUG so cold-start ghosts are catchable without opening Settings first.
+            ingestLoggingEnabled = true
+        }
+        ingestLogEntryCount = (try? IngestLogStore.count()) ?? 0
+        #endif
+    }
 
     func start() {
         cursorHooksInstalled = (try? CursorHooksFile.isInstalled()) ?? false
@@ -60,8 +79,17 @@ final class PetRuntime {
 
         do {
             let queued = try HookQueue.drain()
-            for line in queued {
-                handle(jsonLine: line, at: Date())
+            #if DEBUG
+            recordIngestDrain(count: queued.count)
+            #endif
+            let drainedAt = Date()
+            for item in queued {
+                handle(
+                    jsonLine: item.line,
+                    at: drainedAt,
+                    source: .queue,
+                    queuedAt: item.queuedAt
+                )
             }
 
             let server = UnixSocketServer()
@@ -72,7 +100,12 @@ final class PetRuntime {
             consumeTask = Task { [weak self] in
                 for await line in stream {
                     await MainActor.run {
-                        self?.handle(jsonLine: line, at: Date())
+                        self?.handle(
+                            jsonLine: line,
+                            at: Date(),
+                            source: .socket,
+                            queuedAt: nil
+                        )
                     }
                 }
             }
@@ -368,11 +401,148 @@ final class PetRuntime {
             return String(localized: "Webhook test request failed")
         }
     }
+
+    func setIngestLoggingEnabled(_ enabled: Bool) {
+        guard ingestLoggingEnabled != enabled else { return }
+        ingestLoggingEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.ingestLoggingDefaultsKey)
+    }
+
+    func clearIngestLog() {
+        do {
+            try IngestLogStore.clear()
+            ingestLogEntryCount = 0
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = String(localized: "Failed to clear ingest log")
+        }
+    }
+
+    /// Raw JSONL for pasting into a bug report.
+    func copyIngestLogJSONL() -> String? {
+        do {
+            let data = try IngestLogStore.exportJSONL()
+            guard !data.isEmpty else { return "" }
+            return String(data: data, encoding: .utf8)
+        } catch {
+            lastErrorMessage = String(localized: "Failed to read ingest log")
+            return nil
+        }
+    }
+
+    func refreshIngestLogCount() {
+        ingestLogEntryCount = (try? IngestLogStore.count()) ?? 0
+    }
+
+    private func recordIngestDrain(count: Int) {
+        guard ingestLoggingEnabled else { return }
+        appendIngestLog(
+            IngestLogEntry(
+                kind: "drain",
+                outcome: "summary",
+                detail: "count=\(count)",
+                activeSessionCount: activeSessionCount()
+            )
+        )
+    }
+
+    private func recordIngestEvent(
+        at date: Date,
+        source: HookIngestSource,
+        queuedAt: Date?,
+        eventName: String?,
+        activity: String?,
+        outcome: String,
+        detail: String?,
+        parsed: ParsedHookLine?
+    ) {
+        guard ingestLoggingEnabled else { return }
+        appendIngestLog(
+            IngestLogEntry(
+                at: date,
+                kind: "event",
+                source: source.rawValue,
+                queuedAt: queuedAt,
+                eventName: eventName,
+                agent: parsed?.session.agent.rawValue,
+                conversationID: parsed?.session.conversationID,
+                projectName: parsed?.projectName,
+                modelName: parsed?.modelName,
+                isSubagent: parsed?.isSubagent,
+                activity: activity,
+                outcome: outcome,
+                detail: detail,
+                activeSessionCount: activeSessionCount()
+            )
+        )
+    }
+
+    private func appendIngestLog(_ entry: IngestLogEntry) {
+        do {
+            try IngestLogStore.append(entry)
+            ingestLogEntryCount = (try? IngestLogStore.count()) ?? (ingestLogEntryCount + 1)
+        } catch {
+            // Diagnostics must stay fail-open; never break hook handling.
+        }
+    }
+
+    private func activeSessionCount() -> Int {
+        world.sessions.values.reduce(0) { partial, snapshot in
+            partial + (snapshot.activity == .idle ? 0 : 1)
+        }
+    }
+
+    private static func activityLabel(for transition: StateTransition) -> String {
+        switch transition {
+        case .removeSession:
+            return "removeSession"
+        case let .apply(activity):
+            switch activity {
+            case .idle: return "idle"
+            case .registered: return "registered"
+            case .thinking: return "thinking"
+            case let .usingTool(name): return "usingTool:\(name)"
+            case .responding: return "responding"
+            case .waiting: return "waiting"
+            case .done: return "done"
+            case .interrupted: return "interrupted"
+            case .failed: return "failed"
+            }
+        }
+    }
+
+    private static func rawHookEventName(from jsonLine: String) -> String? {
+        guard let data = jsonLine.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        if let name = object["hook_event_name"] as? String, !name.isEmpty { return name }
+        if let name = object["hookEventName"] as? String, !name.isEmpty { return name }
+        return nil
+    }
     #endif
 
-    private func handle(jsonLine: String, at date: Date) {
+    private func handle(
+        jsonLine: String,
+        at date: Date,
+        source: HookIngestSource,
+        queuedAt: Date?
+    ) {
         do {
-            guard let parsed = try HookLineParser.parse(jsonLine: jsonLine) else { return }
+            guard let parsed = try HookLineParser.parse(jsonLine: jsonLine) else {
+                #if DEBUG
+                recordIngestEvent(
+                    at: date,
+                    source: source,
+                    queuedAt: queuedAt,
+                    eventName: Self.rawHookEventName(from: jsonLine),
+                    activity: nil,
+                    outcome: "ignored",
+                    detail: "unparsed",
+                    parsed: nil
+                )
+                #endif
+                return
+            }
             #if DEBUG
             debugBubbleItem = nil
             #endif
@@ -391,6 +561,18 @@ final class PetRuntime {
             apply(
                 .agent(session: parsed.session, transition: parsed.transition, at: date)
             )
+            #if DEBUG
+            recordIngestEvent(
+                at: date,
+                source: source,
+                queuedAt: queuedAt,
+                eventName: parsed.eventName,
+                activity: Self.activityLabel(for: parsed.transition),
+                outcome: "applied",
+                detail: nil,
+                parsed: parsed
+            )
+            #endif
             scheduleWatchdog()
             if case let .apply(activity) = parsed.transition,
                PetStateMachine.schedulesIdleFallback(activity)
@@ -399,6 +581,18 @@ final class PetRuntime {
             }
         } catch {
             // Malformed hook payloads are ignored; agents are fail-open and so are we.
+            #if DEBUG
+            recordIngestEvent(
+                at: date,
+                source: source,
+                queuedAt: queuedAt,
+                eventName: Self.rawHookEventName(from: jsonLine),
+                activity: nil,
+                outcome: "malformed",
+                detail: String(describing: error),
+                parsed: nil
+            )
+            #endif
         }
     }
 
