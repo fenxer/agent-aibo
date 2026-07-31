@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3A301DB4301C678F004C7B4D /* heart.icon in Resources */ = {isa = PBXBuildFile; fileRef = 3A301DB3301C678F004C7B4D /* heart.icon */; };
 		3A3091E43017080000431C96 /* AiboIngest in Frameworks */ = {isa = PBXBuildFile; productRef = 3A3091E13017080000431C96 /* AiboIngest */; };
 		3A3091E53017080000431C96 /* AiboLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 3A3091E23017080000431C96 /* AiboLLM */; };
 		3A3091F53017090000431C96 /* AiboHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3091F43017090000431C96 /* AiboHook.swift */; };
@@ -48,6 +49,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		3A301DB3301C678F004C7B4D /* heart.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = heart.icon; sourceTree = "<group>"; };
 		3A3091CD3017070E00431C96 /* aibo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = aibo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3A3091F03017090000431C96 /* aibo-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "aibo-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3A3091F43017090000431C96 /* AiboHook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiboHook.swift; sourceTree = "<group>"; };
@@ -84,6 +86,7 @@
 			children = (
 				3A3091CF3017070E00431C96 /* App */,
 				3A3091F63017090000431C96 /* Hook */,
+				3A301DB3301C678F004C7B4D /* heart.icon */,
 				3A3091CE3017070E00431C96 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -198,6 +201,7 @@
 		3A3091CB3017070E00431C96 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				3A301DB4301C678F004C7B4D /* heart.icon in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
@@ -348,8 +352,9 @@
 		3A3091D93017071000431C96 /* Debug configuration for PBXNativeTarget "aibo" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = heart;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -359,6 +364,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Aibo;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -382,8 +389,9 @@
 		3A3091DA3017071000431C96 /* Release configuration for PBXNativeTarget "aibo" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = heart;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -393,6 +401,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Aibo;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (

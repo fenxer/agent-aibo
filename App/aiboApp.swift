@@ -10,7 +10,7 @@ struct aiboApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra(String(localized: "aibo"), systemImage: "bird.fill") {
+        MenuBarExtra(String(localized: "aibo"), image: "HeartMenu") {
             AiboAppMenu()
         }
 
