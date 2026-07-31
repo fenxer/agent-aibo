@@ -11,7 +11,7 @@ struct PetView: View {
     var petSizeOverride: CGFloat? = nil
 
     @State private var panelController = PetPanelController.shared
-    @State private var musicNotePulse = 0
+    @State private var floatingNotes: [FloatingMusicNote] = []
     @State private var musicNoteTask: Task<Void, Never>?
     private var library = PetLibraryStore.shared
     private var runtime = PetRuntime.shared
@@ -21,11 +21,16 @@ struct PetView: View {
     private let stackSpacing: CGFloat = 4
     private let petBubbleSpacing: CGFloat = 6
     private let basePetSize: CGFloat = 96
-    /// Northeast of the pet bounds — floats notes toward upper-right.
-    private static let musicNoteOrigin = UnitPoint(x: 0.85, y: 0.2)
-    private static let musicNoteLayerName = "aibo.musicNotes"
-    private static let musicNotesPerBurst = 3
-    private static let musicNoteBurstSpacing: Duration = .milliseconds(280)
+    /// Burst every few seconds — Pow `.rise` used TimelineView at display
+    /// refresh and drove 20–30% CPU while music played.
+    private static let musicNoteInterval: Duration = .seconds(4)
+    private static let musicNoteFlight: Duration = .milliseconds(1600)
+    private static let musicNoteStagger: Duration = .milliseconds(220)
+    private static let musicNoteSymbols = [
+        "music.note",
+        "music.note",
+        "music.quarternote.3",
+    ]
 
     private var bubbleItems: [StatusBubbleItem] {
         bubbleItemsOverride ?? runtime.bubbleItems
@@ -65,7 +70,6 @@ struct PetView: View {
         // never remove this root tree while resizing the NSPanel (constraint loop).
         positionedContent
             .padding(PetContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled).edgeInsets)
-            .particleLayer(name: Self.musicNoteLayerName)
             .gesture(WindowDragGesture())
             .allowsWindowActivationEvents()
             .onChange(of: shouldEmitMusicNotes, initial: true) { _, active in
@@ -74,6 +78,7 @@ struct PetView: View {
             .onDisappear {
                 musicNoteTask?.cancel()
                 musicNoteTask = nil
+                floatingNotes.removeAll()
             }
     }
 
@@ -223,20 +228,6 @@ struct PetView: View {
                 .offset(y: (1 - clamped) * -petSize * 1.35)
                 .contentShape(Rectangle())
                 .contextMenu { AiboAppMenu() }
-                .changeEffect(
-                    .rise(origin: Self.musicNoteOrigin, layer: .named(Self.musicNoteLayerName)) {
-                        Image(systemName: "music.note")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(noteColor)
-                        Image(systemName: "music.note")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(noteColor.opacity(0.9))
-                        Image(systemName: "music.quarternote.3")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(noteColor)
-                    },
-                    value: musicNotePulse
-                )
                 // Insertion must stay `.identity` — Pow `.boing` is a GeometryEffect
                 // that makes NSHostingView zero out PetPanel's width.
                 .transition(
@@ -249,6 +240,11 @@ struct PetView: View {
                     )
                 )
             }
+
+            ForEach(floatingNotes) { note in
+                FloatingMusicNoteView(note: note, color: noteColor, petSize: petSize)
+                    .allowsHitTesting(false)
+            }
         }
         .accessibilityLabel(String(localized: "Desktop pet"))
     }
@@ -256,17 +252,81 @@ struct PetView: View {
     private func syncMusicNotePulse(active: Bool) {
         musicNoteTask?.cancel()
         musicNoteTask = nil
-        guard active else { return }
+        guard active else {
+            floatingNotes.removeAll()
+            return
+        }
         musicNoteTask = Task { @MainActor in
             while !Task.isCancelled {
-                for _ in 0..<Self.musicNotesPerBurst {
-                    guard !Task.isCancelled else { return }
-                    musicNotePulse &+= 1
-                    try? await Task.sleep(for: Self.musicNoteBurstSpacing)
-                }
-                try? await Task.sleep(for: .seconds(2))
+                await spawnMusicNoteBurst()
+                try? await Task.sleep(for: Self.musicNoteInterval)
             }
         }
+    }
+
+    /// Random 1…3 notes, staggered so they ease out of phase.
+    private func spawnMusicNoteBurst() async {
+        let count = Int.random(in: 1 ... 3)
+        for index in 0..<count {
+            guard !Task.isCancelled else { return }
+            if index > 0 {
+                try? await Task.sleep(for: Self.musicNoteStagger)
+            }
+            spawnMusicNote()
+        }
+    }
+
+    private func spawnMusicNote() {
+        let note = FloatingMusicNote(
+            systemName: Self.musicNoteSymbols.randomElement() ?? "music.note",
+            xJitter: CGFloat.random(in: -14 ... 20),
+            fontSize: CGFloat.random(in: 12 ... 17),
+            flightSeconds: Double.random(in: 1.15 ... 1.55),
+            riseDistanceFactor: CGFloat.random(in: 0.55 ... 0.85),
+            sway: CGFloat.random(in: -10 ... 14)
+        )
+        floatingNotes.append(note)
+        let noteID = note.id
+        let removeAfter = Self.musicNoteFlight
+        Task { @MainActor in
+            try? await Task.sleep(for: removeAfter)
+            floatingNotes.removeAll { $0.id == noteID }
+        }
+    }
+}
+
+/// One rising note driven by a single SwiftUI animation (no display-linked TimelineView).
+private struct FloatingMusicNote: Identifiable {
+    let id = UUID()
+    let systemName: String
+    let xJitter: CGFloat
+    let fontSize: CGFloat
+    let flightSeconds: Double
+    let riseDistanceFactor: CGFloat
+    let sway: CGFloat
+}
+
+private struct FloatingMusicNoteView: View {
+    let note: FloatingMusicNote
+    let color: Color
+    let petSize: CGFloat
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        Image(systemName: note.systemName)
+            .font(.system(size: note.fontSize, weight: .semibold))
+            .foregroundStyle(color.opacity(0.85 + Double(1 - progress) * 0.15))
+            .offset(
+                x: petSize * 0.28 + note.xJitter + note.sway * progress,
+                y: -petSize * 0.15 - progress * (petSize * note.riseDistanceFactor)
+            )
+            .opacity(Double(1 - progress))
+            .scaleEffect(0.92 + 0.12 * (1 - progress))
+            .onAppear {
+                withAnimation(.easeOut(duration: note.flightSeconds)) {
+                    progress = 1
+                }
+            }
     }
 }
 

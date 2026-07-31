@@ -219,13 +219,17 @@ final class MusicPlaybackMonitor {
         controller.onTrackInfoReceived = { trackInfo in
             let playing = Self.isPlaying(trackInfo: trackInfo)
             Task { @MainActor in
-                #if DEBUG
-                MusicPlaybackMonitor.shared.recordDebugMediaRemote(trackInfo)
-                #endif
-                MusicPlaybackMonitor.shared.applyPlayback(
+                let monitor = MusicPlaybackMonitor.shared
+                let changed = monitor.applyPlayback(
                     name: Self.mediaRemoteSourceID,
                     isPlaying: playing
                 )
+                #if DEBUG
+                // Stream payloads are isPlaying-only; refresh dump on edges.
+                if changed {
+                    monitor.recordDebugMediaRemote(trackInfo)
+                }
+                #endif
             }
         }
         controller.onListenerTerminated = {
@@ -327,12 +331,17 @@ final class MusicPlaybackMonitor {
         return false
     }
 
-    private func applyPlayback(name: String, isPlaying playing: Bool) {
+    /// Returns whether `playingSources` actually changed.
+    @discardableResult
+    private func applyPlayback(name: String, isPlaying playing: Bool) -> Bool {
         if playing {
+            guard !playingSources.contains(name) else { return false }
             playingSources.insert(name)
-        } else {
-            playingSources.remove(name)
+            return true
         }
+        guard playingSources.contains(name) else { return false }
+        playingSources.remove(name)
+        return true
     }
 
     private func handleAppTerminated(bundleID: String?) {

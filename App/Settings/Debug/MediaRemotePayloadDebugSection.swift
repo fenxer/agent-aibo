@@ -32,7 +32,7 @@ struct MediaRemotePayloadDebugSection: View {
 
             Text(
                 String(
-                    localized: "Live stream updates when Appearance → Music Notes is on. Artwork base64 is omitted. Fetch Once works even if the stream is idle."
+                    localized: "Live stream only pushes isPlaying (every few seconds). Fetch Once calls full Now Playing get() — title/artwork/etc. Artwork base64 is omitted here."
                 )
             )
             .font(.caption)

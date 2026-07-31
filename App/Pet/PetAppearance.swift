@@ -30,7 +30,7 @@ enum PetAppearance {
     }
 }
 
-/// Padding around pet content; grows NE when music notes are enabled so Pow rise isn't clipped.
+/// Padding around pet content; grows NE when music notes are enabled so rising notes aren't clipped.
 struct PetContentInsets: Equatable, Sendable {
     var top: CGFloat
     var leading: CGFloat

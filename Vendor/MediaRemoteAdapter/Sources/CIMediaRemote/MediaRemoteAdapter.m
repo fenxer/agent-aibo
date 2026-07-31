@@ -381,6 +381,54 @@ static void setupStdinReader(void) {
     dispatch_resume(_stdinSource);
 }
 
+// aibo only needs a playing bool. Avoid full Now Playing payloads (artwork /
+// elapsed ticks): those notifications fire continuously during playback and
+// were the main CPU cost of the previous 100ms-debounced info loop.
+static BOOL _loopHasEmitted = NO;
+static BOOL _loopLastIsPlaying = NO;
+static dispatch_source_t _isPlayingPollTimer = NULL;
+static const NSTimeInterval kLoopIsPlayingDebounceSeconds = 2.0;
+/// Cheap bool-only poll; covers players that skip IsPlayingDidChange (e.g. some NetEase builds).
+static const NSTimeInterval kLoopIsPlayingPollSeconds = 3.0;
+
+static void emitIsPlayingOnly(BOOL isPlaying) {
+    if (_loopHasEmitted && _loopLastIsPlaying == isPlaying) {
+        return;
+    }
+    _loopHasEmitted = YES;
+    _loopLastIsPlaying = isPlaying;
+    printData(@{(NSString *)kIsPlaying : @(isPlaying)});
+}
+
+static void fetchIsPlayingAndEmit(void) {
+    MRMediaRemoteGetNowPlayingApplicationIsPlaying(_queue, ^(Boolean isPlaying) {
+        @autoreleasepool {
+            emitIsPlayingOnly((BOOL)isPlaying);
+        }
+    });
+}
+
+static void setupIsPlayingPoll(void) {
+    if (_isPlayingPollTimer) {
+        return;
+    }
+    _isPlayingPollTimer =
+        dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _queue);
+    if (!_isPlayingPollTimer) {
+        return;
+    }
+    dispatch_source_set_timer(
+        _isPlayingPollTimer,
+        dispatch_time(DISPATCH_TIME_NOW,
+                      (int64_t)(kLoopIsPlayingPollSeconds * NSEC_PER_SEC)),
+        (uint64_t)(kLoopIsPlayingPollSeconds * NSEC_PER_SEC),
+        (uint64_t)(0.5 * NSEC_PER_SEC));
+    dispatch_source_set_event_handler(_isPlayingPollTimer, ^{
+        fetchIsPlayingAndEmit();
+    });
+    dispatch_resume(_isPlayingPollTimer);
+}
+
 void loop(void) {
     _runLoop = CFRunLoopGetCurrent();
 
@@ -389,41 +437,42 @@ void loop(void) {
     MRMediaRemoteRegisterForNowPlayingNotifications(
         dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0));
 
-    // --- Initial Fetch ---
-    // Fetch the current state immediately when the loop starts, so we don't
-    // have to wait for a media change event.
-    // We schedule this on our serial queue to ensure the run loop is active.
+    // Initial playing state so clients don't wait for the first play/pause.
     dispatch_async(_queue, ^{
-        fetchAndProcess(0);
+        fetchIsPlayingAndEmit();
     });
 
+    setupIsPlayingPoll();
+
     void (^handler)(NSNotification *) = ^(NSNotification *notification) {
-      // If there's an existing block scheduled, cancel it.
       if (_debounce_block) {
           dispatch_block_cancel(_debounce_block);
       }
 
-      // Create a new block to be executed after the delay.
+      NSDictionary *userInfo = notification.userInfo;
       _debounce_block = dispatch_block_create(0, ^{
           @autoreleasepool {
-              id pidValue = notification.userInfo[(__bridge NSString *)kMRMediaRemoteNowPlayingApplicationPIDUserInfoKey];
-              int pid = (pidValue != nil) ? [pidValue intValue] : 0;
-              fetchAndProcess(pid);
+              id playingValue = userInfo[(__bridge NSString *)
+                  kMRMediaRemoteNowPlayingApplicationIsPlayingUserInfoKey];
+              if (playingValue != nil) {
+                  emitIsPlayingOnly([playingValue boolValue]);
+              } else {
+                  fetchIsPlayingAndEmit();
+              }
           }
       });
-      
-      // Schedule the new block to run after a 100ms delay.
-      dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), _queue, _debounce_block);
-    };
-    
-    [[NSNotificationCenter defaultCenter]
-        addObserverForName:(__bridge NSString *)kMRMediaRemoteNowPlayingInfoDidChangeNotification
-                    object:nil
-                     queue:nil
-                usingBlock:handler];
 
+      dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                                   (int64_t)(kLoopIsPlayingDebounceSeconds *
+                                             NSEC_PER_SEC)),
+                     _queue, _debounce_block);
+    };
+
+    // Play/pause only — not NowPlayingInfoDidChange (elapsed/artwork spam).
     [[NSNotificationCenter defaultCenter]
-        addObserverForName:(__bridge NSString *)kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification
+        addObserverForName:
+            (__bridge NSString *)
+                kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification
                     object:nil
                      queue:nil
                 usingBlock:handler];
