@@ -14,6 +14,8 @@ public enum WebhookRequestHandler {
     }
 
     public static let path = "/webhook"
+    /// Set by Development → POST to Local Listener so probes stay out of Receive Log.
+    public static let testHeaderName = "X-Aibo-Test"
 
     public static func handle(
         request: HTTPRequest,
@@ -42,6 +44,7 @@ public enum WebhookRequestHandler {
         }
 
         let parsed = WebhookMessageFormatter.parse(from: request.body)
+        let isTest = !(request.header(testHeaderName) ?? "").isEmpty
         return Result(
             statusCode: 200,
             delivery: WebhookDelivery(
@@ -50,7 +53,8 @@ public enum WebhookRequestHandler {
                 status: parsed.status,
                 summary: parsed.summary,
                 displayText: parsed.displayText,
-                receivedAt: now
+                receivedAt: now,
+                skipReceiveLog: isTest
             )
         )
     }

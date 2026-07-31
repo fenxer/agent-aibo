@@ -205,7 +205,9 @@ final class PetRuntime {
         )
         webhookBubbles.removeAll { $0.id == item.id }
         webhookBubbles.append(item)
-        recordReceive(delivery)
+        if !delivery.skipReceiveLog {
+            recordReceive(delivery)
+        }
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
         switch dismissMode {
@@ -220,6 +222,7 @@ final class PetRuntime {
     }
 
     /// Local test / DEBUG helper: format raw body the same way as HTTP ingest.
+    /// Skips Receive Log — Development probes must not pollute real inbound history.
     func ingestWebhookBody(_ body: Data, id: String = UUID().uuidString) {
         let parsed = WebhookMessageFormatter.parse(from: body)
         ingestWebhook(
@@ -229,7 +232,8 @@ final class PetRuntime {
                 status: parsed.status,
                 summary: parsed.summary,
                 displayText: parsed.displayText,
-                receivedAt: Date()
+                receivedAt: Date(),
+                skipReceiveLog: true
             )
         )
     }
@@ -390,6 +394,7 @@ final class PetRuntime {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(WebhookSignature.sign(body: body, secret: secret), forHTTPHeaderField: "X-Webhook-Signature")
         request.setValue(UUID().uuidString, forHTTPHeaderField: "X-Webhook-ID")
+        request.setValue("1", forHTTPHeaderField: WebhookRequestHandler.testHeaderName)
         request.httpBody = body
 
         do {

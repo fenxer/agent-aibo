@@ -38,10 +38,31 @@ import Testing
     #expect(once.delivery?.status == "FINISHED")
     #expect(once.delivery?.summary == "done")
     #expect(once.delivery?.id == "delivery-1")
+    #expect(once.delivery?.skipReceiveLog == false)
 
     let twice = WebhookRequestHandler.handle(request: request, secret: secret, idCache: &cache)
     #expect(twice.statusCode == 200)
     #expect(twice.delivery == nil)
+}
+
+@Test func webhookHandlerMarksTestHeaderAsSkipReceiveLog() {
+    let body = Data(#"{"status":"FINISHED","summary":"probe"}"#.utf8)
+    let secret = "s3cret"
+    let request = HTTPRequest(
+        method: "POST",
+        path: "/webhook",
+        headers: [
+            "X-Webhook-Signature": WebhookSignature.sign(body: body, secret: secret),
+            "X-Webhook-ID": "delivery-test",
+            WebhookRequestHandler.testHeaderName: "1",
+        ],
+        body: body
+    )
+    var cache = WebhookIDCache()
+    let result = WebhookRequestHandler.handle(request: request, secret: secret, idCache: &cache)
+    #expect(result.statusCode == 200)
+    #expect(result.delivery?.skipReceiveLog == true)
+    #expect(result.delivery?.summary == "probe")
 }
 
 @Test func webhookHandlerRejectsBadSignature() {

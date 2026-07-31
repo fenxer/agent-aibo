@@ -10,6 +10,8 @@ public struct WebhookDelivery: Sendable, Equatable {
     /// Combined line for receive log.
     public var displayText: String
     public var receivedAt: Date
+    /// Development / local probes; still show a bubble but skip Receive Log.
+    public var skipReceiveLog: Bool
 
     public init(
         id: String,
@@ -17,7 +19,8 @@ public struct WebhookDelivery: Sendable, Equatable {
         status: String? = nil,
         summary: String? = nil,
         displayText: String,
-        receivedAt: Date = Date()
+        receivedAt: Date = Date(),
+        skipReceiveLog: Bool = false
     ) {
         self.id = id
         self.source = source
@@ -25,5 +28,6 @@ public struct WebhookDelivery: Sendable, Equatable {
         self.summary = summary
         self.displayText = displayText
         self.receivedAt = receivedAt
+        self.skipReceiveLog = skipReceiveLog
     }
 }
