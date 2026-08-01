@@ -677,7 +677,7 @@ final class PetRuntime {
     private static func iconAssetName(for agent: AgentKind) -> String? {
         switch agent {
         case .cursor: "cursor"
-        case .codex: nil
+        case .codex: "codex"
         }
     }
 
