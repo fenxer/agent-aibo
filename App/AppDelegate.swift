@@ -3,6 +3,8 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // Touch settings early so persisted theme applies before UI shows.
+        _ = AppSettings.shared
         PetRuntime.shared.start()
         PetPanelController.shared.show()
     }

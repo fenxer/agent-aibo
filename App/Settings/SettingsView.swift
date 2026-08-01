@@ -98,6 +98,17 @@ private struct AppearanceSettingsPane: View {
     var body: some View {
         Form {
             Section {
+                Picker(String(localized: "Theme"), selection: $settings.themeMode) {
+                    ForEach(AppThemeMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+            } header: {
+                Text(String(localized: "Theme"))
+            }
+
+            Section {
                 Picker(String(localized: "Active Pet"), selection: selectedPetBinding) {
                     ForEach(library.records) { record in
                         Text(record.displayName).tag(record.id)

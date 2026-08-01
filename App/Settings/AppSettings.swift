@@ -10,6 +10,7 @@ final class AppSettings {
     static let shared = AppSettings()
 
     private enum Keys {
+        static let themeMode = "settings.themeMode"
         static let bubblePlacement = "settings.bubblePlacement"
         static let bubbleGlassStyle = "settings.bubbleGlassStyle"
         static let bubbleGlassTint = "settings.bubbleGlassTint"
@@ -38,6 +39,16 @@ final class AppSettings {
     static let settingsWindowWidth: CGFloat = 680
     static let defaultSettingsWindowHeight: CGFloat = 720
     static let settingsWindowMinHeight: CGFloat = 420
+
+    /// Color scheme: follow system (default), force light, or force dark.
+    var themeMode: AppThemeMode {
+        didSet {
+            guard oldValue != themeMode else { return }
+            UserDefaults.standard.set(themeMode.rawValue, forKey: Keys.themeMode)
+            Self.applyAppearance(themeMode)
+            PetPanelController.shared.refreshContent()
+        }
+    }
 
     var bubblePlacement: BubblePlacement {
         didSet {
@@ -158,6 +169,12 @@ final class AppSettings {
     }
 
     private init() {
+        let themeRaw = UserDefaults.standard.string(forKey: Keys.themeMode)
+            ?? AppThemeMode.system.rawValue
+        let resolvedTheme = AppThemeMode(rawValue: themeRaw) ?? .system
+        themeMode = resolvedTheme
+        Self.applyAppearance(resolvedTheme)
+
         let raw = UserDefaults.standard.string(forKey: Keys.bubblePlacement) ?? BubblePlacement.top.rawValue
         bubblePlacement = BubblePlacement(rawValue: raw) ?? .top
 
@@ -260,6 +277,10 @@ final class AppSettings {
         guard abs(settingsWindowHeight - clamped) >= 0.5 else { return }
         settingsWindowHeight = clamped
         UserDefaults.standard.set(Double(clamped), forKey: Keys.settingsWindowHeight)
+    }
+
+    private static func applyAppearance(_ mode: AppThemeMode) {
+        NSApp.appearance = mode.nsAppearance
     }
 
     private static func clampPetScalePercent(_ value: Double) -> Double {

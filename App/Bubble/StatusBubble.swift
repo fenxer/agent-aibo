@@ -34,8 +34,13 @@ struct StatusBubble: View {
             colorScheme: colorScheme
         )
         let ink = prefersLightLabel ? Color.white : Color.black
-        let capsuleFill = ink
-        let capsuleContent = prefersLightLabel ? Color.black : Color.white
+        // Untinted: keep a dark brand capsule (white label) in both schemes.
+        // Tinted: invert the capsule against ink for contrast on the fill.
+        let capsuleFill = glassTint == nil ? Color.black : ink
+        let capsuleContent =
+            glassTint == nil
+            ? Color.white
+            : (prefersLightLabel ? Color.black : Color.white)
 
         bubbleContent(ink: ink, capsuleFill: capsuleFill, capsuleContent: capsuleContent)
             .padding(contentPadding)
@@ -350,19 +355,22 @@ struct StatusBubble: View {
         }
     }
 
-    /// White label when the effective tinted fill is dark; otherwise keep dark ink.
+    /// White label on dark glass / dark tinted fill; black ink otherwise.
     private static func prefersLightLabel(
         tint: Color?,
         style: BubbleGlassStyle,
         colorScheme: ColorScheme
     ) -> Bool {
-        guard let tint else { return false }
+        // No custom tint: Liquid Glass follows system appearance.
+        guard let tint else { return colorScheme == .dark }
         let fillOpacity: Double = switch style {
         case .clear: 0.65
         case .regular: 0.45
         case .identity: 0.35
         }
-        guard let rgb = NSColor(tint).usingColorSpace(.sRGB) else { return false }
+        guard let rgb = NSColor(tint).usingColorSpace(.sRGB) else {
+            return colorScheme == .dark
+        }
         let backdrop = colorScheme == .dark ? 0.18 : 0.92
         let r = rgb.redComponent * fillOpacity + backdrop * (1 - fillOpacity)
         let g = rgb.greenComponent * fillOpacity + backdrop * (1 - fillOpacity)
