@@ -1,3 +1,4 @@
+import AiboCore
 import AppKit
 import SwiftUI
 
@@ -107,7 +108,8 @@ struct StatusBubble: View {
             }
 
             // Capsule / status share line height; firstTextBaseline keeps glyphs aligned.
-            HStack(alignment: .firstTextBaseline, spacing: headerSpacing) {
+            // Approval CTA keeps the agent capsule and adds a trailing system-blue arrow.
+            HStack(alignment: item.isAwaitingApproval ? .center : .firstTextBaseline, spacing: headerSpacing) {
                 if item.isSubagent {
                     subagentCapsule(ink: ink)
                 } else {
@@ -115,6 +117,16 @@ struct StatusBubble: View {
                 }
                 statusText(ink: ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                if item.isAwaitingApproval {
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Color(nsColor: .systemBlue))
+                        .symbolEffect(
+                            .wiggle.byLayer,
+                            options: .repeat(.periodic(delay: 2.0))
+                        )
+                        .accessibilityHidden(true)
+                }
             }
         }
     }
@@ -423,13 +435,35 @@ struct StatusBubble: View {
     .background(Color.secondary.opacity(0.25))
 }
 
+#Preview("approval") {
+    StatusBubble(
+        item: StatusBubbleItem(
+            id: "approval",
+            text: "needs your approval",
+            lastEventAt: .now,
+            animatesEllipsis: false,
+            isAwaitingApproval: true,
+            agentName: "Codex",
+            iconAssetName: "codex",
+            projectName: "aibo",
+            agent: .codex
+        ),
+        placement: .top
+    )
+    .padding(40)
+    .background(Color.secondary.opacity(0.25))
+}
+
 #Preview("stacked") {
     StatusBubble(
         item: StatusBubbleItem(
             id: "2",
-            text: "is waiting for you",
+            text: "needs your approval",
             lastEventAt: .now,
+            animatesEllipsis: false,
+            isAwaitingApproval: true,
             agentName: "Codex",
+            iconAssetName: "codex",
             projectName: "aibo"
         ),
         placement: .top,

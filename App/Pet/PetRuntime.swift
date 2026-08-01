@@ -33,7 +33,7 @@ final class PetRuntime {
     /// Last hook event name per session — drives Petdex sprite row lookup.
     private var sessionHookEvents: [SessionKey: String] = [:]
     #if DEBUG
-    private var debugBubbleItem: StatusBubbleItem?
+    private var debugBubbleItems: [StatusBubbleItem] = []
     /// When true, every hook line (queue drain + live socket) is appended to ingest-log.jsonl.
     private(set) var ingestLoggingEnabled: Bool
     private(set) var ingestLogEntryCount = 0
@@ -340,42 +340,71 @@ final class PetRuntime {
     }
 
     #if DEBUG
-    /// Adds an arbitrary bubble on top of the stack for local UI testing.
+    /// Adds an arbitrary bubble for local UI testing.
+    ///
+    /// - Parameter stack: When true, appends; when false, replaces any existing debug bubbles.
+    /// - Parameter isAwaitingApproval: Renders the approval CTA row (arrow + localized prompt).
     func showDebugBubble(
         text: String,
         agentName: String = "Cursor",
         projectName: String? = nil,
         modelName: String? = nil,
         showCursorIcon: Bool = true,
-        isSubagent: Bool = false
+        isSubagent: Bool = false,
+        stack: Bool = false,
+        isAwaitingApproval: Bool = false
     ) {
-        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedText.isEmpty else { return }
         let trimmedAgent = agentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayAgent = isSubagent
+            ? "Subagent"
+            : (trimmedAgent.isEmpty ? "Debug" : trimmedAgent)
+        let agentKind = Self.debugAgentKind(from: trimmedAgent)
+        let trimmedText: String
+        if isAwaitingApproval {
+            trimmedText = StatusCopy.statusPhrase(for: .waiting) ?? "needs your approval"
+        } else {
+            trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedText.isEmpty else { return }
+        }
         let trimmedProject = projectName?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedModel = modelName?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        debugBubbleItem = StatusBubbleItem(
-            id: "debug",
+        let iconAssetName: String? = {
+            if isAwaitingApproval {
+                return Self.iconAssetName(for: agentKind)
+            }
+            return showCursorIcon ? "cursor" : nil
+        }()
+        if !stack {
+            debugBubbleItems = []
+        }
+        let item = StatusBubbleItem(
+            id: "debug-\(UUID().uuidString)",
             text: trimmedText,
-            lastEventAt: Date.distantFuture,
-            agentName: isSubagent
-                ? "Subagent"
-                : (trimmedAgent.isEmpty ? "Debug" : trimmedAgent),
-            iconAssetName: showCursorIcon ? "cursor" : nil,
+            lastEventAt: Date.distantFuture.addingTimeInterval(TimeInterval(debugBubbleItems.count)),
+            animatesEllipsis: !isAwaitingApproval,
+            isAwaitingApproval: isAwaitingApproval,
+            agentName: displayAgent,
+            iconAssetName: iconAssetName,
             projectName: (trimmedProject?.isEmpty == false) ? trimmedProject : nil,
             modelName: (trimmedModel?.isEmpty == false) ? trimmedModel : nil,
-            isSubagent: isSubagent
+            isSubagent: isSubagent && !isAwaitingApproval,
+            agent: isAwaitingApproval ? agentKind : nil
         )
+        debugBubbleItems.append(item)
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
     }
 
     func clearDebugBubble() {
-        debugBubbleItem = nil
+        debugBubbleItems = []
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
+    }
+
+    private static func debugAgentKind(from agentName: String) -> AgentKind {
+        agentName.localizedCaseInsensitiveContains("codex") ? .codex : .cursor
     }
 
     /// Posts a signed webhook to the local listener (requires webhook enabled).
@@ -549,7 +578,7 @@ final class PetRuntime {
                 return
             }
             #if DEBUG
-            debugBubbleItem = nil
+            debugBubbleItems = []
             #endif
             mergeDisplayMeta(
                 for: parsed.session,
@@ -629,6 +658,7 @@ final class PetRuntime {
                 sessionDisplayMeta.removeValue(forKey: key)
                 continue
             }
+            let isAwaitingApproval = snapshot.activity == .waiting
             guard let text = StatusCopy.statusPhrase(for: snapshot.activity) else { continue }
             let meta = sessionDisplayMeta[key]
             let isSubagent = meta?.isSubagent == true
@@ -639,6 +669,7 @@ final class PetRuntime {
                     lastEventAt: snapshot.lastEventAt,
                     isDismissible: snapshot.activity == .failed,
                     animatesEllipsis: Self.animatesEllipsis(for: snapshot.activity),
+                    isAwaitingApproval: isAwaitingApproval,
                     agentName: isSubagent ? "Subagent" : StatusCopy.displayName(key.agent),
                     iconAssetName: Self.iconAssetName(for: key.agent),
                     projectName: meta?.projectName,
@@ -650,9 +681,7 @@ final class PetRuntime {
         }
         items.append(contentsOf: webhookBubbles)
         #if DEBUG
-        if let debugBubbleItem {
-            items.append(debugBubbleItem)
-        }
+        items.append(contentsOf: debugBubbleItems)
         #endif
         let next = items.sorted { $0.lastEventAt > $1.lastEventAt }
         let oldIDs = Set(bubbleItems.map(\.id))
@@ -681,10 +710,10 @@ final class PetRuntime {
         }
     }
 
-    /// Terminal hook states keep static copy — no loading-dot cycle.
+    /// Terminal / approval statuses keep static copy — no loading-dot cycle.
     private static func animatesEllipsis(for activity: PetActivityState) -> Bool {
         switch activity {
-        case .done, .interrupted: false
+        case .done, .interrupted, .waiting: false
         default: true
         }
     }

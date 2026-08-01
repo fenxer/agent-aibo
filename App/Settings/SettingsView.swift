@@ -392,7 +392,7 @@ private struct IntegrationsSettingsPane: View {
                     }
                 }
 
-                Text(String(localized: "Cursor has no waiting-for-user hook event yet."))
+                Text(String(localized: "Cursor has no approval / waiting-for-you hook event yet."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -422,7 +422,7 @@ private struct IntegrationsSettingsPane: View {
                     }
                 }
 
-                Text(String(localized: "Codex supports waiting-for-you via PermissionRequest."))
+                Text(String(localized: "Codex shows an approval bubble via PermissionRequest."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

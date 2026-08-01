@@ -349,10 +349,11 @@ final class PetPanelController {
         }
     }
 
-    /// Approximate rendered bubble height for panel sizing (header + capsule row).
+    /// Approximate rendered bubble height for panel sizing (header + capsule/CTA row).
     private func estimatedBubbleHeight(for item: StatusBubbleItem) -> CGFloat {
         let contentWidth = bubbleMaxWidth - bubbleContentPadding * 2 - bubbleArrowSlack
-        let textWidth = contentWidth - bubbleCapsuleWidthEstimate - bubbleRowSpacing
+        let trailingReserve: CGFloat = item.isAwaitingApproval ? 24 : 0
+        let textWidth = contentWidth - bubbleCapsuleWidthEstimate - bubbleRowSpacing - trailingReserve
         let font = NSFont.systemFont(ofSize: 14)
         let textHeight = ceil(
             (item.text as NSString).boundingRect(

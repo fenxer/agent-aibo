@@ -10,6 +10,8 @@ struct DevelopmentSettingsPane: View {
     @State private var agentName = "Cursor"
     @State private var showCursorIcon = true
     @State private var isSubagent = false
+    @State private var stackBubbles = false
+    @State private var isAwaitingApproval = false
     @State private var message = "is thinking"
     @State private var webhookJSON = """
         {
@@ -26,7 +28,8 @@ struct DevelopmentSettingsPane: View {
     @State private var runtime = PetRuntime.shared
 
     private var canShow: Bool {
-        !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if isAwaitingApproval { return true }
+        return !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var canSendWebhook: Bool {
@@ -59,9 +62,14 @@ struct DevelopmentSettingsPane: View {
             TextField(String(localized: "Agent Name"), text: $agentName)
                 .disabled(isSubagent)
             Toggle(String(localized: "Show Cursor Icon"), isOn: $showCursorIcon)
+                .disabled(isAwaitingApproval)
             Toggle(String(localized: "Subagent Capsule"), isOn: $isSubagent)
+                .disabled(isAwaitingApproval)
+            Toggle(String(localized: "Stack Bubbles"), isOn: $stackBubbles)
+            Toggle(String(localized: "Approval Bubble"), isOn: $isAwaitingApproval)
             TextField(String(localized: "Status Text"), text: $message, axis: .vertical)
                 .lineLimit(2...5)
+                .disabled(isAwaitingApproval)
 
             HStack {
                 Button(String(localized: "Show Bubble")) {
@@ -71,7 +79,9 @@ struct DevelopmentSettingsPane: View {
                         projectName: projectName,
                         modelName: modelName,
                         showCursorIcon: showCursorIcon,
-                        isSubagent: isSubagent
+                        isSubagent: isSubagent,
+                        stack: stackBubbles,
+                        isAwaitingApproval: isAwaitingApproval
                     )
                 }
                 .disabled(!canShow)
@@ -81,7 +91,7 @@ struct DevelopmentSettingsPane: View {
                 }
             }
 
-            Text(String(localized: "Leave Project / Model empty to hide the header row. Cleared or overwritten by the next real agent event."))
+            Text(String(localized: "Leave Project / Model empty to hide the header row. Cleared by the next real agent event."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {

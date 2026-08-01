@@ -25,7 +25,7 @@ public enum StatusCopy {
         case .responding:
             return "is responding"
         case .waiting:
-            return "is waiting for you"
+            return "needs your approval"
         case .done:
             return "finished"
         case .interrupted:

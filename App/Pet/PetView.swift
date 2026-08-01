@@ -335,9 +335,12 @@ private struct FloatingMusicNoteView: View {
         bubbleItemsOverride: [
             StatusBubbleItem(
                 id: "1",
-                text: "is waiting for you",
+                text: "needs your approval",
                 lastEventAt: .now,
+                animatesEllipsis: false,
+                isAwaitingApproval: true,
                 agentName: "Codex",
+                iconAssetName: "codex",
                 projectName: "aibo"
             ),
             StatusBubbleItem(

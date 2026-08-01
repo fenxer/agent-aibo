@@ -18,6 +18,11 @@ public enum PetStateMachine {
     public static let doneIdleDelay: TimeInterval = 3
     /// Hold time after `.responding` when Cursor never sends `stop` / `sessionEnd`.
     public static let respondingIdleDelay: TimeInterval = 60
+    /// Hold time after `.waiting` (approval) with no follow-up hook.
+    ///
+    /// Codex does not fire `Stop` on user interrupt while a permission prompt is
+    /// open, so approval bubbles would otherwise stick until the watchdog.
+    public static let waitingIdleDelay: TimeInterval = 60
     /// Default silence timeout before a session is forced to `.idle`.
     public static let defaultWatchdogTimeout: TimeInterval = 120
 
@@ -26,6 +31,7 @@ public enum PetStateMachine {
         switch activity {
         case .done, .registered, .interrupted: doneIdleDelay
         case .responding: respondingIdleDelay
+        case .waiting: waitingIdleDelay
         default: nil
         }
     }

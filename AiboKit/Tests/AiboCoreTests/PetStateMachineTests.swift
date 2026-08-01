@@ -88,6 +88,35 @@ import Testing
     #expect(state.sessions[key]?.activity == .idle)
 }
 
+@Test func waitingSchedulesIdleFallback() {
+    let key = SessionKey(agent: .codex, conversationID: "thr_1")
+    let t0 = Date(timeIntervalSince1970: 2_760)
+
+    var state = PetWorldState()
+    state = PetStateMachine.reduce(
+        state,
+        event: .agent(session: key, transition: .apply(.waiting), at: t0)
+    )
+    #expect(state.sessions[key]?.activity == .waiting)
+    #expect(
+        state.sessions[key]?.idleAt
+            == t0.addingTimeInterval(PetStateMachine.waitingIdleDelay)
+    )
+    #expect(PetStateMachine.idleFallbackDelay(for: .waiting) == 60)
+
+    state = PetStateMachine.reduce(
+        state,
+        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.waitingIdleDelay - 0.1))
+    )
+    #expect(state.sessions[key]?.activity == .waiting)
+
+    state = PetStateMachine.reduce(
+        state,
+        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.waitingIdleDelay))
+    )
+    #expect(state.sessions[key]?.activity == .idle)
+}
+
 @Test func failedDoesNotScheduleIdleFallback() {
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 2_800)

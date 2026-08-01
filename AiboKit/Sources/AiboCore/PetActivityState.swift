@@ -31,7 +31,7 @@ public struct SessionSnapshot: Equatable, Sendable, Codable {
     public var activity: PetActivityState
     public var lastEventAt: Date
     /// When non-nil, the session should fall back to `.idle` at this time
-    /// (used after `.done`, `.registered`, `.interrupted`, and `.responding`).
+    /// (used after `.done`, `.registered`, `.interrupted`, `.responding`, and `.waiting`).
     public var idleAt: Date?
 
     public init(activity: PetActivityState, lastEventAt: Date, idleAt: Date? = nil) {
