@@ -120,7 +120,7 @@ struct StatusBubble: View {
                 if item.isAwaitingApproval {
                     Image(systemName: "arrow.right.circle.fill")
                         .font(.system(size: 16))
-                        .foregroundStyle(Color(nsColor: .systemBlue))
+                        .foregroundStyle(ink)
                         .symbolEffect(
                             .wiggle.byLayer,
                             options: .repeat(.periodic(delay: 2.0))
