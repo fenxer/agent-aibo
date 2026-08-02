@@ -26,6 +26,8 @@ final class PetRuntime {
     private var webhookTask: Task<Void, Never>?
     private var idleTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
+    /// One-shot refresh when Cursor `.usingTool` has been silent long enough for the stall CTA.
+    private var cursorUsingToolStallTasks: [SessionKey: Task<Void, Never>] = [:]
     private var webhookBubbles: [StatusBubbleItem] = []
     private var webhookExpiryTasks: [String: Task<Void, Never>] = [:]
     /// Project / model labels keyed by session; merged across hook events.
@@ -124,6 +126,10 @@ final class PetRuntime {
         webhookTask?.cancel()
         idleTask?.cancel()
         watchdogTask?.cancel()
+        for task in cursorUsingToolStallTasks.values {
+            task.cancel()
+        }
+        cursorUsingToolStallTasks.removeAll()
         for task in webhookExpiryTasks.values {
             task.cancel()
         }
@@ -647,11 +653,13 @@ final class PetRuntime {
 
     private func apply(_ event: PetEvent) {
         world = PetStateMachine.reduce(world, event: event)
+        syncCursorUsingToolStallTimers()
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
     }
 
     private func refreshBubbleItems() {
+        let now = Date()
         var items: [StatusBubbleItem] = []
         for (key, snapshot) in world.sessions {
             if snapshot.activity == .idle {
@@ -659,7 +667,15 @@ final class PetRuntime {
                 continue
             }
             let isAwaitingApproval = snapshot.activity == .waiting
-            guard let text = StatusCopy.statusPhrase(for: snapshot.activity) else { continue }
+            let isStalledUsingTool = CursorUsingToolStallHint.isDue(
+                agent: key.agent,
+                activity: snapshot.activity,
+                lastEventAt: snapshot.lastEventAt,
+                now: now
+            )
+            let showsAttentionCTA = isAwaitingApproval || isStalledUsingTool
+            guard let phrase = StatusCopy.statusPhrase(for: snapshot.activity) else { continue }
+            let text = isStalledUsingTool ? StatusCopy.stuckPhrase : phrase
             let meta = sessionDisplayMeta[key]
             let isSubagent = meta?.isSubagent == true
             items.append(
@@ -668,8 +684,8 @@ final class PetRuntime {
                     text: text,
                     lastEventAt: snapshot.lastEventAt,
                     isDismissible: snapshot.activity == .failed,
-                    animatesEllipsis: Self.animatesEllipsis(for: snapshot.activity),
-                    isAwaitingApproval: isAwaitingApproval,
+                    animatesEllipsis: !showsAttentionCTA && Self.animatesEllipsis(for: snapshot.activity),
+                    isAwaitingApproval: showsAttentionCTA,
                     agentName: isSubagent ? "Subagent" : StatusCopy.displayName(key.agent),
                     iconAssetName: Self.iconAssetName(for: key.agent),
                     projectName: meta?.projectName,
@@ -761,6 +777,44 @@ final class PetRuntime {
                 }
             }
         }
+    }
+
+    /// One-shot wake-ups so Cursor `.usingTool` stall CTAs appear without polling.
+    private func syncCursorUsingToolStallTimers() {
+        let now = Date()
+        var active = Set<SessionKey>()
+        for (key, snapshot) in world.sessions {
+            guard key.agent == .cursor, case .usingTool = snapshot.activity else { continue }
+            active.insert(key)
+            let fireAt = snapshot.lastEventAt.addingTimeInterval(CursorUsingToolStallHint.delay)
+            let delay = fireAt.timeIntervalSince(now)
+            cancelCursorUsingToolStallTask(for: key)
+            // Already due — `refreshBubbleItems` derives the CTA from `lastEventAt`.
+            guard delay > 0 else { continue }
+            let expectedLastEventAt = snapshot.lastEventAt
+            cursorUsingToolStallTasks[key] = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard let self else { return }
+                    guard let current = self.world.sessions[key],
+                          case .usingTool = current.activity,
+                          current.lastEventAt == expectedLastEventAt
+                    else { return }
+                    self.cursorUsingToolStallTasks[key] = nil
+                    self.refreshBubbleItems()
+                    PetPanelController.shared.refreshContent()
+                }
+            }
+        }
+        for key in cursorUsingToolStallTasks.keys where !active.contains(key) {
+            cancelCursorUsingToolStallTask(for: key)
+        }
+    }
+
+    private func cancelCursorUsingToolStallTask(for key: SessionKey) {
+        cursorUsingToolStallTasks[key]?.cancel()
+        cursorUsingToolStallTasks[key] = nil
     }
 
     private func scheduleWatchdog() {

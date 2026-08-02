@@ -35,6 +35,9 @@ public enum StatusCopy {
         }
     }
 
+    /// Cursor `.usingTool` stall hint after silence (see `CursorUsingToolStallHint`).
+    public static let stuckPhrase = "got stuck?"
+
     /// Bubble-style example under a hook name in Settings → Sprite Actions.
     ///
     /// Uses the same phrases as live bubbles (`statusPhrase`), with sample tool names.

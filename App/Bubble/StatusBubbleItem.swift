@@ -19,7 +19,7 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
     var isDismissible: Bool = false
     /// When true, status text cycles trailing `.` / `..` / `...`. Off for terminal states.
     var animatesEllipsis: Bool = true
-    /// Local agent `.waiting` (permission / approval): CTA row with trailing arrow.
+    /// Local agent `.waiting` (approval), or Cursor `.usingTool` stall hint: CTA row with trailing arrow.
     var isAwaitingApproval: Bool = false
     /// Agent capsule label, or webhook `source` in the header.
     var agentName: String = ""

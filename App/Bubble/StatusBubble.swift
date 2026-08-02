@@ -108,7 +108,8 @@ struct StatusBubble: View {
             }
 
             // Capsule / status share line height; firstTextBaseline keeps glyphs aligned.
-            // Approval CTA keeps the agent capsule and adds a trailing system-blue arrow.
+            // Attention CTA (approval / Cursor usingTool stall) keeps the agent capsule
+            // and adds a trailing arrow.
             HStack(alignment: item.isAwaitingApproval ? .center : .firstTextBaseline, spacing: headerSpacing) {
                 if item.isSubagent {
                     subagentCapsule(ink: ink)

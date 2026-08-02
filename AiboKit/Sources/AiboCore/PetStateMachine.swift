@@ -23,6 +23,12 @@ public enum PetStateMachine {
     /// Codex does not fire `Stop` on user interrupt while a permission prompt is
     /// open, so approval bubbles would otherwise stick until the watchdog.
     public static let waitingIdleDelay: TimeInterval = 60
+    /// Cursor-only: silence on `.usingTool` before the bubble shows a stall CTA.
+    ///
+    /// Cursor has no approval hook; long-running tools and Auto-review waits both
+    /// look like stuck `usingTool`. One-shot deadline (not a poll) nudges the user
+    /// to click the bubble and check Cursor.
+    public static let cursorUsingToolStallDelay: TimeInterval = 10
     /// Default silence timeout before a session is forced to `.idle`.
     public static let defaultWatchdogTimeout: TimeInterval = 120
 
@@ -99,5 +105,22 @@ public enum PetStateMachine {
                 idleAt: nil
             )
         }
+    }
+}
+
+/// Cursor-only UI hint when `.usingTool` stays silent (no approval hook available).
+public enum CursorUsingToolStallHint {
+    public static var delay: TimeInterval { PetStateMachine.cursorUsingToolStallDelay }
+
+    /// Whether the bubble should show the stall CTA / “got stuck” copy.
+    public static func isDue(
+        agent: AgentKind,
+        activity: PetActivityState,
+        lastEventAt: Date,
+        now: Date = Date()
+    ) -> Bool {
+        guard agent == .cursor else { return false }
+        guard case .usingTool = activity else { return false }
+        return now.timeIntervalSince(lastEventAt) >= delay
     }
 }

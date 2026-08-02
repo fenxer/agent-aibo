@@ -38,6 +38,7 @@ import Testing
     #expect(
         StatusCopy.statusPhrase(for: .waiting) == "needs your approval"
     )
+    #expect(StatusCopy.stuckPhrase == "got stuck?")
     #expect(
         StatusCopy.exampleBubblePhrase(agent: .codex, hookEventName: "Stop") == "finished"
     )

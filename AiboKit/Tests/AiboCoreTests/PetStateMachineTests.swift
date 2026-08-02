@@ -181,3 +181,40 @@ import Testing
     )
     #expect(state.sessions[key]?.activity == .idle)
 }
+
+@Test func cursorUsingToolStallHintOnlyForCursorUsingToolAfterDelay() {
+    let t0 = Date(timeIntervalSince1970: 3_000)
+    #expect(PetStateMachine.cursorUsingToolStallDelay == 10)
+    #expect(
+        CursorUsingToolStallHint.isDue(
+            agent: .cursor,
+            activity: .usingTool("Shell"),
+            lastEventAt: t0,
+            now: t0.addingTimeInterval(9.9)
+        ) == false
+    )
+    #expect(
+        CursorUsingToolStallHint.isDue(
+            agent: .cursor,
+            activity: .usingTool("Shell"),
+            lastEventAt: t0,
+            now: t0.addingTimeInterval(10)
+        )
+    )
+    #expect(
+        CursorUsingToolStallHint.isDue(
+            agent: .codex,
+            activity: .usingTool("Bash"),
+            lastEventAt: t0,
+            now: t0.addingTimeInterval(30)
+        ) == false
+    )
+    #expect(
+        CursorUsingToolStallHint.isDue(
+            agent: .cursor,
+            activity: .thinking,
+            lastEventAt: t0,
+            now: t0.addingTimeInterval(30)
+        ) == false
+    )
+}
