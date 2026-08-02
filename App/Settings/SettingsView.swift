@@ -244,6 +244,15 @@ private struct AppearanceSettingsPane: View {
                 Text(String(localized: "Open the pet where you left it, using a screen-relative position so it adapts to different resolutions. Off always uses the bottom-right corner."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Toggle(
+                    String(localized: "Hide When Fullscreen"),
+                    isOn: $settings.hideWhenFullscreen
+                )
+
+                Text(String(localized: "Temporarily hide the pet in native fullscreen (green-button Space) or when the system reports fullscreen presentation. Maximized windows stay visible. Does not change the Hide Pet menu state."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } header: {
                 Text(String(localized: "Pet"))
             }

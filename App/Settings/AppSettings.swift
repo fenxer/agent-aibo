@@ -16,6 +16,7 @@ final class AppSettings {
         static let bubbleGlassTint = "settings.bubbleGlassTint"
         static let petScalePercent = "settings.petScalePercent"
         static let restoreLastPetPosition = "settings.restoreLastPetPosition"
+        static let hideWhenFullscreen = "settings.hideWhenFullscreen"
         static let petPositionXPercent = "settings.petPositionXPercent"
         static let petPositionYPercent = "settings.petPositionYPercent"
         static let musicNotesEnabled = "settings.musicNotesEnabled"
@@ -78,6 +79,16 @@ final class AppSettings {
         didSet {
             guard oldValue != restoreLastPetPosition else { return }
             UserDefaults.standard.set(restoreLastPetPosition, forKey: Keys.restoreLastPetPosition)
+        }
+    }
+
+    /// When true, hide the pet for native fullscreen (Spaces type 4) or
+    /// `currentSystemPresentationOptions` containing `.fullScreen`. Default off.
+    var hideWhenFullscreen: Bool {
+        didSet {
+            guard oldValue != hideWhenFullscreen else { return }
+            UserDefaults.standard.set(hideWhenFullscreen, forKey: Keys.hideWhenFullscreen)
+            PetPanelController.shared.syncFullscreenPolicy()
         }
     }
 
@@ -223,6 +234,12 @@ final class AppSettings {
             restoreLastPetPosition = UserDefaults.standard.bool(forKey: Keys.restoreLastPetPosition)
         } else {
             restoreLastPetPosition = true
+        }
+
+        if UserDefaults.standard.object(forKey: Keys.hideWhenFullscreen) != nil {
+            hideWhenFullscreen = UserDefaults.standard.bool(forKey: Keys.hideWhenFullscreen)
+        } else {
+            hideWhenFullscreen = false
         }
 
         if UserDefaults.standard.object(forKey: Keys.petPositionXPercent) != nil,

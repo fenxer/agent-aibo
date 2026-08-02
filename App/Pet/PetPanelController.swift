@@ -16,6 +16,9 @@ final class PetPanelController {
     private var rootView: PetPanelRootView?
     private var hostingView: PassThroughHostingView<PetView>?
     private var screenObserver: NSObjectProtocol?
+    private let fullscreenMonitor = FullscreenSpaceMonitor()
+    /// True while hide-when-fullscreen is suppressing the panel (not user Hide Pet).
+    private var isSuppressedForFullscreen = false
     private var hasPlacedInitially = false
     private var hideTask: Task<Void, Never>?
     /// Last layout we sized/positioned for — used to keep the pet fixed on screen.
@@ -40,7 +43,17 @@ final class PetPanelController {
         PetContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled)
     }
 
-    private init() {}
+    private init() {
+        fullscreenMonitor.screenProvider = { [weak self] in
+            self?.panel?.screen ?? NSScreen.main
+        }
+        fullscreenMonitor.onChange = { [weak self] isFullscreen in
+            self?.handleFullscreenMonitorChange(isFullscreen)
+        }
+        fullscreenMonitor.onReaffirmVisible = { [weak self] in
+            self?.reaffirmPetVisibilityIfNeeded()
+        }
+    }
 
     func show() {
         hideTask?.cancel()
@@ -48,6 +61,7 @@ final class PetPanelController {
 
         let panel = panel ?? makePanel()
         self.panel = panel
+        applyFullscreenCollectionBehavior(to: panel)
         // Menu / launch path — safe to size synchronously (not inside a layout pass).
         applyGeometryNow()
         if !hasPlacedInitially {
@@ -73,9 +87,15 @@ final class PetPanelController {
         }
 
         freezePanelSize()
-        panel.orderFrontRegardless()
         isVisible = true
         startObservingScreenChangesIfNeeded()
+        syncFullscreenPolicy()
+
+        // Keep the panel ordered in. When hide-when-fullscreen is on we use
+        // moveToActiveSpace (not canJoinAllSpaces) so the pet leaves with its
+        // desktop during the fullscreen zoom instead of floating over it.
+        panel.orderFrontRegardless()
+        applyFullscreenVisibility()
 
         if shouldBoing {
             hideTask = Task { @MainActor in
@@ -124,6 +144,99 @@ final class PetPanelController {
             hide()
         } else {
             show()
+        }
+    }
+
+    /// Start/stop fullscreen detection (presentationOptions `.fullScreen` + Spaces type 4).
+    ///
+    /// When enabled:
+    /// - Use `.moveToActiveSpace` (not `.canJoinAllSpaces`) so the pet does not float over
+    ///   the green-button fullscreen zoom animation; it leaves with its desktop Space.
+    /// - No `.fullScreenAuxiliary`.
+    /// - Same-Space fullscreen (e.g. some HTML5) still uses alpha suppress.
+    func syncFullscreenPolicy() {
+        if let panel {
+            applyFullscreenCollectionBehavior(to: panel)
+        }
+
+        if AppSettings.shared.hideWhenFullscreen {
+            fullscreenMonitor.start()
+            handleFullscreenMonitorChange(fullscreenMonitor.isFullscreen)
+        } else {
+            fullscreenMonitor.stop()
+            if isSuppressedForFullscreen {
+                isSuppressedForFullscreen = false
+            }
+            applyFullscreenVisibility()
+            if isVisible, isContentPresented {
+                panel?.orderFrontRegardless()
+            }
+        }
+    }
+
+    private var shouldPresentPanelOnScreen: Bool {
+        isVisible && isContentPresented && !isSuppressedForFullscreen
+    }
+
+    private func applyFullscreenCollectionBehavior(to panel: PetPanel) {
+        if AppSettings.shared.hideWhenFullscreen {
+            // One Space at a time. Reaffirm orderFront on desktop Space switches.
+            panel.collectionBehavior = [.moveToActiveSpace, .stationary]
+        } else {
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        }
+    }
+
+    private func handleFullscreenMonitorChange(_ isFullscreen: Bool) {
+        guard AppSettings.shared.hideWhenFullscreen else { return }
+        if isFullscreen {
+            suppressForFullscreen()
+        } else {
+            unsuppressIfNeeded()
+        }
+    }
+
+    /// Pull the pet onto the active desktop Space after a Space switch.
+    private func reaffirmPetVisibilityIfNeeded() {
+        guard AppSettings.shared.hideWhenFullscreen else { return }
+        guard isVisible, isContentPresented, !isSuppressedForFullscreen, let panel else { return }
+        applyFullscreenCollectionBehavior(to: panel)
+        // orderOut + orderFront forces moveToActiveSpace to relocate onto the new Space.
+        panel.orderOut(nil)
+        panel.orderFrontRegardless()
+        applyFullscreenVisibility()
+    }
+
+    private func suppressForFullscreen() {
+        isSuppressedForFullscreen = true
+        applyFullscreenVisibility()
+        // Leave the fullscreen Space entirely — do not float above the transition.
+        panel?.orderOut(nil)
+    }
+
+    private func unsuppressIfNeeded() {
+        let wasSuppressed = isSuppressedForFullscreen
+        isSuppressedForFullscreen = false
+        guard isVisible, isContentPresented, let panel else { return }
+        applyFullscreenCollectionBehavior(to: panel)
+        if wasSuppressed {
+            panel.orderFrontRegardless()
+        } else {
+            reaffirmPetVisibilityIfNeeded()
+            return
+        }
+        applyFullscreenVisibility()
+    }
+
+    /// Alpha suppress for same-Space fullscreen; Space fullscreen also orderOuts.
+    private func applyFullscreenVisibility() {
+        guard let panel else { return }
+        if shouldPresentPanelOnScreen {
+            panel.alphaValue = 1
+            panel.ignoresMouseEvents = false
+        } else if isVisible, isSuppressedForFullscreen {
+            panel.alphaValue = 0
+            panel.ignoresMouseEvents = true
         }
     }
 
@@ -305,6 +418,7 @@ final class PetPanelController {
             placement: placement,
             bubbleCount: items.count
         )
+        applyFullscreenCollectionBehavior(to: panel)
         return panel
     }
 
