@@ -365,7 +365,7 @@ final class PetPanelController {
         let statusRowHeight = max(bubbleStatusLineHeight, textHeight)
         var height = bubbleContentPadding * 2 + statusRowHeight
         let hasHeader: Bool = switch item.kind {
-        case .webhook:
+        case .webhook, .warning:
             true
         case .agent:
             !(item.projectName ?? "").isEmpty || !(item.modelName ?? "").isEmpty

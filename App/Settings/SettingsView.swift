@@ -37,10 +37,23 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         #endif
         }
     }
+
+    init?(_ destination: SettingsNavigator.Pane) {
+        switch destination {
+        case .appearance: self = .appearance
+        case .integrations: self = .integrations
+        case .receiveLog: self = .receiveLog
+        case .about: self = .about
+        #if DEBUG
+        case .development: self = .development
+        #endif
+        }
+    }
 }
 
 struct SettingsView: View {
     @State private var selection: SettingsPane? = .appearance
+    @Bindable private var navigator = SettingsNavigator.shared
 
     var body: some View {
         NavigationSplitView {
@@ -61,6 +74,17 @@ struct SettingsView: View {
         .frame(width: AppSettings.settingsWindowWidth)
         .frame(minHeight: AppSettings.settingsWindowMinHeight)
         .background { SettingsWindowConfigurator() }
+        .onAppear { applyPendingPane() }
+        .onChange(of: navigator.pendingPane) { _, _ in
+            applyPendingPane()
+        }
+    }
+
+    private func applyPendingPane() {
+        guard let pending = navigator.consumePendingPane(),
+              let pane = SettingsPane(pending)
+        else { return }
+        selection = pane
     }
 
     @ViewBuilder
@@ -449,6 +473,19 @@ private struct IntegrationsSettingsPane: View {
                         .textSelection(.enabled)
                 }
 
+                LabeledContent(String(localized: "Public URL")) {
+                    TextField(
+                        String(localized: "https://…/webhook"),
+                        text: $settings.publicWebhookURLString
+                    )
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                }
+
+                LabeledContent(String(localized: "Tunnel")) {
+                    Text(runtime.tunnelHealthStatus.settingsLabel)
+                }
+
                 LabeledContent(String(localized: "Port")) {
                     TextField(
                         String(localized: "Port"),
@@ -478,6 +515,13 @@ private struct IntegrationsSettingsPane: View {
                     Button(String(localized: "Regenerate Secret")) {
                         settings.regenerateWebhookSecret()
                     }
+                    Button(String(localized: "Check Tunnel")) {
+                        TunnelHealthMonitor.shared.scheduleCheck(reason: .manual)
+                    }
+                    .disabled(
+                        !settings.webhookEnabled
+                            || settings.resolvedPublicWebhookURL == nil
+                    )
                 }
 
                 Picker(String(localized: "Dismiss Bubble"), selection: $settings.webhookDismissMode) {
@@ -499,7 +543,7 @@ private struct IntegrationsSettingsPane: View {
                     }
                 }
 
-                Text(String(localized: "Bound to 127.0.0.1 only. Public senders need your own tunnel (Cloudflare Tunnel, Tailscale Funnel, etc.). Requests are shown as raw bubble text for now — no LLM rewrite yet. Default dismiss is click; optional auto-dismiss uses the seconds above."))
+                Text(String(localized: "Bound to 127.0.0.1 only. Set Public URL to your tunnel HTTPS endpoint (Cloudflare Tunnel, Tailscale Funnel, etc.) so aibo can warn after sleep if the tunnel is down. Requests are shown as raw bubble text for now — no LLM rewrite yet. Default dismiss is click; optional auto-dismiss uses the seconds above."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {

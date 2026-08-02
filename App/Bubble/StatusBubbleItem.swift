@@ -8,6 +8,8 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
         case agent
         /// Remote webhook: source + relative time header + status capsule + summary.
         case webhook
+        /// Local health alert (e.g. tunnel down): fixed Warning header + red icon capsule.
+        case warning
     }
 
     var id: String

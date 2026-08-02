@@ -141,22 +141,48 @@ struct PetView: View {
     private func bubbleStack(items: [StatusBubbleItem], nearPetIndex: Int) -> some View {
         VStack(alignment: stackAlignment, spacing: stackSpacing) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                AnimatedStatusBubble(
+                bubbleRow(
                     item: item,
-                    placement: placement,
-                    showsArrow: index == nearPetIndex,
-                    onActivate: item.agent.map { agent in
-                        { SourceAppActivator.activate(agent) }
-                    },
-                    onDismiss: item.isDismissible
-                        ? { PetRuntime.shared.dismissBubble(id: item.id) }
-                        : nil,
-                    glassStyle: glassStyle,
-                    glassTint: glassTint
+                    showsArrow: index == nearPetIndex
                 )
             }
         }
         .animation(nil, value: items.map(\.id))
+    }
+
+    @ViewBuilder
+    private func bubbleRow(item: StatusBubbleItem, showsArrow: Bool) -> some View {
+        let bubble = AnimatedStatusBubble(
+            item: item,
+            placement: placement,
+            showsArrow: showsArrow,
+            onActivate: activateAction(for: item),
+            onDismiss: dismissAction(for: item),
+            glassStyle: glassStyle,
+            glassTint: glassTint
+        )
+
+        // Warning must open Settings via SettingsLink (openSettings() warns on current SDKs).
+        if item.kind == .warning {
+            SettingsLink {
+                bubble
+            }
+            .buttonStyle(.plain)
+            .simultaneousGesture(
+                TapGesture().onEnded {
+                    SettingsNavigator.shared.prepareIntegrations()
+                    PetRuntime.shared.dismissBubble(id: item.id)
+                }
+            )
+        } else {
+            bubble
+        }
+    }
+
+    private func dismissAction(for item: StatusBubbleItem) -> (() -> Void)? {
+        // Warning dismiss is handled beside SettingsLink so we don't double-fire.
+        guard item.kind != .warning, item.isDismissible else { return nil }
+        return { PetRuntime.shared.dismissBubble(id: item.id) }
     }
 
     /// Keeps the near-pet (arrow) bubble vertically centered with the pet;
@@ -200,6 +226,17 @@ struct PetView: View {
         case .top, .bottom: .center
         case .left: .trailing
         case .right: .leading
+        }
+    }
+
+    private func activateAction(for item: StatusBubbleItem) -> (() -> Void)? {
+        switch item.kind {
+        case .warning:
+            // Opened via SettingsLink wrapper — no programmatic openSettings.
+            return nil
+        case .agent, .webhook:
+            guard let agent = item.agent else { return nil }
+            return { SourceAppActivator.activate(agent) }
         }
     }
 

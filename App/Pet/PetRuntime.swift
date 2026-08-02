@@ -15,10 +15,37 @@ final class PetRuntime {
     private(set) var codexHooksInstalled = false
     private(set) var webhookListening = false
     private(set) var lastErrorMessage: String?
+    /// Last tunnel probe result for Integrations (Unknown / OK / Down / …).
+    private(set) var tunnelHealthStatus: TunnelHealthStatus = .unknown
     /// Newest-first webhook receive history shown in Settings (capped).
     private(set) var receiveLogEntries: [ReceiveLogEntry] = []
     /// Total records currently on disk (may exceed the UI window).
     private(set) var receiveLogTotalCount = 0
+
+    enum TunnelHealthStatus: Equatable, Sendable {
+        case unknown
+        /// Webhook disabled or Public URL empty — probe skipped.
+        case skipped
+        case ok
+        case down
+        /// Public URL set but local listener is not running.
+        case listenerStopped
+
+        var settingsLabel: String {
+            switch self {
+            case .unknown: String(localized: "Unknown")
+            case .skipped: String(localized: "—")
+            case .ok: String(localized: "OK")
+            case .down: String(localized: "Down")
+            case .listenerStopped: String(localized: "Listener stopped")
+            }
+        }
+    }
+
+    private static let tunnelWarningBubbleID = "tunnel:health"
+    private static let tunnelProbeTimeout: TimeInterval = 10
+    /// First time we detected tunnel down; kept across reprobes so relative time doesn't jump.
+    private var tunnelWarningDetectedAt: Date?
 
     private var server: UnixSocketServer?
     private var webhookServer: WebhookServer?
@@ -29,7 +56,10 @@ final class PetRuntime {
     /// One-shot refresh when Cursor `.usingTool` has been silent long enough for the stall CTA.
     private var cursorUsingToolStallTasks: [SessionKey: Task<Void, Never>] = [:]
     private var webhookBubbles: [StatusBubbleItem] = []
+    /// Separate from webhookBubbles so dismiss mode / Receive Log never touch it.
+    private var tunnelWarningBubble: StatusBubbleItem?
     private var webhookExpiryTasks: [String: Task<Void, Never>] = [:]
+    private var tunnelProbeTask: Task<Void, Never>?
     /// Project / model labels keyed by session; merged across hook events.
     private var sessionDisplayMeta: [SessionKey: SessionDisplayMeta] = [:]
     /// Last hook event name per session — drives Petdex sprite row lookup.
@@ -119,13 +149,17 @@ final class PetRuntime {
         syncWebhookServer()
         syncMusicPlaybackMonitor()
         scheduleWatchdog()
+        TunnelHealthMonitor.shared.start()
     }
 
     func stop() {
+        TunnelHealthMonitor.shared.stop()
         consumeTask?.cancel()
         webhookTask?.cancel()
         idleTask?.cancel()
         watchdogTask?.cancel()
+        tunnelProbeTask?.cancel()
+        tunnelProbeTask = nil
         for task in cursorUsingToolStallTasks.values {
             task.cancel()
         }
@@ -184,6 +218,99 @@ final class PetRuntime {
             webhookServer = nil
             webhookListening = false
             lastErrorMessage = String(localized: "Failed to start webhook listener")
+        }
+        TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+    }
+
+    /// Probe the configured public URL once. GET: 405 from our listener means the tunnel reached this Mac.
+    @discardableResult
+    func checkTunnelHealth() async -> TunnelHealthStatus {
+        tunnelProbeTask?.cancel()
+
+        guard AppSettings.shared.webhookEnabled else {
+            applyTunnelHealth(.skipped)
+            return .skipped
+        }
+        guard AppSettings.shared.resolvedPublicWebhookURL != nil else {
+            applyTunnelHealth(.skipped)
+            return .skipped
+        }
+        guard webhookListening else {
+            applyTunnelHealth(.listenerStopped)
+            return .listenerStopped
+        }
+
+        let status: TunnelHealthStatus
+        let probe = Task { await Self.probePublicWebhookURL() }
+        tunnelProbeTask = Task { _ = await probe.value }
+        status = await probe.value
+        guard !Task.isCancelled else { return tunnelHealthStatus }
+        applyTunnelHealth(status)
+        return status
+    }
+
+    private func applyTunnelHealth(_ status: TunnelHealthStatus) {
+        tunnelHealthStatus = status
+        switch status {
+        case .down:
+            presentTunnelWarningBubble()
+        case .ok, .skipped:
+            // Recovered or health-check disabled — drop warning and reset the clock.
+            clearTunnelWarningBubble(resetDetectionClock: true)
+        case .unknown, .listenerStopped:
+            // Transient listener restarts must not clear/recreate the warning
+            // (that was resetting lastEventAt and making “40s” jump to “18s”).
+            break
+        }
+    }
+
+    private func presentTunnelWarningBubble() {
+        let detectedAt = tunnelWarningDetectedAt ?? Date()
+        tunnelWarningDetectedAt = detectedAt
+        let item = StatusBubbleItem(
+            id: Self.tunnelWarningBubbleID,
+            text: String(localized: "Tunnel is down, take a look!"),
+            lastEventAt: detectedAt,
+            kind: .warning,
+            isDismissible: true,
+            animatesEllipsis: false
+        )
+        if tunnelWarningBubble != item {
+            tunnelWarningBubble = item
+            refreshBubbleItems()
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    private func clearTunnelWarningBubble(resetDetectionClock: Bool = false) {
+        if resetDetectionClock {
+            tunnelWarningDetectedAt = nil
+        }
+        guard tunnelWarningBubble != nil else { return }
+        tunnelWarningBubble = nil
+        refreshBubbleItems()
+        PetPanelController.shared.refreshContent()
+    }
+
+    private static func probePublicWebhookURL() async -> TunnelHealthStatus {
+        guard let url = AppSettings.shared.resolvedPublicWebhookURL else {
+            return .skipped
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = tunnelProbeTimeout
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            // Origin reached (our listener answers 405 to GET). Gateway/tunnel failures are 5xx.
+            if code >= 500 || code < 0 {
+                return .down
+            }
+            return .ok
+        } catch {
+            return .down
         }
     }
 
@@ -244,8 +371,14 @@ final class PetRuntime {
         )
     }
 
-    /// Clears a dismissible bubble on user click (webhook, or `.failed` agent status).
+    /// Clears a dismissible bubble on user click (webhook, tunnel warning, or `.failed` agent status).
     func dismissBubble(id: String) {
+        if tunnelWarningBubble?.id == id {
+            // User dismissed — keep detection clock so a later re-show stays stable
+            // until the tunnel actually recovers.
+            clearTunnelWarningBubble(resetDetectionClock: false)
+            return
+        }
         if webhookBubbles.contains(where: { $0.id == id && $0.isDismissible }) {
             removeWebhookBubble(id: id)
             return
@@ -258,6 +391,25 @@ final class PetRuntime {
             return
         }
     }
+
+    #if DEBUG
+    /// Stacks the tunnel Warning bubble for Bubble Preview (no probe).
+    func showDebugTunnelWarningBubble() {
+        let detectedAt = tunnelWarningDetectedAt ?? Date()
+        tunnelWarningDetectedAt = detectedAt
+        tunnelWarningBubble = StatusBubbleItem(
+            id: Self.tunnelWarningBubbleID,
+            text: String(localized: "Tunnel is down, take a look!"),
+            lastEventAt: detectedAt,
+            kind: .warning,
+            isDismissible: true,
+            animatesEllipsis: false
+        )
+        tunnelHealthStatus = .down
+        refreshBubbleItems()
+        PetPanelController.shared.refreshContent()
+    }
+    #endif
 
     func clearReceiveLog() {
         do {
@@ -405,6 +557,7 @@ final class PetRuntime {
 
     func clearDebugBubble() {
         debugBubbleItems = []
+        clearTunnelWarningBubble(resetDetectionClock: true)
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
     }
@@ -696,6 +849,9 @@ final class PetRuntime {
             )
         }
         items.append(contentsOf: webhookBubbles)
+        if let tunnelWarningBubble {
+            items.append(tunnelWarningBubble)
+        }
         #if DEBUG
         items.append(contentsOf: debugBubbleItems)
         #endif

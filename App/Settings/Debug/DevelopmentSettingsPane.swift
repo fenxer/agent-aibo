@@ -86,6 +86,10 @@ struct DevelopmentSettingsPane: View {
                 }
                 .disabled(!canShow)
 
+                Button(String(localized: "Show Warning Bubble")) {
+                    runtime.showDebugTunnelWarningBubble()
+                }
+
                 Button(String(localized: "Clear Bubble")) {
                     runtime.clearDebugBubble()
                 }

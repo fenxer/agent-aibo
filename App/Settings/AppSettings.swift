@@ -24,6 +24,7 @@ final class AppSettings {
         static let webhookPort = "settings.webhookPort"
         static let webhookDismissMode = "settings.webhookDismissMode"
         static let webhookAutoDismissSeconds = "settings.webhookAutoDismissSeconds"
+        static let publicWebhookURL = "settings.publicWebhookURL"
         static let settingsWindowHeight = "settings.windowHeight"
         static let webhookSecretAccount = "webhook.sharedSecret"
     }
@@ -127,6 +128,7 @@ final class AppSettings {
             guard oldValue != webhookEnabled else { return }
             UserDefaults.standard.set(webhookEnabled, forKey: Keys.webhookEnabled)
             PetRuntime.shared.syncWebhookServer()
+            TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
         }
     }
 
@@ -135,6 +137,22 @@ final class AppSettings {
             guard oldValue != webhookPort else { return }
             UserDefaults.standard.set(Int(webhookPort), forKey: Keys.webhookPort)
             PetRuntime.shared.syncWebhookServer()
+            TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+        }
+    }
+
+    /// Public HTTPS URL that reaches this Mac via the user’s tunnel (e.g. Cloudflare Tunnel).
+    /// Empty → skip tunnel health checks. Not the loopback listener URL.
+    var publicWebhookURLString: String {
+        didSet {
+            let trimmed = Self.normalizedPublicWebhookURL(publicWebhookURLString)
+            if trimmed != publicWebhookURLString {
+                publicWebhookURLString = trimmed
+                return
+            }
+            guard oldValue != publicWebhookURLString else { return }
+            UserDefaults.standard.set(publicWebhookURLString, forKey: Keys.publicWebhookURL)
+            TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
         }
     }
 
@@ -166,6 +184,16 @@ final class AppSettings {
 
     var webhookURLString: String {
         "http://127.0.0.1:\(webhookPort)\(WebhookRequestHandler.path)"
+    }
+
+    /// Trimmed public URL suitable for probing, or `nil` when unset/invalid.
+    var resolvedPublicWebhookURL: URL? {
+        let raw = publicWebhookURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty, let url = URL(string: raw), let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              url.host != nil
+        else { return nil }
+        return url
     }
 
     private init() {
@@ -222,6 +250,10 @@ final class AppSettings {
         } else {
             webhookPort = Self.defaultWebhookPort
         }
+
+        publicWebhookURLString = Self.normalizedPublicWebhookURL(
+            UserDefaults.standard.string(forKey: Keys.publicWebhookURL) ?? ""
+        )
 
         let dismissRaw = UserDefaults.standard.string(forKey: Keys.webhookDismissMode)
             ?? WebhookDismissMode.onClick.rawValue
@@ -293,6 +325,10 @@ final class AppSettings {
 
     private static func clampWebhookAutoDismissSeconds(_ value: Int) -> Int {
         min(max(value, webhookAutoDismissSecondsRange.lowerBound), webhookAutoDismissSecondsRange.upperBound)
+    }
+
+    private static func normalizedPublicWebhookURL(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func makeSecret() -> String {

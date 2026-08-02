@@ -80,6 +80,8 @@ struct StatusBubble: View {
             agentBubbleContent(ink: ink, capsuleFill: capsuleFill, capsuleContent: capsuleContent)
         case .webhook:
             webhookBubbleContent(ink: ink, capsuleFill: capsuleFill, capsuleContent: capsuleContent)
+        case .warning:
+            warningBubbleContent(ink: ink)
         }
     }
 
@@ -169,6 +171,44 @@ struct StatusBubble: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    @ViewBuilder
+    private func warningBubbleContent(ink: Color) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: headerSpacing) {
+                Text(String(localized: "Warning"))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(ink)
+                    .lineLimit(1)
+                TimelineView(.everyMinute) { context in
+                    Text(Self.relativeTimeString(from: item.lastEventAt, relativeTo: context.date))
+                        .font(.system(size: 12))
+                        .foregroundStyle(ink.opacity(0.6))
+                        .lineLimit(1)
+                }
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: headerSpacing) {
+                warningIconCapsule()
+                statusText(ink: ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// Fixed red capsule with warning triangle only (ignores glass tint / brand capsule).
+    @ViewBuilder
+    private func warningIconCapsule() -> some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Color.white)
+            .padding(.top, 2)
+            .padding(.bottom, 2)
+            .padding(.horizontal, 8)
+            .frame(minHeight: capsuleHeight)
+            .background(Capsule().fill(Color.red))
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -303,7 +343,14 @@ struct StatusBubble: View {
     }()
 
     private static func relativeTimeString(from date: Date, relativeTo now: Date) -> String {
-        relativeTimeFormatter.localizedString(for: date, relativeTo: now)
+        // TimelineView may re-evaluate on unrelated panel refreshes; showing
+        // seconds makes the label jitter (and reprobes used to reset lastEventAt).
+        // Under one minute, keep a stable phrase; then use minute-scale relatives.
+        let elapsed = now.timeIntervalSince(date)
+        if elapsed < 60 {
+            return String(localized: "just now")
+        }
+        return relativeTimeFormatter.localizedString(for: date, relativeTo: now)
     }
 
     @ViewBuilder
@@ -484,6 +531,22 @@ struct StatusBubble: View {
             animatesEllipsis: false,
             agentName: "Deploy Bot",
             statusLabel: "FINISHED"
+        ),
+        placement: .top
+    )
+    .padding(40)
+    .background(Color.secondary.opacity(0.25))
+}
+
+#Preview("warning") {
+    StatusBubble(
+        item: StatusBubbleItem(
+            id: "tunnel:health",
+            text: "Tunnel is down, take a look!",
+            lastEventAt: .now.addingTimeInterval(-3 * 60 * 60),
+            kind: .warning,
+            isDismissible: true,
+            animatesEllipsis: false
         ),
         placement: .top
     )
