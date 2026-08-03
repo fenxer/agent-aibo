@@ -33,11 +33,12 @@ import Testing
     )
     #expect(
         StatusCopy.exampleBubblePhrase(agent: .codex, hookEventName: "PermissionRequest")
-            == "needs your approval"
+            == "is reviewing · needs your approval"
     )
     #expect(
-        StatusCopy.statusPhrase(for: .waiting) == "needs your approval"
+        StatusCopy.statusPhrase(for: .waiting) == "is reviewing"
     )
+    #expect(StatusCopy.needsYourApprovalPhrase == "needs your approval")
     #expect(StatusCopy.stuckPhrase == "got stuck?")
     #expect(
         StatusCopy.exampleBubblePhrase(agent: .codex, hookEventName: "Stop") == "finished"

@@ -218,3 +218,29 @@ import Testing
         ) == false
     )
 }
+
+@Test func waitingApprovalEscalationHintOnlyAfterDelay() {
+    let t0 = Date(timeIntervalSince1970: 4_000)
+    #expect(PetStateMachine.waitingApprovalEscalationDelay == 5)
+    #expect(
+        WaitingApprovalEscalationHint.isDue(
+            activity: .waiting,
+            lastEventAt: t0,
+            now: t0.addingTimeInterval(4.9)
+        ) == false
+    )
+    #expect(
+        WaitingApprovalEscalationHint.isDue(
+            activity: .waiting,
+            lastEventAt: t0,
+            now: t0.addingTimeInterval(5)
+        )
+    )
+    #expect(
+        WaitingApprovalEscalationHint.isDue(
+            activity: .thinking,
+            lastEventAt: t0,
+            now: t0.addingTimeInterval(30)
+        ) == false
+    )
+}

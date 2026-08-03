@@ -455,7 +455,7 @@ private struct IntegrationsSettingsPane: View {
                     }
                 }
 
-                Text(String(localized: "Codex shows an approval bubble via PermissionRequest."))
+                Text(String(localized: "Codex PermissionRequest starts as “is reviewing”, then escalates to needs-your-approval after a few seconds."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

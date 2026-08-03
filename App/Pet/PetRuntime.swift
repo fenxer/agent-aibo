@@ -67,6 +67,7 @@ final class PetRuntime {
     private var watchdogTask: Task<Void, Never>?
     /// One-shot refresh when Cursor `.usingTool` has been silent long enough for the stall CTA.
     private var cursorUsingToolStallTasks: [SessionKey: Task<Void, Never>] = [:]
+    private var waitingApprovalEscalationTasks: [SessionKey: Task<Void, Never>] = [:]
     private var webhookBubbles: [StatusBubbleItem] = []
     /// Separate from webhookBubbles so dismiss mode / Receive Log never touch it.
     private var tunnelWarningBubble: StatusBubbleItem?
@@ -176,6 +177,10 @@ final class PetRuntime {
             task.cancel()
         }
         cursorUsingToolStallTasks.removeAll()
+        for task in waitingApprovalEscalationTasks.values {
+            task.cancel()
+        }
+        waitingApprovalEscalationTasks.removeAll()
         for task in webhookExpiryTasks.values {
             task.cancel()
         }
@@ -557,7 +562,7 @@ final class PetRuntime {
         let agentKind = Self.debugAgentKind(from: trimmedAgent)
         let trimmedText: String
         if isAwaitingApproval {
-            trimmedText = StatusCopy.statusPhrase(for: .waiting) ?? "needs your approval"
+            trimmedText = StatusCopy.needsYourApprovalPhrase
         } else {
             trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmedText.isEmpty else { return }
@@ -845,6 +850,7 @@ final class PetRuntime {
     private func apply(_ event: PetEvent) {
         world = PetStateMachine.reduce(world, event: event)
         syncCursorUsingToolStallTimers()
+        syncWaitingApprovalEscalationTimers()
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
     }
@@ -857,16 +863,27 @@ final class PetRuntime {
                 sessionDisplayMeta.removeValue(forKey: key)
                 continue
             }
-            let isAwaitingApproval = snapshot.activity == .waiting
+            let isEscalatedWaiting = WaitingApprovalEscalationHint.isDue(
+                activity: snapshot.activity,
+                lastEventAt: snapshot.lastEventAt,
+                now: now
+            )
             let isStalledUsingTool = CursorUsingToolStallHint.isDue(
                 agent: key.agent,
                 activity: snapshot.activity,
                 lastEventAt: snapshot.lastEventAt,
                 now: now
             )
-            let showsAttentionCTA = isAwaitingApproval || isStalledUsingTool
+            let showsAttentionCTA = isEscalatedWaiting || isStalledUsingTool
             guard let phrase = StatusCopy.statusPhrase(for: snapshot.activity) else { continue }
-            let text = isStalledUsingTool ? StatusCopy.stuckPhrase : phrase
+            let text: String
+            if isStalledUsingTool {
+                text = StatusCopy.stuckPhrase
+            } else if isEscalatedWaiting {
+                text = StatusCopy.needsYourApprovalPhrase
+            } else {
+                text = phrase
+            }
             let meta = sessionDisplayMeta[key]
             let isSubagent = meta?.isSubagent == true
             items.append(
@@ -920,10 +937,11 @@ final class PetRuntime {
         }
     }
 
-    /// Terminal / approval statuses keep static copy — no loading-dot cycle.
+    /// Terminal statuses keep static copy — no loading-dot cycle.
+    /// `.waiting` starts as “is reviewing” (ellipsis on); escalated CTA turns it off.
     private static func animatesEllipsis(for activity: PetActivityState) -> Bool {
         switch activity {
-        case .done, .interrupted, .waiting: false
+        case .done, .interrupted: false
         default: true
         }
     }
@@ -1009,6 +1027,43 @@ final class PetRuntime {
     private func cancelCursorUsingToolStallTask(for key: SessionKey) {
         cursorUsingToolStallTasks[key]?.cancel()
         cursorUsingToolStallTasks[key] = nil
+    }
+
+    /// One-shot wake-ups so `.waiting` escalates to the approval CTA without polling.
+    private func syncWaitingApprovalEscalationTimers() {
+        let now = Date()
+        var active = Set<SessionKey>()
+        for (key, snapshot) in world.sessions {
+            guard snapshot.activity == .waiting else { continue }
+            active.insert(key)
+            let fireAt = snapshot.lastEventAt.addingTimeInterval(WaitingApprovalEscalationHint.delay)
+            let delay = fireAt.timeIntervalSince(now)
+            cancelWaitingApprovalEscalationTask(for: key)
+            guard delay > 0 else { continue }
+            let expectedLastEventAt = snapshot.lastEventAt
+            waitingApprovalEscalationTasks[key] = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard let self else { return }
+                    guard let current = self.world.sessions[key],
+                          current.activity == .waiting,
+                          current.lastEventAt == expectedLastEventAt
+                    else { return }
+                    self.waitingApprovalEscalationTasks[key] = nil
+                    self.refreshBubbleItems()
+                    PetPanelController.shared.refreshContent()
+                }
+            }
+        }
+        for key in waitingApprovalEscalationTasks.keys where !active.contains(key) {
+            cancelWaitingApprovalEscalationTask(for: key)
+        }
+    }
+
+    private func cancelWaitingApprovalEscalationTask(for key: SessionKey) {
+        waitingApprovalEscalationTasks[key]?.cancel()
+        waitingApprovalEscalationTasks[key] = nil
     }
 
     private func scheduleWatchdog() {

@@ -25,7 +25,9 @@ public enum StatusCopy {
         case .responding:
             return "is responding"
         case .waiting:
-            return "needs your approval"
+            // Initial copy while Codex Auto-review (or a pending prompt) may still
+            // resolve without the user. Escalates later — see `needsYourApprovalPhrase`.
+            return "is reviewing"
         case .done:
             return "finished"
         case .interrupted:
@@ -34,6 +36,9 @@ public enum StatusCopy {
             return "failed"
         }
     }
+
+    /// Escalated `.waiting` copy after silence (see `WaitingApprovalEscalationHint`).
+    public static let needsYourApprovalPhrase = "needs your approval"
 
     /// Cursor `.usingTool` stall hint after silence (see `CursorUsingToolStallHint`).
     public static let stuckPhrase = "got stuck?"
@@ -67,7 +72,11 @@ public enum StatusCopy {
 
         switch transition {
         case .apply(let activity):
-            return statusPhrase(for: activity)
+            guard let phrase = statusPhrase(for: activity) else { return nil }
+            if activity == .waiting {
+                return "\(phrase) · \(needsYourApprovalPhrase)"
+            }
+            return phrase
         case .removeSession:
             return "clears session"
         case nil:
