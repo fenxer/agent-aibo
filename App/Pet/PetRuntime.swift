@@ -46,6 +46,18 @@ final class PetRuntime {
     private static let tunnelProbeTimeout: TimeInterval = 10
     /// First time we detected tunnel down; kept across reprobes so relative time doesn't jump.
     private var tunnelWarningDetectedAt: Date?
+    /// Consecutive `.ok` probes while a warning may be up — recovery series needs 2 before clear.
+    private var consecutiveTunnelOKCount = 0
+
+    enum TunnelHealthClearPolicy: Sendable {
+        /// Manual / settings: one OK clears the warning.
+        case immediate
+        /// Wake / path recovery series: require two consecutive OKs before clearing.
+        case recovery
+    }
+
+    /// Whether the tunnel warning bubble is currently shown (recovery series stops early when false after OK).
+    var tunnelWarningBubbleVisible: Bool { tunnelWarningBubble != nil }
 
     private var server: UnixSocketServer?
     private var webhookServer: WebhookServer?
@@ -224,43 +236,68 @@ final class PetRuntime {
 
     /// Probe the configured public URL once. GET: 405 from our listener means the tunnel reached this Mac.
     @discardableResult
-    func checkTunnelHealth() async -> TunnelHealthStatus {
+    func checkTunnelHealth(clearPolicy: TunnelHealthClearPolicy = .immediate) async -> TunnelHealthStatus {
         tunnelProbeTask?.cancel()
 
         guard AppSettings.shared.webhookEnabled else {
-            applyTunnelHealth(.skipped)
+            applyTunnelHealth(.skipped, clearPolicy: clearPolicy)
             return .skipped
         }
         guard AppSettings.shared.resolvedPublicWebhookURL != nil else {
-            applyTunnelHealth(.skipped)
+            applyTunnelHealth(.skipped, clearPolicy: clearPolicy)
             return .skipped
         }
         guard webhookListening else {
-            applyTunnelHealth(.listenerStopped)
+            applyTunnelHealth(.listenerStopped, clearPolicy: clearPolicy)
             return .listenerStopped
         }
 
-        let status: TunnelHealthStatus
         let probe = Task { await Self.probePublicWebhookURL() }
         tunnelProbeTask = Task { _ = await probe.value }
-        status = await probe.value
+        let status = await probe.value
         guard !Task.isCancelled else { return tunnelHealthStatus }
-        applyTunnelHealth(status)
+        applyTunnelHealth(status, clearPolicy: clearPolicy)
         return status
     }
 
-    private func applyTunnelHealth(_ status: TunnelHealthStatus) {
-        tunnelHealthStatus = status
+    /// Local network path is unsatisfied — tunnel cannot work; skip HTTP.
+    func markTunnelOfflineFromLocalPath() {
+        guard AppSettings.shared.webhookEnabled else {
+            applyTunnelHealth(.skipped, clearPolicy: .immediate)
+            return
+        }
+        guard AppSettings.shared.resolvedPublicWebhookURL != nil else {
+            applyTunnelHealth(.skipped, clearPolicy: .immediate)
+            return
+        }
+        applyTunnelHealth(.down, clearPolicy: .immediate)
+    }
+
+    private func applyTunnelHealth(_ status: TunnelHealthStatus, clearPolicy: TunnelHealthClearPolicy) {
         switch status {
         case .down:
+            consecutiveTunnelOKCount = 0
+            tunnelHealthStatus = .down
             presentTunnelWarningBubble()
-        case .ok, .skipped:
-            // Recovered or health-check disabled — drop warning and reset the clock.
+        case .ok:
+            consecutiveTunnelOKCount += 1
+            tunnelHealthStatus = .ok
+            let shouldClear =
+                tunnelWarningBubble == nil
+                || clearPolicy == .immediate
+                || consecutiveTunnelOKCount >= 2
+            if shouldClear {
+                consecutiveTunnelOKCount = 0
+                clearTunnelWarningBubble(resetDetectionClock: true)
+            }
+        case .skipped:
+            consecutiveTunnelOKCount = 0
+            tunnelHealthStatus = .skipped
             clearTunnelWarningBubble(resetDetectionClock: true)
         case .unknown, .listenerStopped:
             // Transient listener restarts must not clear/recreate the warning
             // (that was resetting lastEventAt and making “40s” jump to “18s”).
-            break
+            tunnelHealthStatus = status
         }
     }
 
@@ -376,6 +413,7 @@ final class PetRuntime {
         if tunnelWarningBubble?.id == id {
             // User dismissed — keep detection clock so a later re-show stays stable
             // until the tunnel actually recovers.
+            consecutiveTunnelOKCount = 0
             clearTunnelWarningBubble(resetDetectionClock: false)
             return
         }
