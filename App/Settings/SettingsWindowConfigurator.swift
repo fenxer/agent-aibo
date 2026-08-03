@@ -50,6 +50,8 @@ struct SettingsWindowConfigurator: NSViewRepresentable {
             detach()
             observedWindow = window
             applySavedHeight(to: window)
+            // First attach / new window instance — promote + key (menu / SettingsLink).
+            SettingsNavigator.shared.handleSettingsWindowAppeared(window)
 
             updateObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didUpdateNotification,

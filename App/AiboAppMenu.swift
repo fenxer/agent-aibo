@@ -25,8 +25,10 @@ struct AiboAppMenu: View {
 
         Divider()
 
-        SettingsLink {
-            Text(String(localized: "Settings…"))
+        Button(String(localized: "Settings…")) {
+            // Menu items don't reliably deliver TapGesture beside SettingsLink;
+            // open via AppKit after promoting so accessory + wake stays reliable.
+            SettingsNavigator.shared.openSettingsFromUserCommand()
         }
 
         Divider()

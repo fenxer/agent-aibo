@@ -1,11 +1,11 @@
 import AppKit
 import Foundation
-import SwiftUI
 
 /// Deep-links into the Settings scene sidebar (Integrations, etc.).
 ///
-/// Opening Settings must go through `SettingsLink` (calling `openSettings()` warns
-/// on current SDKs). Callers set `pendingPane` then rely on a `SettingsLink` tap.
+/// Opening Settings must go through AppKit/`SettingsLink` (calling `openSettings()` is
+/// unreliable for accessory apps on current SDKs). Callers either use `SettingsLink`
+/// after `prepareForOpeningSettings()`, or `openSettingsFromUserCommand()` from menus.
 @MainActor
 @Observable
 final class SettingsNavigator {
@@ -26,11 +26,28 @@ final class SettingsNavigator {
 
     private var didPromoteActivationPolicy = false
     private var settingsCloseObserver: NSObjectProtocol?
+    private var bringToFrontTask: Task<Void, Never>?
 
     /// Prepare Integrations selection before a `SettingsLink` opens the scene.
     func prepareIntegrations() {
         pendingPane = .integrations
+        prepareForOpeningSettings()
+    }
+
+    /// Call alongside `SettingsLink` (warning bubble, etc.) so accessory apps can key.
+    func prepareForOpeningSettings() {
         promoteActivationPolicyForSettingsIfNeeded()
+        scheduleBringSettingsWindowToFront()
+    }
+
+    /// Menu bar / context-menu entry — promote, open Settings scene, then order front.
+    func openSettingsFromUserCommand() {
+        prepareForOpeningSettings()
+        // Same AppKit action `SettingsLink` uses for the SwiftUI `Settings` scene.
+        if !NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        }
+        scheduleBringSettingsWindowToFront()
     }
 
     func consumePendingPane() -> Pane? {
@@ -39,13 +56,59 @@ final class SettingsNavigator {
         return pane
     }
 
-    /// Accessory apps often need a brief `.regular` policy so Settings can key.
+    /// Accessory apps need a brief `.regular` policy so Settings can become key.
+    /// Only invoked from explicit user "open Settings" paths — never on wake/probes.
     func promoteActivationPolicyForSettingsIfNeeded() {
-        guard NSApp.activationPolicy() == .accessory else { return }
-        NSApp.setActivationPolicy(.regular)
-        didPromoteActivationPolicy = true
+        if NSApp.activationPolicy() == .accessory {
+            NSApp.setActivationPolicy(.regular)
+            didPromoteActivationPolicy = true
+            watchSettingsWindowForAccessoryRestore()
+        }
         NSApp.activate(ignoringOtherApps: true)
-        watchSettingsWindowForAccessoryRestore()
+    }
+
+    /// Settings content attached — ensure we are frontmost (first attach / reopen).
+    func handleSettingsWindowAppeared(_ window: NSWindow) {
+        promoteActivationPolicyForSettingsIfNeeded()
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+
+    private func scheduleBringSettingsWindowToFront() {
+        bringToFrontTask?.cancel()
+        bringToFrontTask = Task { @MainActor in
+            // Settings scene creation is async after the menu action returns.
+            for delay in [Duration.milliseconds(50), .milliseconds(150), .milliseconds(350)] {
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled else { return }
+                if bringSettingsWindowToFrontIfPossible() {
+                    return
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    private func bringSettingsWindowToFrontIfPossible() -> Bool {
+        guard let window = findSettingsWindow() else { return false }
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
+        return true
+    }
+
+    private func findSettingsWindow() -> NSWindow? {
+        NSApp.windows.first { window in
+            guard !(window is NSPanel) else { return false }
+            let contentWidth = window.contentRect(forFrameRect: window.frame).width
+            return abs(contentWidth - AppSettings.settingsWindowWidth) < 2
+        }
     }
 
     private func watchSettingsWindowForAccessoryRestore() {
@@ -83,6 +146,8 @@ final class SettingsNavigator {
         }
         guard !settingsStillOpen else { return }
         didPromoteActivationPolicy = false
+        bringToFrontTask?.cancel()
+        bringToFrontTask = nil
         if let settingsCloseObserver {
             NotificationCenter.default.removeObserver(settingsCloseObserver)
             self.settingsCloseObserver = nil
