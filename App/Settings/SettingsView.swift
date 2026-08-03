@@ -530,6 +530,7 @@ private struct IntegrationsSettingsPane: View {
                     .disabled(
                         !settings.webhookEnabled
                             || settings.resolvedPublicWebhookURL == nil
+                            || runtime.tunnelHealthStatus == .checking
                     )
                 }
 

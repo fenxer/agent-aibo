@@ -26,6 +26,8 @@ final class PetRuntime {
         case unknown
         /// Webhook disabled or Public URL empty — probe skipped.
         case skipped
+        /// HTTP probe in flight (Settings label feedback).
+        case checking
         case ok
         case down
         /// Public URL set but local listener is not running.
@@ -35,6 +37,7 @@ final class PetRuntime {
             switch self {
             case .unknown: String(localized: "Unknown")
             case .skipped: String(localized: "—")
+            case .checking: String(localized: "Checking…")
             case .ok: String(localized: "OK")
             case .down: String(localized: "Down")
             case .listenerStopped: String(localized: "Listener stopped")
@@ -73,6 +76,8 @@ final class PetRuntime {
     private var tunnelWarningBubble: StatusBubbleItem?
     private var webhookExpiryTasks: [String: Task<Void, Never>] = [:]
     private var tunnelProbeTask: Task<Void, Never>?
+    /// Bumps on each probe so a cancelled check doesn't clobber a newer one.
+    private var tunnelProbeGeneration = 0
     /// Project / model labels keyed by session; merged across hook events.
     private var sessionDisplayMeta: [SessionKey: SessionDisplayMeta] = [:]
     /// Last hook event name per session — drives Petdex sprite row lookup.
@@ -257,10 +262,22 @@ final class PetRuntime {
             return .listenerStopped
         }
 
+        tunnelProbeGeneration += 1
+        let generation = tunnelProbeGeneration
+        let statusBeforeProbe: TunnelHealthStatus =
+            tunnelHealthStatus == .checking ? .unknown : tunnelHealthStatus
+        tunnelHealthStatus = .checking
+
         let probe = Task { await Self.probePublicWebhookURL() }
         tunnelProbeTask = Task { _ = await probe.value }
         let status = await probe.value
-        guard !Task.isCancelled else { return tunnelHealthStatus }
+        guard !Task.isCancelled else {
+            if generation == tunnelProbeGeneration, tunnelHealthStatus == .checking {
+                tunnelHealthStatus = statusBeforeProbe
+            }
+            return tunnelHealthStatus
+        }
+        guard generation == tunnelProbeGeneration else { return status }
         applyTunnelHealth(status, clearPolicy: clearPolicy)
         return status
     }
@@ -303,6 +320,8 @@ final class PetRuntime {
             // Transient listener restarts must not clear/recreate the warning
             // (that was resetting lastEventAt and making “40s” jump to “18s”).
             tunnelHealthStatus = status
+        case .checking:
+            tunnelHealthStatus = .checking
         }
     }
 

@@ -197,7 +197,7 @@ final class TunnelHealthMonitor {
                     }
                 case .skipped:
                     return
-                case .down, .listenerStopped, .unknown:
+                case .down, .listenerStopped, .unknown, .checking:
                     continue
                 }
             }
