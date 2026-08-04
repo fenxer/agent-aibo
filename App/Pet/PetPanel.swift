@@ -24,7 +24,9 @@ final class PetPanel: NSPanel {
         hidesOnDeactivate = false
         animationBehavior = .none
         isMovable = true
-        isMovableByWindowBackground = true
+        // Drag only via PassThroughHostingView.performDrag on opaque pet pixels.
+        // Background-move would also grab music-note padding / empty layout.
+        isMovableByWindowBackground = false
     }
 
     /// NSHostingView has repeatedly driven width/height to 0 via content-size extrema;

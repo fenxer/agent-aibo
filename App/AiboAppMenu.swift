@@ -25,11 +25,16 @@ struct AiboAppMenu: View {
 
         Divider()
 
-        Button(String(localized: "Settings…")) {
-            // Menu items don't reliably deliver TapGesture beside SettingsLink;
-            // open via AppKit after promoting so accessory + wake stays reliable.
-            SettingsNavigator.shared.openSettingsFromUserCommand()
+        // Must be SettingsLink — `openSettings()` / `showSettingsWindow:` log
+        // "Please use SettingsLink…" and often no-op on current SDKs.
+        SettingsLink {
+            Text(String(localized: "Settings…"))
         }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                SettingsNavigator.shared.prepareForOpeningSettings()
+            }
+        )
 
         Divider()
 

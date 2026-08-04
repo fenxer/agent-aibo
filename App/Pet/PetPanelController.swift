@@ -15,7 +15,16 @@ final class PetPanelController {
     private var panel: PetPanel?
     private var rootView: PetPanelRootView?
     private var hostingView: PassThroughHostingView<PetView>?
+    #if DEBUG
+    private var hitRegionDebugOverlay: HitRegionDebugOverlay?
+    /// Development → Hit Regions: paint panel / padding / petHitRect / opaque drag mask.
+    var showHitRegionDebug = true {
+        didSet { refreshHitRegionDebugOverlay() }
+    }
+    #endif
     private var screenObserver: NSObjectProtocol?
+    private var localMouseMonitor: Any?
+    private var globalMouseMonitor: Any?
     private let fullscreenMonitor = FullscreenSpaceMonitor()
     /// True while hide-when-fullscreen is suppressing the panel (not user Hide Pet).
     private var isSuppressedForFullscreen = false
@@ -31,6 +40,8 @@ final class PetPanelController {
     private let bubbleMaxWidth: CGFloat = 320
     private let bubbleEstimatedHeight: CGFloat = 88
     private let bubbleStackSpacing: CGFloat = 4
+    /// Matches `PetView.petBubbleSpacing` (pet ↔ bubble stack gap).
+    private let petBubbleSpacing: CGFloat = 6
     private let bubbleContentPadding: CGFloat = 12
     private let bubbleHeaderLineHeight: CGFloat = 15
     private let bubbleSectionSpacing: CGFloat = 12
@@ -89,6 +100,7 @@ final class PetPanelController {
         freezePanelSize()
         isVisible = true
         startObservingScreenChangesIfNeeded()
+        startClickThroughMonitoringIfNeeded()
         syncFullscreenPolicy()
 
         // Keep the panel ordered in. When hide-when-fullscreen is on we use
@@ -129,6 +141,7 @@ final class PetPanelController {
             try? await Task.sleep(for: PetAppearance.vanishDuration + .milliseconds(50))
             guard !Task.isCancelled else { return }
             panel?.orderOut(nil)
+            stopClickThroughMonitoring()
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
@@ -233,7 +246,7 @@ final class PetPanelController {
         guard let panel else { return }
         if shouldPresentPanelOnScreen {
             panel.alphaValue = 1
-            panel.ignoresMouseEvents = false
+            refreshClickThroughState()
         } else if isVisible, isSuppressedForFullscreen {
             panel.alphaValue = 0
             panel.ignoresMouseEvents = true
@@ -284,6 +297,9 @@ final class PetPanelController {
             ?? NSImage(named: "DefaultPet")
         hostingView?.updateHitTestImage(image)
         PetAppearance.invalidateDominantColorCache()
+        #if DEBUG
+        refreshHitRegionDebugOverlay()
+        #endif
     }
 
     /// Flush any pending resize and apply now. Caller must not be mid-layout.
@@ -404,6 +420,12 @@ final class PetPanelController {
         hostingView.frame = rootView.bounds
         hostingView.autoresizingMask = [.width, .height]
         rootView.addSubview(hostingView)
+        #if DEBUG
+        let debugOverlay = HitRegionDebugOverlay(frame: rootView.bounds)
+        debugOverlay.autoresizingMask = [.width, .height]
+        rootView.addSubview(debugOverlay)
+        hitRegionDebugOverlay = debugOverlay
+        #endif
         panel.contentView = rootView
 
         self.rootView = rootView
@@ -447,18 +469,18 @@ final class PetPanelController {
                 height: max(petBlockHeight + stackHeight + 20, 1)
             )
         case .left, .right:
-            // Near-pet bubble stays vertically centered with the pet; older
-            // bubbles grow upward — panel must leave room above the pet center.
-            // `items` are newest-first; near-pet is last.
+            // Near-pet bubble centered with pet; older bubbles grow upward.
+            // Size only to row + stackAbove — do NOT mirror empty space below
+            // (halfAbove * 2 left a dead purple zone that blocked the desktop).
             let nearHeight = heights.last ?? bubbleEstimatedHeight
             let aboveHeights = heights.dropLast()
             let stackAbove =
                 aboveHeights.reduce(0, +)
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
-            let halfAbove = insets.top + stackAbove + nearHeight / 2
+            let rowHeight = max(petSize, nearHeight)
             return NSSize(
                 width: max(petBlockWidth + bubbleMaxWidth + 20, 1),
-                height: max(petBlockHeight, halfAbove * 2, 1)
+                height: max(insets.vertical + rowHeight + stackAbove, 1)
             )
         }
     }
@@ -503,7 +525,90 @@ final class PetPanelController {
             bubbleCount: bubbleCount
         )
         hostingView?.petHitRect = CGRect(origin: origin, size: CGSize(width: petSize, height: petSize))
+        hostingView?.bubbleHitRects = bubbleHitRects(
+            panelSize: panelSize,
+            petSize: petSize,
+            placement: placement,
+            items: PetRuntime.shared.bubbleItems
+        )
+        #if DEBUG
+        refreshHitRegionDebugOverlay()
+        #endif
+        refreshClickThroughState()
     }
+
+    /// Bottom-left union rects for bubble stacks so empty panel chrome can click through.
+    private func bubbleHitRects(
+        panelSize: NSSize,
+        petSize: CGFloat,
+        placement: BubblePlacement,
+        items: [StatusBubbleItem]
+    ) -> [CGRect] {
+        guard !items.isEmpty else { return [] }
+        let insets = contentInsets
+        let origin = petOrigin(
+            in: panelSize,
+            petSize: petSize,
+            placement: placement,
+            bubbleCount: items.count
+        )
+        let heights = items.map(estimatedBubbleHeight(for:))
+        let stackHeight =
+            heights.reduce(0, +)
+            + CGFloat(max(0, items.count - 1)) * bubbleStackSpacing
+        let contentWidth = panelSize.width - insets.horizontal
+
+        switch placement {
+        case .top:
+            let width = min(bubbleMaxWidth, contentWidth)
+            let x = insets.leading + (contentWidth - width) / 2
+            let y = origin.y + petSize + petBubbleSpacing
+            return [CGRect(x: x, y: y, width: width, height: stackHeight)]
+        case .bottom:
+            let width = min(bubbleMaxWidth, contentWidth)
+            let x = insets.leading + (contentWidth - width) / 2
+            let y = origin.y - petBubbleSpacing - stackHeight
+            return [CGRect(x: x, y: y, width: width, height: stackHeight)]
+        case .right:
+            let x = origin.x + petSize
+            let width = min(bubbleMaxWidth, max(0, panelSize.width - x - insets.trailing))
+            let nearHeight = heights.last ?? bubbleEstimatedHeight
+            let aboveHeights = heights.dropLast()
+            let stackAbove =
+                aboveHeights.reduce(0, +)
+                + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
+            let petCenterY = origin.y + petSize / 2
+            let nearBottom = petCenterY - nearHeight / 2
+            return [CGRect(x: x, y: nearBottom, width: width, height: nearHeight + stackAbove)]
+        case .left:
+            let width = min(bubbleMaxWidth, max(0, origin.x - insets.leading))
+            let x = origin.x - width
+            let nearHeight = heights.last ?? bubbleEstimatedHeight
+            let aboveHeights = heights.dropLast()
+            let stackAbove =
+                aboveHeights.reduce(0, +)
+                + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
+            let petCenterY = origin.y + petSize / 2
+            let nearBottom = petCenterY - nearHeight / 2
+            return [CGRect(x: x, y: nearBottom, width: width, height: nearHeight + stackAbove)]
+        }
+    }
+
+    #if DEBUG
+    private func refreshHitRegionDebugOverlay() {
+        guard let overlay = hitRegionDebugOverlay, let hostingView else { return }
+        overlay.contentInsets = contentInsets
+        overlay.petHitRect = hostingView.petHitRect
+        overlay.bubbleHitRects = hostingView.bubbleHitRects
+        if hostingView.petHitRect.isNull == false {
+            overlay.opaquePetImage = hostingView.opaquePetDebugImage(size: hostingView.petHitRect.size)
+        } else {
+            overlay.opaquePetImage = nil
+        }
+        overlay.isOverlayEnabled = showHitRegionDebug
+        overlay.needsDisplay = true
+    }
+    #endif
 
     /// Pet image center inside the panel (AppKit coords, origin bottom-left).
     private func petCenter(
@@ -529,7 +634,6 @@ final class PetPanelController {
     ) -> CGPoint {
         let insets = contentInsets
         let contentWidth = panelSize.width - insets.horizontal
-        let contentHeight = panelSize.height - insets.vertical
         if bubbleCount == 0 {
             switch placement {
             case .top:
@@ -545,12 +649,12 @@ final class PetPanelController {
             case .left:
                 return CGPoint(
                     x: panelSize.width - insets.trailing - petSize,
-                    y: insets.bottom + (contentHeight - petSize) / 2
+                    y: insets.bottom
                 )
             case .right:
                 return CGPoint(
                     x: insets.leading,
-                    y: insets.bottom + (contentHeight - petSize) / 2
+                    y: insets.bottom
                 )
             }
         }
@@ -567,18 +671,71 @@ final class PetPanelController {
                 x: insets.leading + (contentWidth - petSize) / 2,
                 y: panelSize.height - insets.top - petSize
             )
-        case .left:
-            // Pet on trailing side.
-            return CGPoint(
-                x: panelSize.width - insets.trailing - petSize,
-                y: insets.bottom + (contentHeight - petSize) / 2
-            )
-        case .right:
-            // Pet on leading side.
-            return CGPoint(
-                x: insets.leading,
-                y: insets.bottom + (contentHeight - petSize) / 2
-            )
+        case .left, .right:
+            // Bottom-aligned row: pet shares a vertical center with the near bubble.
+            let items = PetRuntime.shared.bubbleItems
+            let nearHeight = items.last.map(estimatedBubbleHeight(for:)) ?? bubbleEstimatedHeight
+            let rowHeight = max(petSize, nearHeight)
+            let y = insets.bottom + (rowHeight - petSize) / 2
+            if placement == .left {
+                return CGPoint(x: panelSize.width - insets.trailing - petSize, y: y)
+            }
+            return CGPoint(x: insets.leading, y: y)
+        }
+    }
+
+    /// Floating NSPanel keeps the whole frame in the hit path even when content
+    /// `hitTest` returns nil — toggle `ignoresMouseEvents` from mouse moves
+    /// (event-driven; global monitor covers the ignore=true gap).
+    private func startClickThroughMonitoringIfNeeded() {
+        guard localMouseMonitor == nil else { return }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+        ) { [weak self] event in
+            self?.refreshClickThroughState()
+            return event
+        }
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDragged]
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshClickThroughState()
+            }
+        }
+    }
+
+    private func stopClickThroughMonitoring() {
+        if let localMouseMonitor {
+            NSEvent.removeMonitor(localMouseMonitor)
+            self.localMouseMonitor = nil
+        }
+        if let globalMouseMonitor {
+            NSEvent.removeMonitor(globalMouseMonitor)
+            self.globalMouseMonitor = nil
+        }
+        panel?.ignoresMouseEvents = false
+    }
+
+    private func refreshClickThroughState() {
+        guard let panel else { return }
+        guard isVisible, isContentPresented, shouldPresentPanelOnScreen, !isSuppressedForFullscreen else {
+            return
+        }
+
+        let screenPoint = NSEvent.mouseLocation
+        guard panel.frame.contains(screenPoint) else {
+            if panel.ignoresMouseEvents {
+                panel.ignoresMouseEvents = false
+            }
+            return
+        }
+
+        guard let content = panel.contentView else { return }
+        let windowPoint = panel.convertPoint(fromScreen: screenPoint)
+        let pointInContent = content.convert(windowPoint, from: nil)
+        let shouldIgnore = content.hitTest(pointInContent) == nil
+        if panel.ignoresMouseEvents != shouldIgnore {
+            panel.ignoresMouseEvents = shouldIgnore
         }
     }
 

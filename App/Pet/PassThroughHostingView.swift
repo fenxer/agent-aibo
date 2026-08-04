@@ -1,16 +1,21 @@
 import AppKit
 import SwiftUI
 
-/// Hosts SwiftUI content and only accepts hits on opaque pet pixels.
+/// Hosts SwiftUI content and only accepts hits on opaque pet pixels / bubbles.
 ///
 /// macOS 27's Swift AppKit overlay no longer exposes `NSWindow.hitTest`, so click-through
 /// lives on the content view. The alpha mask is built once from the pet image.
+///
+/// `petHitRect` / `bubbleHitRects` use bottom-left coordinates (same as the panel).
+/// `NSHostingView` is flipped (origin top-left), so hit-test points are converted first.
 final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     private let opaqueAlphaThreshold: UInt8 = 26 // ~10%
     private var alphaMask: AlphaMask?
 
-    /// Bottom-centered rect used for pet-image alpha hit testing (window coordinates of content view).
+    /// Pet sprite square in bottom-left content coordinates.
     var petHitRect: CGRect = .null
+    /// Approximate bubble stack rects in bottom-left content coordinates.
+    var bubbleHitRects: [CGRect] = []
 
     init(rootView: Content, hitTestImage: NSImage?) {
         self.alphaMask = Self.makeAlphaMask(from: hitTestImage)
@@ -19,6 +24,15 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
     func updateHitTestImage(_ image: NSImage?) {
         alphaMask = Self.makeAlphaMask(from: image)
+    }
+
+    /// Green where pet pixels are considered opaque for drag / hit testing.
+    func opaquePetDebugImage(size: CGSize) -> NSImage? {
+        alphaMask?.tintedOpaqueImage(
+            size: size,
+            threshold: opaqueAlphaThreshold,
+            color: NSColor.systemGreen.withAlphaComponent(0.55)
+        )
     }
 
     private static func makeAlphaMask(from image: NSImage?) -> AlphaMask? {
@@ -40,21 +54,26 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard bounds.contains(point) else { return nil }
+        let p = pointInBottomLeft(point)
 
-        if petHitRect.isNull == false, petHitRect.contains(point) {
+        if petHitRect.isNull == false, petHitRect.contains(p) {
             if let alphaMask {
-                let local = CGPoint(x: point.x - petHitRect.minX, y: point.y - petHitRect.minY)
+                let local = CGPoint(x: p.x - petHitRect.minX, y: p.y - petHitRect.minY)
                 let localBounds = CGRect(origin: .zero, size: petHitRect.size)
                 guard alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold) else {
                     return nil
                 }
             }
-        } else if petHitRect.isNull == false {
-            // Outside the pet sprite: allow hits only when SwiftUI has content there (e.g. bubble).
+            // Opaque pet pixel — accept (SwiftUI context menu / AppKit drag).
+            return super.hitTest(point) ?? self
+        }
+
+        // Bubbles only — empty padding / music overflow / infinity frames pass through.
+        if bubbleHitRects.contains(where: { $0.contains(p) }) {
             return super.hitTest(point)
         }
 
-        return super.hitTest(point) ?? self
+        return nil
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -75,11 +94,18 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     }
 
     private func isOpaquePetHit(at point: NSPoint) -> Bool {
-        guard petHitRect.isNull == false, petHitRect.contains(point) else { return false }
+        let p = pointInBottomLeft(point)
+        guard petHitRect.isNull == false, petHitRect.contains(p) else { return false }
         guard let alphaMask else { return true }
-        let local = CGPoint(x: point.x - petHitRect.minX, y: point.y - petHitRect.minY)
+        let local = CGPoint(x: p.x - petHitRect.minX, y: p.y - petHitRect.minY)
         let localBounds = CGRect(origin: .zero, size: petHitRect.size)
         return alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold)
+    }
+
+    /// `NSHostingView` is flipped; stored hit rects use panel bottom-left coords.
+    private func pointInBottomLeft(_ point: NSPoint) -> NSPoint {
+        guard isFlipped else { return point }
+        return NSPoint(x: point.x, y: bounds.height - point.y)
     }
 }
 
@@ -121,10 +147,64 @@ nonisolated private struct AlphaMask: Sendable {
         guard bounds.width > 0, bounds.height > 0 else { return false }
 
         let x = Int((point.x / bounds.width) * CGFloat(width))
-        // AppKit view Y grows upward; CG bitmap Y grows downward.
+        // Bottom-left local Y → CG bitmap Y (top-down).
         let yFromTop = Int(((bounds.height - point.y) / bounds.height) * CGFloat(height))
 
         guard x >= 0, yFromTop >= 0, x < width, yFromTop < height else { return false }
         return alphas[yFromTop * width + x] > threshold
+    }
+
+    func tintedOpaqueImage(size: CGSize, threshold: UInt8, color: NSColor) -> NSImage? {
+        let pixelWidth = max(1, Int(size.width.rounded(.up)))
+        let pixelHeight = max(1, Int(size.height.rounded(.up)))
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: pixelWidth,
+            pixelsHigh: pixelHeight,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: pixelWidth * 4,
+            bitsPerPixel: 32
+        ), let pixels = rep.bitmapData else {
+            return nil
+        }
+
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        color.usingColorSpace(.deviceRGB)?.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let red = UInt8(min(max(r * 255, 0), 255))
+        let green = UInt8(min(max(g * 255, 0), 255))
+        let blue = UInt8(min(max(b * 255, 0), 255))
+        let alpha = UInt8(min(max(a * 255, 0), 255))
+
+        for py in 0..<pixelHeight {
+            for px in 0..<pixelWidth {
+                let sampleX = Int((CGFloat(px) + 0.5) / CGFloat(pixelWidth) * CGFloat(width))
+                let sampleY = Int((CGFloat(py) + 0.5) / CGFloat(pixelHeight) * CGFloat(height))
+                let offset = (py * pixelWidth + px) * 4
+                guard sampleX >= 0, sampleY >= 0, sampleX < width, sampleY < height,
+                      alphas[sampleY * width + sampleX] > threshold
+                else {
+                    pixels[offset] = 0
+                    pixels[offset + 1] = 0
+                    pixels[offset + 2] = 0
+                    pixels[offset + 3] = 0
+                    continue
+                }
+                pixels[offset] = red
+                pixels[offset + 1] = green
+                pixels[offset + 2] = blue
+                pixels[offset + 3] = alpha
+            }
+        }
+
+        let image = NSImage(size: size)
+        image.addRepresentation(rep)
+        return image
     }
 }

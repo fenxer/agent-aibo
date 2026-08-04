@@ -68,9 +68,11 @@ struct PetView: View {
         // transitions are not torn down by switching to a pet-only branch.
         // Hide vanishes only the pet sprite (local transition) and fades bubbles —
         // never remove this root tree while resizing the NSPanel (constraint loop).
+        // No root WindowDragGesture — that made music-note padding (and other
+        // empty layout) steal clicks. Pet drag is AppKit performDrag on opaque
+        // pixels only (PassThroughHostingView); bubbles keep their own taps.
         positionedContent
             .padding(PetContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled).edgeInsets)
-            .gesture(WindowDragGesture())
             .allowsWindowActivationEvents()
             .onChange(of: shouldEmitMusicNotes, initial: true) { _, active in
                 syncMusicNotePulse(active: active)
@@ -104,13 +106,14 @@ struct PetView: View {
                 fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
                 petImage
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            // Bottom-align so upward bubble stack doesn't force empty panel below.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         case .right:
             HStack(alignment: .center, spacing: 0) {
                 petImage
                 fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
     }
 
@@ -252,6 +255,7 @@ struct PetView: View {
             // Keep layout size while the sprite is removed for Pow vanish.
             Color.clear
                 .frame(width: petSize, height: petSize)
+                .allowsHitTesting(false)
 
             if panelController.isContentPresented {
                 PetSpriteView(

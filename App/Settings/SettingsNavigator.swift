@@ -3,9 +3,9 @@ import Foundation
 
 /// Deep-links into the Settings scene sidebar (Integrations, etc.).
 ///
-/// Opening Settings must go through AppKit/`SettingsLink` (calling `openSettings()` is
-/// unreliable for accessory apps on current SDKs). Callers either use `SettingsLink`
-/// after `prepareForOpeningSettings()`, or `openSettingsFromUserCommand()` from menus.
+/// Opening Settings must go through `SettingsLink` (calling `openSettings()` /
+/// `showSettingsWindow:` warns and often no-ops on current SDKs). Call
+/// `prepareForOpeningSettings()` alongside the link so accessory apps can key.
 @MainActor
 @Observable
 final class SettingsNavigator {
@@ -34,19 +34,9 @@ final class SettingsNavigator {
         prepareForOpeningSettings()
     }
 
-    /// Call alongside `SettingsLink` (warning bubble, etc.) so accessory apps can key.
+    /// Call alongside `SettingsLink` (menu, warning bubble, etc.) so accessory apps can key.
     func prepareForOpeningSettings() {
         promoteActivationPolicyForSettingsIfNeeded()
-        scheduleBringSettingsWindowToFront()
-    }
-
-    /// Menu bar / context-menu entry — promote, open Settings scene, then order front.
-    func openSettingsFromUserCommand() {
-        prepareForOpeningSettings()
-        // Same AppKit action `SettingsLink` uses for the SwiftUI `Settings` scene.
-        if !NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        }
         scheduleBringSettingsWindowToFront()
     }
 

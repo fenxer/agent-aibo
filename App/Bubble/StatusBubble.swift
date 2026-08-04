@@ -554,7 +554,7 @@ struct StatusBubble: View {
     .background(Color.secondary.opacity(0.25))
 }
 
-/// High-priority tap for activate and/or dismiss, so WindowDragGesture still works elsewhere.
+/// High-priority tap for activate and/or dismiss (wins over any residual drag gestures).
 private struct BubbleTapModifier: ViewModifier {
     var onActivate: (() -> Void)?
     var onDismiss: (() -> Void)?

@@ -41,6 +41,7 @@ struct DevelopmentSettingsPane: View {
             bubblePreviewSection
             webhookPreviewSection
             hookIngestLogSection
+            hitRegionDebugSection
             musicNotesSection
             MediaRemotePayloadDebugSection()
             DistributedNotificationSnifferSection()
@@ -197,6 +198,31 @@ struct DevelopmentSettingsPane: View {
         } header: {
             Text(String(localized: "Music Notes"))
         }
+    }
+
+    private var hitRegionDebugSection: some View {
+        Section {
+            Toggle(
+                String(localized: "Show Hit Regions"),
+                isOn: hitRegionDebugBinding
+            )
+            Text(
+                String(
+                    localized: "Purple = panel · Orange = base pad · Yellow = music overflow · Blue = petHitRect · Green = opaque drag · Cyan = bubble hit."
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } header: {
+            Text(String(localized: "Hit Testing"))
+        }
+    }
+
+    private var hitRegionDebugBinding: Binding<Bool> {
+        Binding(
+            get: { PetPanelController.shared.showHitRegionDebug },
+            set: { PetPanelController.shared.showHitRegionDebug = $0 }
+        )
     }
 
     private var ingestLoggingBinding: Binding<Bool> {
