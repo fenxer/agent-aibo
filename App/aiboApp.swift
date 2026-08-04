@@ -17,8 +17,8 @@ struct aiboApp: App {
         Settings {
             SettingsView()
         }
-        // contentMinSize matches normal windows / System Settings. Settings still
-        // needs AppKit `.resizable` via SettingsWindowConfigurator (SO 79532884).
+        // Settings defaults to `.contentSize` (fixed); `.contentMinSize` plus the
+        // root view's `maxHeight: .infinity` makes the height user-resizable.
         .defaultSize(
             width: AppSettings.settingsWindowWidth,
             height: AppSettings.defaultSettingsWindowHeight

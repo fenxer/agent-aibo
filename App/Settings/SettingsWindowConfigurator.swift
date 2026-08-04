@@ -1,12 +1,23 @@
 import AppKit
 import SwiftUI
 
-/// SwiftUI creates the `Settings` window without `.resizable`, and scene-level
-/// `windowResizability` does not add it. Inserting it once is not enough either:
-/// SwiftUI re-syncs the window's sizing config shortly after and strips the flag
-/// again. So re-assert it on `didUpdate` (event-driven, no timer).
+/// Settings-window plumbing that SwiftUI does not cover: insert `.resizable`
+/// once per window, restore the persisted height on first attach, and save it
+/// after live resize.
 ///
-/// Equal min/max content width keeps the width fixed — only the height resizes.
+/// The scene declares `.windowResizability(.contentMinSize)` and the root view
+/// reports a fixed width plus `maxHeight: .infinity`, so SwiftUI's computed
+/// extrema are already correct (`contentMaxSize` is unbounded). But the
+/// `Settings` scene still creates the window without `.resizable` in its
+/// `styleMask` (macOS 26, SO 79532884), so we repair the mask once on attach.
+///
+/// Do **not** re-assert `styleMask` or content size extrema from
+/// `NSWindow.didUpdateNotification`: that fires every frame while a Form
+/// scrolls, fights SwiftUI's own extrema sync (`NSHostingView.
+/// updateWindowContentSizeExtremaIfNecessary` → `setStyleMask` →
+/// `NSThemeFrame _updateButtons`), spikes CPU, and rebuilds the traffic-light
+/// buttons (visible green-light flicker). With stable extrema SwiftUI never
+/// touches the mask after creation, so a one-time repair is enough.
 struct SettingsWindowConfigurator: NSViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -39,29 +50,18 @@ struct SettingsWindowConfigurator: NSViewRepresentable {
     @MainActor
     final class Coordinator {
         private weak var observedWindow: NSWindow?
-        private var updateObserver: NSObjectProtocol?
         private var resizeObserver: NSObjectProtocol?
 
         func attach(to window: NSWindow?) {
-            guard let window else { return }
-            enforceConstraints(on: window)
-
-            guard window !== observedWindow else { return }
+            guard let window, window !== observedWindow else { return }
             detach()
             observedWindow = window
+            if !window.styleMask.contains(.resizable) {
+                window.styleMask.insert(.resizable)
+            }
             applySavedHeight(to: window)
             // First attach / new window instance — promote + key (menu / SettingsLink).
             SettingsNavigator.shared.handleSettingsWindowAppeared(window)
-
-            updateObserver = NotificationCenter.default.addObserver(
-                forName: NSWindow.didUpdateNotification,
-                object: window,
-                queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    self?.enforceConstraints(on: window)
-                }
-            }
 
             resizeObserver = NotificationCenter.default.addObserver(
                 forName: NSWindow.didEndLiveResizeNotification,
@@ -75,32 +75,11 @@ struct SettingsWindowConfigurator: NSViewRepresentable {
         }
 
         func detach() {
-            if let updateObserver {
-                NotificationCenter.default.removeObserver(updateObserver)
-                self.updateObserver = nil
-            }
             if let resizeObserver {
                 NotificationCenter.default.removeObserver(resizeObserver)
                 self.resizeObserver = nil
             }
             observedWindow = nil
-        }
-
-        /// Cheap no-op when nothing drifted; runs on every window update.
-        private func enforceConstraints(on window: NSWindow) {
-            if !window.styleMask.contains(.resizable) {
-                window.styleMask.insert(.resizable)
-            }
-
-            let width = AppSettings.settingsWindowWidth
-            let minSize = NSSize(width: width, height: AppSettings.settingsWindowMinHeight)
-            let maxSize = NSSize(width: width, height: .greatestFiniteMagnitude)
-            if window.contentMinSize != minSize {
-                window.contentMinSize = minSize
-            }
-            if window.contentMaxSize != maxSize {
-                window.contentMaxSize = maxSize
-            }
         }
 
         private func applySavedHeight(to window: NSWindow) {

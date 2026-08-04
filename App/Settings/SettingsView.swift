@@ -70,9 +70,10 @@ struct SettingsView: View {
             detailRoot
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        // Fixed width; min height only so the window can grow (contentMinSize).
+        // Fixed width; unbounded max height so `.windowResizability(.contentMinSize)`
+        // reports "no maximum" and the window stays user-resizable in height.
         .frame(width: AppSettings.settingsWindowWidth)
-        .frame(minHeight: AppSettings.settingsWindowMinHeight)
+        .frame(minHeight: AppSettings.settingsWindowMinHeight, maxHeight: .infinity)
         .background { SettingsWindowConfigurator() }
         .onAppear { applyPendingPane() }
         .onChange(of: navigator.pendingPane) { _, _ in
