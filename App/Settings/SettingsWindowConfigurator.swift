@@ -60,7 +60,7 @@ struct SettingsWindowConfigurator: NSViewRepresentable {
                 window.styleMask.insert(.resizable)
             }
             applySavedHeight(to: window)
-            // First attach / new window instance — promote + key (menu / SettingsLink).
+            // First attach / new window instance — activate + key (menu / SettingsLink).
             SettingsNavigator.shared.handleSettingsWindowAppeared(window)
 
             resizeObserver = NotificationCenter.default.addObserver(

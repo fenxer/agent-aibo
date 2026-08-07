@@ -5,7 +5,9 @@ import Foundation
 ///
 /// Opening Settings must go through `SettingsLink` (calling `openSettings()` /
 /// `showSettingsWindow:` warns and often no-ops on current SDKs). Call
-/// `prepareForOpeningSettings()` alongside the link so accessory apps can key.
+/// `prepareForOpeningSettings()` alongside the link so the accessory app can
+/// activate and the Settings window can become key — without promoting to
+/// `.regular` (that would show a Dock icon).
 @MainActor
 @Observable
 final class SettingsNavigator {
@@ -24,8 +26,6 @@ final class SettingsNavigator {
     /// Consumed by `SettingsView` when the window appears or this value changes.
     private(set) var pendingPane: Pane?
 
-    private var didPromoteActivationPolicy = false
-    private var settingsCloseObserver: NSObjectProtocol?
     private var bringToFrontTask: Task<Void, Never>?
 
     /// Prepare Integrations selection before a `SettingsLink` opens the scene.
@@ -36,7 +36,7 @@ final class SettingsNavigator {
 
     /// Call alongside `SettingsLink` (menu, warning bubble, etc.) so accessory apps can key.
     func prepareForOpeningSettings() {
-        promoteActivationPolicyForSettingsIfNeeded()
+        activateForSettings()
         scheduleBringSettingsWindowToFront()
     }
 
@@ -46,20 +46,15 @@ final class SettingsNavigator {
         return pane
     }
 
-    /// Accessory apps need a brief `.regular` policy so Settings can become key.
+    /// Stay `.accessory` (no Dock). Activate so Settings can become key.
     /// Only invoked from explicit user "open Settings" paths — never on wake/probes.
-    func promoteActivationPolicyForSettingsIfNeeded() {
-        if NSApp.activationPolicy() == .accessory {
-            NSApp.setActivationPolicy(.regular)
-            didPromoteActivationPolicy = true
-            watchSettingsWindowForAccessoryRestore()
-        }
+    func activateForSettings() {
         NSApp.activate(ignoringOtherApps: true)
     }
 
     /// Settings content attached — ensure we are frontmost (first attach / reopen).
     func handleSettingsWindowAppeared(_ window: NSWindow) {
-        promoteActivationPolicyForSettingsIfNeeded()
+        activateForSettings()
         if window.isMiniaturized {
             window.deminiaturize(nil)
         }
@@ -99,49 +94,5 @@ final class SettingsNavigator {
             let contentWidth = window.contentRect(forFrameRect: window.frame).width
             return abs(contentWidth - AppSettings.settingsWindowWidth) < 2
         }
-    }
-
-    private func watchSettingsWindowForAccessoryRestore() {
-        if let settingsCloseObserver {
-            NotificationCenter.default.removeObserver(settingsCloseObserver)
-            self.settingsCloseObserver = nil
-        }
-        guard didPromoteActivationPolicy else { return }
-
-        settingsCloseObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let window = notification.object as? NSWindow else { return }
-            Task { @MainActor in
-                guard let self else { return }
-                guard self.isLikelySettingsWindow(window) else { return }
-                self.restoreAccessoryPolicyIfNeeded()
-            }
-        }
-    }
-
-    private func isLikelySettingsWindow(_ window: NSWindow) -> Bool {
-        guard window.isVisible || window.isMiniaturized else { return false }
-        guard !(window is NSPanel) else { return false }
-        let contentWidth = window.contentRect(forFrameRect: window.frame).width
-        return abs(contentWidth - AppSettings.settingsWindowWidth) < 2
-    }
-
-    private func restoreAccessoryPolicyIfNeeded() {
-        guard didPromoteActivationPolicy else { return }
-        let settingsStillOpen = NSApp.windows.contains {
-            $0.isVisible && self.isLikelySettingsWindow($0)
-        }
-        guard !settingsStillOpen else { return }
-        didPromoteActivationPolicy = false
-        bringToFrontTask?.cancel()
-        bringToFrontTask = nil
-        if let settingsCloseObserver {
-            NotificationCenter.default.removeObserver(settingsCloseObserver)
-            self.settingsCloseObserver = nil
-        }
-        NSApp.setActivationPolicy(.accessory)
     }
 }
