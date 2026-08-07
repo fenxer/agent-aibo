@@ -376,7 +376,7 @@ private struct FloatingMusicNoteView: View {
         bubbleItemsOverride: [
             StatusBubbleItem(
                 id: "1",
-                text: "needs your approval",
+                text: "got stuck?",
                 lastEventAt: .now,
                 animatesEllipsis: false,
                 isAwaitingApproval: true,

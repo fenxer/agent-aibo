@@ -20,20 +20,37 @@ public enum CodexHookParser {
             return nil
         }
 
+        // Empty UserPromptSubmit = no real turn yet (don't flash “is thinking”).
+        if eventName == "UserPromptSubmit" {
+            let prompt = (payload["prompt"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if prompt.isEmpty { return nil }
+        }
+
         let toolName = payload["tool_name"] as? String
+        let permissionMode = payload["permission_mode"] as? String
+            ?? payload["permissionMode"] as? String
         guard let transition = CodexEventMapper.transition(
             eventName: eventName,
-            toolName: toolName
+            toolName: toolName,
+            permissionMode: permissionMode
         ) else {
             return nil
         }
+
+        let prefersPlanning = CodexEventMapper.prefersPlanningCopy(
+            eventName: eventName,
+            toolName: toolName,
+            permissionMode: permissionMode
+        )
 
         return ParsedHookLine(
             session: SessionKey(agent: .codex, conversationID: sessionID),
             transition: transition,
             eventName: eventName,
             projectName: HookPayloadFields.projectName(from: payload),
-            modelName: HookPayloadFields.modelName(from: payload)
+            modelName: HookPayloadFields.modelName(from: payload),
+            prefersPlanningCopy: prefersPlanning
         )
     }
 }

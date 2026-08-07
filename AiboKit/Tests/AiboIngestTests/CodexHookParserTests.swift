@@ -10,6 +10,7 @@ import Testing
     #expect(parsed?.session == SessionKey(agent: .codex, conversationID: "thr_123"))
     #expect(parsed?.transition == .apply(.usingTool("Bash")))
     #expect(parsed?.projectName == "aibo")
+    #expect(parsed?.prefersPlanningCopy == false)
 }
 
 @Test func parserMapsCodexPermissionRequestToWaiting() throws {
@@ -28,12 +29,40 @@ import Testing
     #expect(parsed?.transition == .apply(.done))
 }
 
+@Test func parserIgnoresEmptyCodexUserPromptSubmit() throws {
+    let line = """
+    {"session_id":"thr_123","hook_event_name":"UserPromptSubmit","prompt":"  "}
+    """
+    let parsed = try CodexHookParser.parse(jsonLine: line)
+    #expect(parsed == nil)
+}
+
+@Test func parserMapsCodexPlanModePromptToPlanningCopy() throws {
+    let line = """
+    {"session_id":"thr_123","hook_event_name":"UserPromptSubmit","prompt":"plan the fix","permission_mode":"plan","cwd":"/tmp/aibo"}
+    """
+    let parsed = try CodexHookParser.parse(jsonLine: line)
+    #expect(parsed?.transition == .apply(.thinking))
+    #expect(parsed?.prefersPlanningCopy == true)
+}
+
+@Test func hookLineParserPrefersCodexSessionIDWhenBothPresent() throws {
+    // ChatGPT Desktop (merged Codex) may include conversation_id alongside session_id.
+    let both = """
+    {"session_id":"thr_1","conversation_id":"conv_should_ignore","hook_event_name":"UserPromptSubmit","prompt":"hi"}
+    """
+    let parsed = try HookLineParser.parse(jsonLine: both)
+    #expect(parsed?.session.agent == .codex)
+    #expect(parsed?.session.conversationID == "thr_1")
+    #expect(parsed?.transition == .apply(.thinking))
+}
+
 @Test func hookLineParserDispatchesBySessionKeyField() throws {
     let cursor = """
     {"conversation_id":"abc","hook_event_name":"beforeSubmitPrompt"}
     """
     let codex = """
-    {"session_id":"thr_1","hook_event_name":"UserPromptSubmit"}
+    {"session_id":"thr_1","hook_event_name":"UserPromptSubmit","prompt":"hi"}
     """
     let cursorParsed = try HookLineParser.parse(jsonLine: cursor)
     let codexParsed = try HookLineParser.parse(jsonLine: codex)

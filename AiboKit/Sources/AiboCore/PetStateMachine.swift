@@ -30,7 +30,7 @@ public enum PetStateMachine {
     /// to click the bubble and check Cursor.
     public static let cursorUsingToolStallDelay: TimeInterval = 10
     /// Silence on `.waiting` before escalating from “is reviewing” to the
-    /// needs-your-approval CTA. Covers Codex Auto-review (same `PermissionRequest`
+    /// “got stuck?” CTA. Covers Codex Auto-review (same `PermissionRequest`
     /// hook, no distinct payload) without immediately nagging the user.
     public static let waitingApprovalEscalationDelay: TimeInterval = 5
     /// Default silence timeout before a session is forced to `.idle`.
@@ -129,14 +129,14 @@ public enum CursorUsingToolStallHint {
     }
 }
 
-/// UI hint when `.waiting` stays silent — escalate “is reviewing” → approval CTA.
+/// UI hint when `.waiting` stays silent — escalate “is reviewing” → “got stuck?”.
 ///
 /// Codex Auto-review and real user prompts share `PermissionRequest` → `.waiting`;
-/// a short delay avoids flashing “needs your approval” while the reviewer may still act.
+/// a short delay avoids flashing the attention CTA while the reviewer may still act.
 public enum WaitingApprovalEscalationHint {
     public static var delay: TimeInterval { PetStateMachine.waitingApprovalEscalationDelay }
 
-    /// Whether the bubble should show the approval CTA / “needs your approval” copy.
+    /// Whether the bubble should show the attention CTA / “got stuck?” copy.
     public static func isDue(
         activity: PetActivityState,
         lastEventAt: Date,

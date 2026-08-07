@@ -7,12 +7,14 @@ public enum HookLineParser {
         let object = try JSONSerialization.jsonObject(with: data)
         guard let payload = object as? [String: Any] else { return nil }
 
-        // Cursor uses conversation_id; Codex uses session_id.
-        if let conversationID = payload["conversation_id"] as? String, !conversationID.isEmpty {
-            return try CursorHookParser.parse(jsonLine: jsonLine)
-        }
+        // Codex uses `session_id` + PascalCase events. ChatGPT Desktop (merged
+        // Codex) may also include `conversation_id` — prefer session_id so we
+        // don't mis-route into the Cursor mapper (which would drop the event).
         if let sessionID = payload["session_id"] as? String, !sessionID.isEmpty {
             return CodexHookParser.parse(payload: payload)
+        }
+        if let conversationID = payload["conversation_id"] as? String, !conversationID.isEmpty {
+            return try CursorHookParser.parse(jsonLine: jsonLine)
         }
         return nil
     }

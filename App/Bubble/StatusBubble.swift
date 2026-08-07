@@ -532,7 +532,7 @@ struct StatusBubble: View {
     StatusBubble(
         item: StatusBubbleItem(
             id: "approval",
-            text: "needs your approval",
+            text: "got stuck?",
             lastEventAt: .now,
             animatesEllipsis: false,
             isAwaitingApproval: true,
@@ -551,7 +551,7 @@ struct StatusBubble: View {
     StatusBubble(
         item: StatusBubbleItem(
             id: "2",
-            text: "needs your approval",
+            text: "got stuck?",
             lastEventAt: .now,
             animatesEllipsis: false,
             isAwaitingApproval: true,

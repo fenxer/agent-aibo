@@ -11,6 +11,8 @@ public struct ParsedHookLine: Sendable, Equatable {
     public var modelName: String? = nil
     /// True for Cursor Task/subagent sessions (dashed “Subagent” capsule).
     public var isSubagent: Bool = false
+    /// Codex plan mode / `update_plan` — bubble uses “is planning” for `.thinking`.
+    public var prefersPlanningCopy: Bool = false
 }
 
 public enum CursorHookParser {

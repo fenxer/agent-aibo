@@ -16,3 +16,36 @@ import Testing
     #expect(CodexEventMapper.transition(eventName: "SessionEnd") == .removeSession)
     #expect(CodexEventMapper.transition(eventName: "PreCompact") == nil)
 }
+
+@Test func codexPlanModeMapsToolsToThinking() {
+    #expect(
+        CodexEventMapper.transition(
+            eventName: "PreToolUse",
+            toolName: "Bash",
+            permissionMode: "plan"
+        ) == .apply(.thinking)
+    )
+    #expect(
+        CodexEventMapper.transition(eventName: "PreToolUse", toolName: "update_plan")
+            == .apply(.thinking)
+    )
+    #expect(
+        CodexEventMapper.transition(
+            eventName: "PermissionRequest",
+            toolName: "ExitPlanMode",
+            permissionMode: "plan"
+        ) == .apply(.waiting)
+    )
+    #expect(
+        CodexEventMapper.prefersPlanningCopy(
+            eventName: "UserPromptSubmit",
+            permissionMode: "plan"
+        )
+    )
+    #expect(
+        CodexEventMapper.prefersPlanningCopy(eventName: "PreToolUse", toolName: "update_plan")
+    )
+    #expect(
+        !CodexEventMapper.prefersPlanningCopy(eventName: "UserPromptSubmit", permissionMode: "default")
+    )
+}

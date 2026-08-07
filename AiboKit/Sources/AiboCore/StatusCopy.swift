@@ -38,10 +38,16 @@ public enum StatusCopy {
     }
 
     /// Escalated `.waiting` copy after silence (see `WaitingApprovalEscalationHint`).
-    public static let needsYourApprovalPhrase = "needs your approval"
+    ///
+    /// Same wording as the Cursor stall hint: Codex Auto-review and real prompts share
+    /// `PermissionRequest`, so we avoid “needs your approval” which over-promises.
+    public static let needsYourApprovalPhrase = stuckPhrase
 
-    /// Cursor `.usingTool` stall hint after silence (see `CursorUsingToolStallHint`).
+    /// Attention CTA after silence (Cursor `.usingTool` stall, or escalated `.waiting`).
     public static let stuckPhrase = "got stuck?"
+
+    /// Codex plan-mode / `update_plan` while still in `.thinking`.
+    public static let planningPhrase = "is planning"
 
     /// Bubble-style example under a hook name in Settings → Sprite Actions.
     ///
@@ -74,7 +80,7 @@ public enum StatusCopy {
         case .apply(let activity):
             guard let phrase = statusPhrase(for: activity) else { return nil }
             if activity == .waiting {
-                return "\(phrase) · \(needsYourApprovalPhrase)"
+                return "\(phrase) · \(stuckPhrase)"
             }
             return phrase
         case .removeSession:

@@ -458,7 +458,7 @@ private struct IntegrationsSettingsPane: View {
                     }
                 }
 
-                Text(String(localized: "Codex PermissionRequest starts as “is reviewing”, then escalates to needs-your-approval after a few seconds."))
+                Text(String(localized: "Codex PermissionRequest starts as “is reviewing”, then escalates to “got stuck?” after a few seconds."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

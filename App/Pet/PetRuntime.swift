@@ -103,6 +103,8 @@ final class PetRuntime {
         var projectName: String?
         var modelName: String?
         var isSubagent: Bool = false
+        /// Codex plan mode / update_plan — show “is planning” while `.thinking`.
+        var prefersPlanningCopy: Bool = false
     }
 
     private enum HookIngestSource: String {
@@ -581,7 +583,7 @@ final class PetRuntime {
         let agentKind = Self.debugAgentKind(from: trimmedAgent)
         let trimmedText: String
         if isAwaitingApproval {
-            trimmedText = StatusCopy.needsYourApprovalPhrase
+            trimmedText = StatusCopy.stuckPhrase
         } else {
             trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmedText.isEmpty else { return }
@@ -805,7 +807,8 @@ final class PetRuntime {
                 for: parsed.session,
                 projectName: parsed.projectName,
                 modelName: parsed.modelName,
-                isSubagent: parsed.isSubagent
+                isSubagent: parsed.isSubagent,
+                prefersPlanningCopy: parsed.prefersPlanningCopy
             )
             if case .removeSession = parsed.transition {
                 sessionDisplayMeta.removeValue(forKey: parsed.session)
@@ -855,14 +858,15 @@ final class PetRuntime {
         for session: SessionKey,
         projectName: String?,
         modelName: String?,
-        isSubagent: Bool = false
+        isSubagent: Bool = false,
+        prefersPlanningCopy: Bool = false
     ) {
-        guard projectName != nil || modelName != nil || isSubagent else { return }
         var meta = sessionDisplayMeta[session] ?? SessionDisplayMeta()
         if let projectName { meta.projectName = projectName }
         if let modelName { meta.modelName = modelName }
         // Sticky: once marked a subagent, keep the outline capsule for the session.
         if isSubagent { meta.isSubagent = true }
+        meta.prefersPlanningCopy = prefersPlanningCopy
         sessionDisplayMeta[session] = meta
     }
 
@@ -895,15 +899,17 @@ final class PetRuntime {
             )
             let showsAttentionCTA = isEscalatedWaiting || isStalledUsingTool
             guard let phrase = StatusCopy.statusPhrase(for: snapshot.activity) else { continue }
+            let meta = sessionDisplayMeta[key]
             let text: String
             if isStalledUsingTool {
                 text = StatusCopy.stuckPhrase
             } else if isEscalatedWaiting {
-                text = StatusCopy.needsYourApprovalPhrase
+                text = StatusCopy.stuckPhrase
+            } else if snapshot.activity == .thinking, meta?.prefersPlanningCopy == true {
+                text = StatusCopy.planningPhrase
             } else {
                 text = phrase
             }
-            let meta = sessionDisplayMeta[key]
             let isSubagent = meta?.isSubagent == true
             items.append(
                 StatusBubbleItem(
