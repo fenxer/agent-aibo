@@ -18,7 +18,7 @@ final class PetPanelController {
     #if DEBUG
     private var hitRegionDebugOverlay: HitRegionDebugOverlay?
     /// Development → Hit Regions: paint panel / padding / petHitRect / opaque drag mask.
-    var showHitRegionDebug = true {
+    var showHitRegionDebug = false {
         didSet { refreshHitRegionDebugOverlay() }
     }
     #endif

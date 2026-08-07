@@ -430,6 +430,8 @@ private struct IntegrationsSettingsPane: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                agentCapsuleColorControls(for: .cursor)
+
                 Button(String(localized: "Advanced Settings")) {
                     advancedAgent = .cursor
                 }
@@ -459,6 +461,8 @@ private struct IntegrationsSettingsPane: View {
                 Text(String(localized: "Codex PermissionRequest starts as “is reviewing”, then escalates to needs-your-approval after a few seconds."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                agentCapsuleColorControls(for: .codex)
 
                 Button(String(localized: "Advanced Settings")) {
                     advancedAgent = .codex
@@ -563,6 +567,33 @@ private struct IntegrationsSettingsPane: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    @ViewBuilder
+    private func agentCapsuleColorControls(for agent: AgentKind) -> some View {
+        ColorPicker(
+            String(localized: "Capsule Color"),
+            selection: agentCapsuleColorBinding(for: agent),
+            supportsOpacity: false
+        )
+
+        if settings.agentCapsuleColor(for: agent) != nil {
+            Button(String(localized: "Reset Capsule Color")) {
+                settings.setAgentCapsuleColor(nil, for: agent)
+            }
+        }
+
+        Text(String(localized: "Optional fill for this agent’s status capsule. Reset restores the default black capsule with a white label."))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    /// ColorPicker needs a non-optional `Color`; writing always enables a custom fill.
+    private func agentCapsuleColorBinding(for agent: AgentKind) -> Binding<Color> {
+        Binding(
+            get: { settings.agentCapsuleColor(for: agent) ?? .black },
+            set: { settings.setAgentCapsuleColor($0, for: agent) }
+        )
     }
 }
 

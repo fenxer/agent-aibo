@@ -37,13 +37,25 @@ struct StatusBubble: View {
         let ink = prefersLightLabel ? Color.white : Color.black
         // Untinted: keep a dark brand capsule (white label) in both schemes.
         // Tinted: invert the capsule against ink for contrast on the fill.
-        let capsuleFill = glassTint == nil ? Color.black : ink
-        let capsuleContent =
+        // Per-agent custom capsule color (Integrations) overrides both.
+        let defaultCapsuleFill = glassTint == nil ? Color.black : ink
+        let defaultCapsuleContent =
             glassTint == nil
             ? Color.white
             : (prefersLightLabel ? Color.black : Color.white)
+        let agentCapsule = Self.resolvedAgentCapsuleColors(
+            agent: item.agent,
+            defaultFill: defaultCapsuleFill,
+            defaultContent: defaultCapsuleContent
+        )
 
-        bubbleContent(ink: ink, capsuleFill: capsuleFill, capsuleContent: capsuleContent)
+        bubbleContent(
+            ink: ink,
+            capsuleFill: agentCapsule.fill,
+            capsuleContent: agentCapsule.content,
+            webhookCapsuleFill: defaultCapsuleFill,
+            webhookCapsuleContent: defaultCapsuleContent
+        )
             .padding(contentPadding)
             .padding(showsArrow ? Edge.Set(edge) : [], arrowHeight)
             .background {
@@ -73,13 +85,19 @@ struct StatusBubble: View {
     private func bubbleContent(
         ink: Color,
         capsuleFill: Color,
-        capsuleContent: Color
+        capsuleContent: Color,
+        webhookCapsuleFill: Color,
+        webhookCapsuleContent: Color
     ) -> some View {
         switch item.kind {
         case .agent:
             agentBubbleContent(ink: ink, capsuleFill: capsuleFill, capsuleContent: capsuleContent)
         case .webhook:
-            webhookBubbleContent(ink: ink, capsuleFill: capsuleFill, capsuleContent: capsuleContent)
+            webhookBubbleContent(
+                ink: ink,
+                capsuleFill: webhookCapsuleFill,
+                capsuleContent: webhookCapsuleContent
+            )
         case .warning:
             warningBubbleContent(ink: ink)
         }
@@ -435,11 +453,38 @@ struct StatusBubble: View {
         let r = rgb.redComponent * fillOpacity + backdrop * (1 - fillOpacity)
         let g = rgb.greenComponent * fillOpacity + backdrop * (1 - fillOpacity)
         let b = rgb.blueComponent * fillOpacity + backdrop * (1 - fillOpacity)
-        let luminance =
-            0.2126 * srgbLinear(r)
+        return relativeLuminance(r: r, g: g, b: b) < 0.55
+    }
+
+    /// Agent capsule fill/content: Integrations custom color wins over glass defaults.
+    private static func resolvedAgentCapsuleColors(
+        agent: AgentKind?,
+        defaultFill: Color,
+        defaultContent: Color
+    ) -> (fill: Color, content: Color) {
+        guard let agent,
+              let custom = AppSettings.shared.agentCapsuleColor(for: agent)
+        else {
+            return (defaultFill, defaultContent)
+        }
+        let content = prefersLightContent(on: custom) ? Color.white : Color.black
+        return (custom, content)
+    }
+
+    /// White glyph/label on dark capsule fills; black on light fills.
+    private static func prefersLightContent(on fill: Color) -> Bool {
+        guard let rgb = NSColor(fill).usingColorSpace(.sRGB) else { return true }
+        return relativeLuminance(
+            r: rgb.redComponent,
+            g: rgb.greenComponent,
+            b: rgb.blueComponent
+        ) < 0.55
+    }
+
+    private static func relativeLuminance(r: CGFloat, g: CGFloat, b: CGFloat) -> Double {
+        0.2126 * srgbLinear(r)
             + 0.7152 * srgbLinear(g)
             + 0.0722 * srgbLinear(b)
-        return luminance < 0.55
     }
 
     private static func srgbLinear(_ channel: CGFloat) -> Double {

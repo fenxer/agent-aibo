@@ -1,3 +1,4 @@
+import AiboCore
 import AiboIngest
 import AppKit
 import Foundation
@@ -14,6 +15,8 @@ final class AppSettings {
         static let bubblePlacement = "settings.bubblePlacement"
         static let bubbleGlassStyle = "settings.bubbleGlassStyle"
         static let bubbleGlassTint = "settings.bubbleGlassTint"
+        static let cursorCapsuleColor = "settings.agentCapsuleColor.cursor"
+        static let codexCapsuleColor = "settings.agentCapsuleColor.codex"
         static let petScalePercent = "settings.petScalePercent"
         static let restoreLastPetPosition = "settings.restoreLastPetPosition"
         static let hideWhenFullscreen = "settings.hideWhenFullscreen"
@@ -129,7 +132,25 @@ final class AppSettings {
     var bubbleGlassTint: Color? {
         didSet {
             guard oldValue != bubbleGlassTint else { return }
-            Self.persistTint(bubbleGlassTint)
+            Self.persistColor(bubbleGlassTint, key: Keys.bubbleGlassTint)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Optional Cursor agent-capsule fill. `nil` keeps the default black/white capsule.
+    var cursorCapsuleColor: Color? {
+        didSet {
+            guard oldValue != cursorCapsuleColor else { return }
+            Self.persistColor(cursorCapsuleColor, key: Keys.cursorCapsuleColor)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Optional Codex agent-capsule fill. `nil` keeps the default black/white capsule.
+    var codexCapsuleColor: Color? {
+        didSet {
+            guard oldValue != codexCapsuleColor else { return }
+            Self.persistColor(codexCapsuleColor, key: Keys.codexCapsuleColor)
             PetPanelController.shared.refreshContent()
         }
     }
@@ -220,7 +241,9 @@ final class AppSettings {
         let glassRaw = UserDefaults.standard.string(forKey: Keys.bubbleGlassStyle)
             ?? BubbleGlassStyle.clear.rawValue
         bubbleGlassStyle = BubbleGlassStyle(rawValue: glassRaw) ?? .clear
-        bubbleGlassTint = Self.loadTint()
+        bubbleGlassTint = Self.loadColor(key: Keys.bubbleGlassTint)
+        cursorCapsuleColor = Self.loadColor(key: Keys.cursorCapsuleColor)
+        codexCapsuleColor = Self.loadColor(key: Keys.codexCapsuleColor)
 
         if UserDefaults.standard.object(forKey: Keys.petScalePercent) != nil {
             petScalePercent = Self.clampPetScalePercent(
@@ -310,6 +333,21 @@ final class AppSettings {
         petScalePercent = Self.defaultPetScalePercent
     }
 
+    /// Custom agent-capsule fill, or `nil` for the default black/white look.
+    func agentCapsuleColor(for agent: AgentKind) -> Color? {
+        switch agent {
+        case .cursor: cursorCapsuleColor
+        case .codex: codexCapsuleColor
+        }
+    }
+
+    func setAgentCapsuleColor(_ color: Color?, for agent: AgentKind) {
+        switch agent {
+        case .cursor: cursorCapsuleColor = color
+        case .codex: codexCapsuleColor = color
+        }
+    }
+
     /// Persist pet center as fractions of the screen visible frame (resolution-independent).
     func savePetCenterRelativePosition(xPercent: Double, yPercent: Double) {
         let x = min(max(xPercent, 0), 1)
@@ -354,9 +392,9 @@ final class AppSettings {
         return bytes.map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func persistTint(_ color: Color?) {
+    private static func persistColor(_ color: Color?, key: String) {
         guard let color else {
-            UserDefaults.standard.removeObject(forKey: Keys.bubbleGlassTint)
+            UserDefaults.standard.removeObject(forKey: key)
             return
         }
         guard let rgb = NSColor(color).usingColorSpace(.sRGB) else { return }
@@ -366,11 +404,11 @@ final class AppSettings {
             rgb.blueComponent,
             rgb.alphaComponent,
         ]
-        UserDefaults.standard.set(components, forKey: Keys.bubbleGlassTint)
+        UserDefaults.standard.set(components, forKey: key)
     }
 
-    private static func loadTint() -> Color? {
-        guard let numbers = UserDefaults.standard.array(forKey: Keys.bubbleGlassTint) as? [NSNumber],
+    private static func loadColor(key: String) -> Color? {
+        guard let numbers = UserDefaults.standard.array(forKey: key) as? [NSNumber],
               numbers.count == 4
         else { return nil }
         return Color(
