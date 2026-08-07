@@ -43,6 +43,16 @@ final class PetRuntime {
             case .listenerStopped: String(localized: "Listener stopped")
             }
         }
+
+        /// SF Symbol for menu / glance UI (monochrome in AppKit menus).
+        var menuSystemImage: String {
+            switch self {
+            case .ok: "checkmark.circle.fill"
+            case .down, .listenerStopped: "xmark.octagon.fill"
+            case .checking: "wave.3.right"
+            case .unknown, .skipped: "questionmark.circle"
+            }
+        }
     }
 
     private static let tunnelWarningBubbleID = "tunnel:health"

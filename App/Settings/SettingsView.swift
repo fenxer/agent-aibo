@@ -76,7 +76,8 @@ struct SettingsView: View {
         .frame(minHeight: AppSettings.settingsWindowMinHeight, maxHeight: .infinity)
         .background { SettingsWindowConfigurator() }
         .onAppear { applyPendingPane() }
-        .onChange(of: navigator.pendingPane) { _, _ in
+        .onChange(of: navigator.pendingPane) { _, newValue in
+            guard newValue != nil else { return }
             applyPendingPane()
         }
     }
@@ -389,6 +390,7 @@ private struct AppearanceSettingsPane: View {
 private struct IntegrationsSettingsPane: View {
     @State private var runtime = PetRuntime.shared
     @Bindable private var settings = AppSettings.shared
+    @Bindable private var navigator = SettingsNavigator.shared
     @State private var advancedAgent: AgentKind?
 
     var body: some View {
@@ -403,170 +405,212 @@ private struct IntegrationsSettingsPane: View {
                     .navigationTitle(SettingsPane.integrations.title)
             }
         }
+        .onChange(of: navigator.pendingIntegrationsAnchor) { _, _ in
+            applyPendingIntegrationsAnchor()
+        }
+        .onAppear {
+            applyPendingIntegrationsAnchor()
+        }
+    }
+
+    /// Leave advanced sub-page if needed so the webhook section can scroll into view.
+    private func applyPendingIntegrationsAnchor() {
+        guard navigator.pendingIntegrationsAnchor != nil else { return }
+        if advancedAgent != nil {
+            advancedAgent = nil
+        }
     }
 
     private var integrationsForm: some View {
-        Form {
-            Section {
-                LabeledContent(String(localized: "Status")) {
-                    Text(
-                        runtime.cursorHooksInstalled
-                            ? String(localized: "Installed")
-                            : String(localized: "Not installed")
-                    )
-                }
-
-                if runtime.cursorHooksInstalled {
-                    Button(String(localized: "Uninstall Cursor Hooks")) {
-                        runtime.uninstallCursorHooks()
+        ScrollViewReader { proxy in
+            Form {
+                Section {
+                    LabeledContent(String(localized: "Status")) {
+                        Text(
+                            runtime.cursorHooksInstalled
+                                ? String(localized: "Installed")
+                                : String(localized: "Not installed")
+                        )
                     }
-                } else {
-                    Button(String(localized: "Install Cursor Hooks")) {
-                        runtime.installCursorHooks()
+
+                    if runtime.cursorHooksInstalled {
+                        Button(String(localized: "Uninstall Cursor Hooks")) {
+                            runtime.uninstallCursorHooks()
+                        }
+                    } else {
+                        Button(String(localized: "Install Cursor Hooks")) {
+                            runtime.installCursorHooks()
+                        }
                     }
-                }
 
-                Text(String(localized: "Cursor has no approval / waiting-for-you hook event yet."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    Text(String(localized: "Cursor has no approval / waiting-for-you hook event yet."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-                agentCapsuleColorControls(for: .cursor)
+                    agentCapsuleColorControls(for: .cursor)
 
-                Button(String(localized: "Advanced Settings")) {
-                    advancedAgent = .cursor
-                }
-            } header: {
-                Text(String(localized: "Cursor"))
-            }
-
-            Section {
-                LabeledContent(String(localized: "Status")) {
-                    Text(
-                        runtime.codexHooksInstalled
-                            ? String(localized: "Installed")
-                            : String(localized: "Not installed")
-                    )
-                }
-
-                if runtime.codexHooksInstalled {
-                    Button(String(localized: "Uninstall Codex Hooks")) {
-                        runtime.uninstallCodexHooks()
+                    Button(String(localized: "Advanced Settings")) {
+                        advancedAgent = .cursor
                     }
-                } else {
-                    Button(String(localized: "Install Codex Hooks")) {
-                        runtime.installCodexHooks()
+                } header: {
+                    Text(String(localized: "Cursor"))
+                }
+
+                Section {
+                    LabeledContent(String(localized: "Status")) {
+                        Text(
+                            runtime.codexHooksInstalled
+                                ? String(localized: "Installed")
+                                : String(localized: "Not installed")
+                        )
                     }
-                }
 
-                Text(String(localized: "Codex PermissionRequest starts as “is reviewing”, then escalates to “got stuck?” after a few seconds."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                agentCapsuleColorControls(for: .codex)
-
-                Button(String(localized: "Advanced Settings")) {
-                    advancedAgent = .codex
-                }
-            } header: {
-                Text(String(localized: "Codex"))
-            }
-
-            Section {
-                Toggle(String(localized: "Listen on localhost"), isOn: $settings.webhookEnabled)
-
-                LabeledContent(String(localized: "Listener")) {
-                    Text(
-                        runtime.webhookListening
-                            ? String(localized: "Running")
-                            : String(localized: "Stopped")
-                    )
-                }
-
-                LabeledContent(String(localized: "URL")) {
-                    Text(settings.webhookURLString)
-                        .textSelection(.enabled)
-                }
-
-                LabeledContent(String(localized: "Public URL")) {
-                    TextField(
-                        String(localized: "https://…/webhook"),
-                        text: $settings.publicWebhookURLString
-                    )
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                }
-
-                LabeledContent(String(localized: "Tunnel")) {
-                    Text(runtime.tunnelHealthStatus.settingsLabel)
-                }
-
-                LabeledContent(String(localized: "Port")) {
-                    TextField(
-                        String(localized: "Port"),
-                        value: $settings.webhookPort,
-                        format: .number
-                    )
-                    .labelsHidden()
-                    .frame(width: 80)
-                }
-
-                LabeledContent(String(localized: "Shared Secret")) {
-                    Text(settings.webhookSecret)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                        .lineLimit(2)
-                }
-
-                HStack {
-                    Button(String(localized: "Copy URL")) {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(settings.webhookURLString, forType: .string)
+                    if runtime.codexHooksInstalled {
+                        Button(String(localized: "Uninstall Codex Hooks")) {
+                            runtime.uninstallCodexHooks()
+                        }
+                    } else {
+                        Button(String(localized: "Install Codex Hooks")) {
+                            runtime.installCodexHooks()
+                        }
                     }
-                    Button(String(localized: "Copy Secret")) {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(settings.webhookSecret, forType: .string)
+
+                    Text(String(localized: "Codex PermissionRequest starts as “is reviewing”, then escalates to “got stuck?” after a few seconds."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    agentCapsuleColorControls(for: .codex)
+
+                    Button(String(localized: "Advanced Settings")) {
+                        advancedAgent = .codex
                     }
-                    Button(String(localized: "Regenerate Secret")) {
-                        settings.regenerateWebhookSecret()
-                    }
-                    Button(String(localized: "Check Tunnel")) {
-                        TunnelHealthMonitor.shared.scheduleCheck(reason: .manual)
-                    }
-                    .disabled(
-                        !settings.webhookEnabled
-                            || settings.resolvedPublicWebhookURL == nil
-                            || runtime.tunnelHealthStatus == .checking
-                    )
+                } header: {
+                    Text(String(localized: "Codex"))
                 }
 
-                Picker(String(localized: "Dismiss Bubble"), selection: $settings.webhookDismissMode) {
-                    ForEach(WebhookDismissMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.radioGroup)
+                Section {
+                    Toggle(String(localized: "Listen on localhost"), isOn: $settings.webhookEnabled)
 
-                if settings.webhookDismissMode == .afterSeconds {
-                    LabeledContent(String(localized: "Seconds")) {
+                    LabeledContent(String(localized: "Listener")) {
+                        Text(
+                            runtime.webhookListening
+                                ? String(localized: "Running")
+                                : String(localized: "Stopped")
+                        )
+                    }
+
+                    LabeledContent(String(localized: "URL")) {
+                        Text(settings.webhookURLString)
+                            .textSelection(.enabled)
+                    }
+
+                    LabeledContent(String(localized: "Public URL")) {
                         TextField(
-                            String(localized: "Seconds"),
-                            value: $settings.webhookAutoDismissSeconds,
+                            String(localized: "https://…/webhook"),
+                            text: $settings.publicWebhookURLString
+                        )
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                    }
+
+                    LabeledContent(String(localized: "Tunnel")) {
+                        Text(runtime.tunnelHealthStatus.settingsLabel)
+                    }
+
+                    LabeledContent(String(localized: "Port")) {
+                        TextField(
+                            String(localized: "Port"),
+                            value: $settings.webhookPort,
                             format: .number
                         )
                         .labelsHidden()
-                        .frame(width: 64)
+                        .frame(width: 80)
                     }
-                }
 
-                Text(String(localized: "Bound to 127.0.0.1 only. Set Public URL to your tunnel HTTPS endpoint (Cloudflare Tunnel, Tailscale Funnel, etc.) so aibo can warn after sleep if the tunnel is down. Requests are shown as raw bubble text for now — no LLM rewrite yet. Default dismiss is click; optional auto-dismiss uses the seconds above."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text(String(localized: "Remote Webhook"))
+                    LabeledContent(String(localized: "Shared Secret")) {
+                        Text(settings.webhookSecret)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                            .lineLimit(2)
+                    }
+
+                    HStack {
+                        Button(String(localized: "Copy URL")) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(settings.webhookURLString, forType: .string)
+                        }
+                        Button(String(localized: "Copy Secret")) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(settings.webhookSecret, forType: .string)
+                        }
+                        Button(String(localized: "Regenerate Secret")) {
+                            settings.regenerateWebhookSecret()
+                        }
+                        Button(String(localized: "Check Tunnel")) {
+                            TunnelHealthMonitor.shared.scheduleCheck(reason: .manual)
+                        }
+                        .disabled(
+                            !settings.webhookEnabled
+                                || settings.resolvedPublicWebhookURL == nil
+                                || runtime.tunnelHealthStatus == .checking
+                        )
+                    }
+
+                    Picker(String(localized: "Dismiss Bubble"), selection: $settings.webhookDismissMode) {
+                        ForEach(WebhookDismissMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.radioGroup)
+
+                    if settings.webhookDismissMode == .afterSeconds {
+                        LabeledContent(String(localized: "Seconds")) {
+                            TextField(
+                                String(localized: "Seconds"),
+                                value: $settings.webhookAutoDismissSeconds,
+                                format: .number
+                            )
+                            .labelsHidden()
+                            .frame(width: 64)
+                        }
+                    }
+
+                    Text(String(localized: "Bound to 127.0.0.1 only. Set Public URL to your tunnel HTTPS endpoint (Cloudflare Tunnel, Tailscale Funnel, etc.) so aibo can warn after sleep if the tunnel is down. Requests are shown as raw bubble text for now — no LLM rewrite yet. Default dismiss is click; optional auto-dismiss uses the seconds above."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text(String(localized: "Remote Webhook"))
+                }
+                .id(SettingsNavigator.IntegrationsAnchor.remoteWebhook)
+            }
+            .formStyle(.grouped)
+            .padding()
+            .onAppear {
+                scrollToPendingAnchor(using: proxy)
+            }
+            .onChange(of: navigator.pendingIntegrationsAnchor) { _, _ in
+                scrollToPendingAnchor(using: proxy)
+            }
+            .onChange(of: advancedAgent) { _, newValue in
+                // After leaving Advanced Settings, honor a pending webhook scroll.
+                if newValue == nil {
+                    scrollToPendingAnchor(using: proxy)
+                }
             }
         }
-        .formStyle(.grouped)
-        .padding()
+    }
+
+    private func scrollToPendingAnchor(using proxy: ScrollViewProxy) {
+        guard let anchor = navigator.consumePendingIntegrationsAnchor() else { return }
+        // Pane / Form layout may land a tick after the sidebar selection flips.
+        Task { @MainActor in
+            for delay in [Duration.milliseconds(16), .milliseconds(120)] {
+                try? await Task.sleep(for: delay)
+                withAnimation {
+                    proxy.scrollTo(anchor, anchor: .top)
+                }
+            }
+        }
     }
 
     @ViewBuilder

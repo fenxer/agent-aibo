@@ -173,7 +173,7 @@ struct PetView: View {
             .buttonStyle(.plain)
             .simultaneousGesture(
                 TapGesture().onEnded {
-                    SettingsNavigator.shared.prepareIntegrations()
+                    SettingsNavigator.shared.prepareRemoteWebhook()
                     PetRuntime.shared.dismissBubble(id: item.id)
                 }
             )

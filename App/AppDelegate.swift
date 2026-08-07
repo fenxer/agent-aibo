@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         // Touch settings early so persisted theme applies before UI shows.
         _ = AppSettings.shared
+        SettingsNavigator.shared.start()
         PetRuntime.shared.start()
         PetPanelController.shared.show()
     }
