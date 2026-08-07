@@ -25,9 +25,70 @@ enum HookPayloadFields {
         return nil
     }
 
+    /// Compact ingest-log line for Codex `update_plan` (TODO/checklist tool).
+    ///
+    /// Official shape: `tool_input = { explanation?, plan: [{ step, status }] }` where
+    /// `status` is `pending` / `in_progress` / `completed`. Returns nil for other tools.
+    static func codexUpdatePlanIngestDetail(
+        toolName: String?,
+        payload: [String: Any]
+    ) -> String? {
+        guard let toolName, isUpdatePlanTool(toolName) else { return nil }
+
+        guard let rawInput = payload["tool_input"] ?? payload["toolInput"] else {
+            return "update_plan tool_input=missing"
+        }
+
+        let inputObject: [String: Any]
+        if let dict = rawInput as? [String: Any] {
+            inputObject = dict
+        } else if let text = rawInput as? String,
+                  let data = text.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            inputObject = object
+        } else {
+            return "update_plan tool_input=unparsed"
+        }
+
+        var parts: [String] = ["update_plan"]
+        if let explanation = inputObject["explanation"] as? String {
+            let trimmed = explanation.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                parts.append("explanation=\(truncate(trimmed, max: 80))")
+            }
+        }
+
+        guard let plan = inputObject["plan"] as? [[String: Any]], !plan.isEmpty else {
+            parts.append("plan=missing")
+            return parts.joined(separator: " ")
+        }
+
+        let steps = plan.map { item -> String in
+            let status = (item["status"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? "?"
+            let step = (item["step"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                ?? ""
+            let label = step.isEmpty ? "(empty)" : truncate(step, max: 60)
+            return "[\(status)] \(label)"
+        }
+        parts.append("steps=\(steps.count)")
+        parts.append(steps.joined(separator: " | "))
+        return parts.joined(separator: " ")
+    }
+
     /// Cursor nests Task/subagent transcripts under `…/subagents/<id>.jsonl`.
     static func isSubagentTranscript(_ path: String?) -> Bool {
         subagentID(fromTranscriptPath: path) != nil
+    }
+
+    private static func isUpdatePlanTool(_ toolName: String) -> Bool {
+        toolName == "update_plan" || toolName == "UpdatePlan"
+    }
+
+    private static func truncate(_ text: String, max: Int) -> String {
+        guard text.count > max else { return text }
+        return String(text.prefix(max)) + "…"
     }
 
     /// Extracts `<id>` from a path containing `/subagents/<id>` (with or without extension).

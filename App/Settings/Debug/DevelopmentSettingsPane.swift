@@ -166,7 +166,7 @@ struct DevelopmentSettingsPane: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(String(localized: "Writes ~/Library/Application Support/aibo/ingest-log.jsonl. Each line has source (queue/socket), queuedAt, event, conversation, project, activity. Default on in DEBUG — turn off if noisy."))
+            Text(String(localized: "Writes ~/Library/Application Support/aibo/ingest-log.jsonl. Each line has source (queue/socket), queuedAt, event, conversation, project, activity; Codex update_plan also fills detail with plan steps. Default on in DEBUG — turn off if noisy."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {

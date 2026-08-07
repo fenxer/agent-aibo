@@ -50,7 +50,11 @@ public enum CodexHookParser {
             eventName: eventName,
             projectName: HookPayloadFields.projectName(from: payload),
             modelName: HookPayloadFields.modelName(from: payload),
-            prefersPlanningCopy: prefersPlanning
+            prefersPlanningCopy: prefersPlanning,
+            ingestDetail: HookPayloadFields.codexUpdatePlanIngestDetail(
+                toolName: toolName,
+                payload: payload
+            )
         )
     }
 }

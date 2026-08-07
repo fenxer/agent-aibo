@@ -827,7 +827,7 @@ final class PetRuntime {
                 eventName: parsed.eventName,
                 activity: Self.activityLabel(for: parsed.transition),
                 outcome: "applied",
-                detail: nil,
+                detail: parsed.ingestDetail,
                 parsed: parsed
             )
             #endif

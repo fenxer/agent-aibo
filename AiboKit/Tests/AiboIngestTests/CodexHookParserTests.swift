@@ -46,6 +46,24 @@ import Testing
     #expect(parsed?.prefersPlanningCopy == true)
 }
 
+@Test func parserLogsCodexUpdatePlanToolInputInIngestDetail() throws {
+    let line = """
+    {"session_id":"thr_123","hook_event_name":"PreToolUse","tool_name":"update_plan","tool_input":{"explanation":"track work","plan":[{"step":"Parse hooks","status":"completed"},{"step":"Log todos","status":"in_progress"},{"step":"Show bubble","status":"pending"}]}}
+    """
+    let parsed = try CodexHookParser.parse(jsonLine: line)
+    #expect(parsed?.transition == .apply(.thinking))
+    #expect(parsed?.prefersPlanningCopy == true)
+    #expect(parsed?.ingestDetail == "update_plan explanation=track work steps=3 [completed] Parse hooks | [in_progress] Log todos | [pending] Show bubble")
+}
+
+@Test func parserLogsMissingUpdatePlanToolInput() throws {
+    let line = """
+    {"session_id":"thr_123","hook_event_name":"PreToolUse","tool_name":"update_plan"}
+    """
+    let parsed = try CodexHookParser.parse(jsonLine: line)
+    #expect(parsed?.ingestDetail == "update_plan tool_input=missing")
+}
+
 @Test func hookLineParserPrefersCodexSessionIDWhenBothPresent() throws {
     // ChatGPT Desktop (merged Codex) may include conversation_id alongside session_id.
     let both = """

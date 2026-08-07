@@ -13,6 +13,8 @@ public struct ParsedHookLine: Sendable, Equatable {
     public var isSubagent: Bool = false
     /// Codex plan mode / `update_plan` — bubble uses “is planning” for `.thinking`.
     public var prefersPlanningCopy: Bool = false
+    /// Compact DEBUG ingest-log detail (e.g. Codex `update_plan` steps). Not shown in bubbles.
+    public var ingestDetail: String? = nil
 }
 
 public enum CursorHookParser {
