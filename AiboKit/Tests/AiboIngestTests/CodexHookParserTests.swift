@@ -75,6 +75,17 @@ import Testing
     #expect(parsed?.transition == .apply(.thinking))
 }
 
+@Test func hookLineParserKeepsCursorWhenSessionIDAlsoPresent() throws {
+    // Cursor may include session_id; camelCase events must stay on the Cursor mapper.
+    let both = """
+    {"session_id":"should_not_force_codex","conversation_id":"abc","hook_event_name":"preToolUse","tool_name":"Shell"}
+    """
+    let parsed = try HookLineParser.parse(jsonLine: both)
+    #expect(parsed?.session.agent == .cursor)
+    #expect(parsed?.session.conversationID == "abc")
+    #expect(parsed?.transition == .apply(.usingTool("Shell")))
+}
+
 @Test func hookLineParserDispatchesBySessionKeyField() throws {
     let cursor = """
     {"conversation_id":"abc","hook_event_name":"beforeSubmitPrompt"}
