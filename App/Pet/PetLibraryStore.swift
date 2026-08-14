@@ -20,29 +20,46 @@ final class PetLibraryStore {
 
     /// Allocated size of `AiboPaths.petsDirectory` (installed pets + `library.json`).
     func occupiedDiskBytes() -> Int64 {
-        let root = AiboPaths.petsDirectory
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory),
-              isDirectory.boolValue
-        else { return 0 }
+        allocatedSize(at: AiboPaths.petsDirectory)
+    }
 
+    func occupiedDiskBytes(for record: PetLibraryRecord) -> Int64 {
+        switch record.kind {
+        case .builtInDefault:
+            return 0
+        case .petdex, .staticImage:
+            guard !record.relativePath.isEmpty else { return 0 }
+            return allocatedSize(
+                at: AiboPaths.petsDirectory.appendingPathComponent(record.relativePath)
+            )
+        }
+    }
+
+    private func allocatedSize(at root: URL) -> Int64 {
         let keys: Set<URLResourceKey> = [
             .isRegularFileKey,
+            .isDirectoryKey,
             .totalFileAllocatedSizeKey,
             .fileAllocatedSizeKey,
         ]
-        guard let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles]
-        ) else { return 0 }
+        guard let values = try? root.resourceValues(forKeys: keys) else { return 0 }
+        if values.isRegularFile == true {
+            return Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
+        }
+        guard values.isDirectory == true,
+              let enumerator = FileManager.default.enumerator(
+                  at: root,
+                  includingPropertiesForKeys: Array(keys),
+                  options: [.skipsHiddenFiles]
+              )
+        else { return 0 }
 
         var total: Int64 = 0
         for case let fileURL as URL in enumerator {
-            guard let values = try? fileURL.resourceValues(forKeys: keys),
-                  values.isRegularFile == true
+            guard let fileValues = try? fileURL.resourceValues(forKeys: keys),
+                  fileValues.isRegularFile == true
             else { continue }
-            total += Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
+            total += Int64(fileValues.totalFileAllocatedSize ?? fileValues.fileAllocatedSize ?? 0)
         }
         return total
     }
@@ -55,7 +72,7 @@ final class PetLibraryStore {
         let file = loadFile()
         let snap = PetLibraryCodec.snapshot(from: file)
         selectedID = snap.selectedID
-        records = snap.records
+        records = snap.records.map { backfillMetadata($0) }
     }
 
     func select(id: String) {
@@ -112,7 +129,8 @@ final class PetLibraryStore {
                 id: "static.\(id)",
                 kind: .staticImage,
                 displayName: (name?.isEmpty == false ? name! : sourceURL.deletingPathExtension().lastPathComponent),
-                relativePath: "\(AiboPaths.staticPetsDirectoryName)/\(fileName)"
+                relativePath: "\(AiboPaths.staticPetsDirectoryName)/\(fileName)",
+                installedAt: Date()
             )
             upsert(record)
             selectedID = record.id
@@ -124,15 +142,22 @@ final class PetLibraryStore {
     }
 
     func remove(id: String) {
-        guard let record = records.first(where: { $0.id == id }), record.isRemovable else { return }
-        records.removeAll { $0.id == id }
-        if selectedID == id {
+        remove(ids: [id])
+    }
+
+    func remove(ids: some Sequence<String>) {
+        let idSet = Set(ids)
+        let toRemove = records.filter { idSet.contains($0.id) && $0.isRemovable }
+        guard !toRemove.isEmpty else { return }
+        let removeIDs = Set(toRemove.map(\.id))
+        records.removeAll { removeIDs.contains($0.id) }
+        if removeIDs.contains(selectedID) {
             selectedID = PetLibraryDefaults.builtInID
         }
-
-        let absolute = AiboPaths.petsDirectory.appendingPathComponent(record.relativePath)
-        try? FileManager.default.removeItem(at: absolute)
-
+        for record in toRemove {
+            let absolute = AiboPaths.petsDirectory.appendingPathComponent(record.relativePath)
+            try? FileManager.default.removeItem(at: absolute)
+        }
         persist()
         notifyAppearanceChanged()
     }
@@ -154,10 +179,33 @@ final class PetLibraryStore {
 
     private func upsert(_ record: PetLibraryRecord) {
         if let index = records.firstIndex(where: { $0.id == record.id }) {
-            records[index] = record
+            var merged = record
+            let existing = records[index]
+            merged.installedAt = existing.installedAt ?? record.installedAt
+            merged.installSource = existing.installSource ?? record.installSource
+            records[index] = merged
         } else {
             records.append(record)
         }
+    }
+
+    /// Fills missing install metadata for pets saved before those fields existed.
+    private func backfillMetadata(_ record: PetLibraryRecord) -> PetLibraryRecord {
+        guard record.kind != .builtInDefault else { return record }
+        var updated = record
+        if updated.installedAt == nil {
+            updated.installedAt = fileCreationDate(for: record)
+        }
+        if updated.installSource == nil, record.kind == .petdex, let slug = record.slug {
+            updated.installSource = PetdexInstallAPI.petPageURL(slug: slug).absoluteString
+        }
+        return updated
+    }
+
+    private func fileCreationDate(for record: PetLibraryRecord) -> Date? {
+        guard !record.relativePath.isEmpty else { return nil }
+        let url = AiboPaths.petsDirectory.appendingPathComponent(record.relativePath)
+        return (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate
     }
 
     private func loadFile() -> PetLibraryFile {

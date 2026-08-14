@@ -34,6 +34,8 @@ import Testing
     #expect(record.kind == .petdex)
     #expect(record.spriteFileName == "spritesheet.webp")
     #expect(record.spriteVersionNumber == 2)
+    #expect(record.installSource == "https://petdex.dev/pets/boba")
+    #expect(record.installedAt != nil)
 }
 
 @Test func petLibrarySnapshotIncludesBuiltInAndFixesSelection() throws {
@@ -57,6 +59,95 @@ import Testing
 
     let roundTrip = try PetLibraryCodec.decode(PetLibraryCodec.encode(file))
     #expect(roundTrip.records.count == 1)
+}
+
+@Test func petLibraryCodecPreservesInstallMetadata() throws {
+    let installedAt = Date(timeIntervalSince1970: 1_704_067_200)
+    let file = PetLibraryFile(
+        selectedID: "petdex.boba",
+        records: [
+            PetLibraryRecord(
+                id: "petdex.boba",
+                kind: .petdex,
+                displayName: "Boba",
+                relativePath: "petdex/boba",
+                slug: "boba",
+                spriteFileName: "spritesheet.webp",
+                installedAt: installedAt,
+                installSource: "https://petdex.dev/pets/boba"
+            ),
+        ]
+    )
+    let roundTrip = try PetLibraryCodec.decode(PetLibraryCodec.encode(file))
+    #expect(roundTrip.records[0].installedAt == installedAt)
+    #expect(roundTrip.records[0].installSource == "https://petdex.dev/pets/boba")
+}
+
+@Test func petLibraryCodecDecodesRecordsWithoutInstallMetadata() throws {
+    let json = """
+    {
+      "selectedID" : "builtin.default",
+      "records" : [
+        {
+          "displayName" : "Boba",
+          "id" : "petdex.boba",
+          "kind" : "petdex",
+          "relativePath" : "petdex/boba",
+          "slug" : "boba",
+          "spriteFileName" : "spritesheet.webp"
+        }
+      ]
+    }
+    """
+    let file = try PetLibraryCodec.decode(Data(json.utf8))
+    #expect(file.records[0].installedAt == nil)
+    #expect(file.records[0].installSource == nil)
+}
+
+@Test func petLibraryOrderingPutsNewestInstallFirst() {
+    let older = PetLibraryRecord(
+        id: "static.old",
+        kind: .staticImage,
+        displayName: "Old",
+        relativePath: "static/old.png",
+        installedAt: Date(timeIntervalSince1970: 100)
+    )
+    let newer = PetLibraryRecord(
+        id: "static.new",
+        kind: .staticImage,
+        displayName: "New",
+        relativePath: "static/new.png",
+        installedAt: Date(timeIntervalSince1970: 200)
+    )
+    let sorted = PetLibraryOrdering.installedAtNewestFirst([older, .builtInDefault, newer])
+    #expect(sorted.map(\.id) == ["static.new", "static.old", PetLibraryDefaults.builtInID])
+}
+
+@Test func petLibraryOrderingSortsByNameAndSize() {
+    let boba = PetLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+    let apple = PetLibraryRecord(
+        id: "static.apple",
+        kind: .staticImage,
+        displayName: "Apple",
+        relativePath: "static/apple.png"
+    )
+    let byName = PetLibraryOrdering.byDisplayName([boba, apple, .builtInDefault])
+    #expect(byName.map(\.displayName) == ["Apple", "Boba", "Default"])
+
+    let bySize = PetLibraryOrdering.bySizeLargestFirst(
+        [apple, boba, .builtInDefault],
+        bytesForID: [
+            apple.id: 10,
+            boba.id: 50,
+            PetLibraryDefaults.builtInID: 0,
+        ]
+    )
+    #expect(bySize.map(\.id) == [boba.id, apple.id, PetLibraryDefaults.builtInID])
 }
 
 @Test func petdexSpriteLayoutDetectsV1AndV2() {

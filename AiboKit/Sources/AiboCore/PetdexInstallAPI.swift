@@ -78,6 +78,10 @@ public enum PetdexInstallAPI {
         baseURL.appendingPathComponent("api/install-pet/\(slug)")
     }
 
+    public static func petPageURL(slug: String) -> URL {
+        baseURL.appendingPathComponent("pets").appendingPathComponent(slug)
+    }
+
     public static func decodeResponse(_ data: Data) throws -> PetdexInstallAPIResponse {
         try JSONDecoder().decode(PetdexInstallAPIResponse.self, from: data)
     }
@@ -100,7 +104,9 @@ public enum PetdexInstallAPI {
             relativePath: "\(AiboPaths.petdexPetsDirectoryName)/\(installable.slug)",
             slug: installable.slug,
             spriteFileName: spriteName,
-            spriteVersionNumber: petJSON?.spriteVersionNumber
+            spriteVersionNumber: petJSON?.spriteVersionNumber,
+            installedAt: Date(),
+            installSource: petPageURL(slug: installable.slug).absoluteString
         )
     }
 }

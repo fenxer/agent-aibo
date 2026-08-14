@@ -23,6 +23,10 @@ public struct PetLibraryRecord: Codable, Sendable, Equatable, Identifiable, Hash
     /// Filename inside the petdex folder (e.g. `spritesheet.webp`).
     public var spriteFileName: String?
     public var spriteVersionNumber: Int?
+    /// First time this pet was added to the library. Omitted in older `library.json`.
+    public var installedAt: Date?
+    /// Origin shown in All Pets. Petdex: pet page URL. Local image: nil (UI shows Local).
+    public var installSource: String?
 
     public init(
         id: String,
@@ -31,7 +35,9 @@ public struct PetLibraryRecord: Codable, Sendable, Equatable, Identifiable, Hash
         relativePath: String,
         slug: String? = nil,
         spriteFileName: String? = nil,
-        spriteVersionNumber: Int? = nil
+        spriteVersionNumber: Int? = nil,
+        installedAt: Date? = nil,
+        installSource: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -40,6 +46,8 @@ public struct PetLibraryRecord: Codable, Sendable, Equatable, Identifiable, Hash
         self.slug = slug
         self.spriteFileName = spriteFileName
         self.spriteVersionNumber = spriteVersionNumber
+        self.installedAt = installedAt
+        self.installSource = installSource
     }
 
     public static var builtInDefault: PetLibraryRecord {
@@ -69,12 +77,15 @@ public struct PetLibraryFile: Codable, Sendable, Equatable {
 
 public enum PetLibraryCodec {
     public static func decode(_ data: Data) throws -> PetLibraryFile {
-        try JSONDecoder().decode(PetLibraryFile.self, from: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(PetLibraryFile.self, from: data)
     }
 
     public static func encode(_ file: PetLibraryFile) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(file)
     }
 
@@ -93,5 +104,51 @@ public enum PetLibraryCodec {
             selected = PetLibraryDefaults.builtInID
         }
         return (selected, records)
+    }
+}
+
+public enum PetLibraryOrdering {
+    /// Newest `installedAt` first. Records without a date sort last, then by name / id.
+    public static func installedAtNewestFirst(_ records: [PetLibraryRecord]) -> [PetLibraryRecord] {
+        records.sorted(by: compareInstalledAtNewestFirst)
+    }
+
+    public static func byDisplayName(_ records: [PetLibraryRecord]) -> [PetLibraryRecord] {
+        records.sorted(by: compareNameThenID)
+    }
+
+    /// Largest first. Missing sizes count as 0, then name / id.
+    public static func bySizeLargestFirst(
+        _ records: [PetLibraryRecord],
+        bytesForID: [String: Int64]
+    ) -> [PetLibraryRecord] {
+        records.sorted { lhs, rhs in
+            let left = bytesForID[lhs.id] ?? 0
+            let right = bytesForID[rhs.id] ?? 0
+            if left != right { return left > right }
+            return compareNameThenID(lhs, rhs)
+        }
+    }
+
+    private static func compareInstalledAtNewestFirst(_ lhs: PetLibraryRecord, _ rhs: PetLibraryRecord) -> Bool {
+        switch (lhs.installedAt, rhs.installedAt) {
+        case let (left?, right?):
+            if left != right { return left > right }
+            return compareNameThenID(lhs, rhs)
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        case (nil, nil):
+            return compareNameThenID(lhs, rhs)
+        }
+    }
+
+    private static func compareNameThenID(_ lhs: PetLibraryRecord, _ rhs: PetLibraryRecord) -> Bool {
+        let name = lhs.displayName.localizedStandardCompare(rhs.displayName)
+        if name != .orderedSame {
+            return name == .orderedAscending
+        }
+        return lhs.id < rhs.id
     }
 }

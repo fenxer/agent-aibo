@@ -9,10 +9,16 @@ import SwiftUI
 /// Keep the nav `ControlGroup` and the title in **separate** `ToolbarItem`s.
 /// Putting them in one item wraps both in the same glass capsule. Hide the
 /// title item’s shared glass so only the nav pill keeps a background.
-struct SettingsDetailChromeModifier: ViewModifier {
+///
+/// Trailing actions must live in this same toolbar, **after**
+/// `ToolbarSpacer(.flexible)`. A second `.toolbar` with automatic items
+/// joins the leading cluster (next to the title). macOS has no
+/// `topBarTrailing`.
+struct SettingsDetailChromeModifier<Trailing: ToolbarContent>: ViewModifier {
     var title: String
     var canGoBack: Bool
     var onBack: () -> Void
+    var trailing: Trailing
 
     func body(content: Content) -> some View {
         content
@@ -47,6 +53,8 @@ struct SettingsDetailChromeModifier: ViewModifier {
                 .sharedBackgroundVisibility(.hidden)
 
                 ToolbarSpacer(.flexible)
+
+                trailing
             }
     }
 }
@@ -57,11 +65,23 @@ extension View {
         canGoBack: Bool = false,
         onBack: @escaping () -> Void = {}
     ) -> some View {
+        settingsDetailChrome(title: title, canGoBack: canGoBack, onBack: onBack) {
+            ToolbarItemGroup {}
+        }
+    }
+
+    func settingsDetailChrome(
+        title: String,
+        canGoBack: Bool = false,
+        onBack: @escaping () -> Void = {},
+        @ToolbarContentBuilder trailing: () -> some ToolbarContent
+    ) -> some View {
         modifier(
             SettingsDetailChromeModifier(
                 title: title,
                 canGoBack: canGoBack,
-                onBack: onBack
+                onBack: onBack,
+                trailing: trailing()
             )
         )
     }
