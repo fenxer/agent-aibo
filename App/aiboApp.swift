@@ -24,5 +24,8 @@ struct aiboApp: App {
             height: AppSettings.defaultSettingsWindowHeight
         )
         .windowResizability(.contentMinSize)
+        // Prefer leading toolbar layout (Settings scene may still force
+        // `.preference` — `SettingsWindowConfigurator` also asserts `.unified`).
+        .windowToolbarStyle(.unified(showsTitle: false))
     }
 }

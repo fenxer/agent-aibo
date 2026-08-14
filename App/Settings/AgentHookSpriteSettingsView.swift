@@ -43,12 +43,6 @@ struct AgentHookSpriteSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Match System Settings: nav pill + title on one leading row
-            // (do not use .navigationTitle / toolbar — Settings scene centers those).
-            settingsStyleHeader
-
-            Divider()
-
             previewSection
 
             Divider()
@@ -59,38 +53,7 @@ struct AgentHookSpriteSettingsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        // Suppress the split-view centered title so only our header shows.
-        .navigationTitle("")
-    }
-
-    private var settingsStyleHeader: some View {
-        HStack(spacing: 10) {
-            ControlGroup {
-                Button {
-                    onBack()
-                } label: {
-                    Image(systemName: "chevron.backward")
-                }
-                .help(String(localized: "Back"))
-                .accessibilityLabel(String(localized: "Back"))
-
-                Button {} label: {
-                    Image(systemName: "chevron.forward")
-                }
-                .disabled(true)
-                .accessibilityLabel(String(localized: "Forward"))
-            }
-            .controlGroupStyle(.navigation)
-
-            Text(title)
-                .font(.title2.weight(.semibold))
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .settingsDetailChrome(title: title, canGoBack: true, onBack: onBack)
     }
 
     /// Stays above the Sprite Actions scroll region (sticky header band).
@@ -111,7 +74,7 @@ struct AgentHookSpriteSettingsView: View {
                             systemImage: "pawprint"
                         )
                     } description: {
-                        Text(String(localized: "Install or select a Petdex pet in Appearance to preview animations."))
+                        Text(String(localized: "Install or select a Petdex pet in Pet to preview animations."))
                     }
                     .frame(minHeight: 140)
                 }

@@ -2,8 +2,9 @@ import AppKit
 import SwiftUI
 
 /// Settings-window plumbing that SwiftUI does not cover: insert `.resizable`
-/// once per window, restore the persisted height on first attach, and save it
-/// after live resize.
+/// once per window, force `.unified` toolbar style (Settings defaults to
+/// centered `.preference`), restore the persisted height on first attach, and
+/// save it after live resize.
 ///
 /// The scene declares `.windowResizability(.contentMinSize)` and the root view
 /// reports a fixed width plus `maxHeight: .infinity`, so SwiftUI's computed
@@ -53,7 +54,15 @@ struct SettingsWindowConfigurator: NSViewRepresentable {
         private var resizeObserver: NSObjectProtocol?
 
         func attach(to window: NSWindow?) {
-            guard let window, window !== observedWindow else { return }
+            guard let window else { return }
+
+            // Settings scene defaults to `.preference`, which centers toolbar
+            // items. System Settings uses a leading layout — match that.
+            if window.toolbarStyle != .unified {
+                window.toolbarStyle = .unified
+            }
+
+            guard window !== observedWindow else { return }
             detach()
             observedWindow = window
             if !window.styleMask.contains(.resizable) {

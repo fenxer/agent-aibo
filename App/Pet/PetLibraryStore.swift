@@ -18,6 +18,35 @@ final class PetLibraryStore {
         records.first(where: { $0.id == selectedID }) ?? .builtInDefault
     }
 
+    /// Allocated size of `AiboPaths.petsDirectory` (installed pets + `library.json`).
+    func occupiedDiskBytes() -> Int64 {
+        let root = AiboPaths.petsDirectory
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDirectory),
+              isDirectory.boolValue
+        else { return 0 }
+
+        let keys: Set<URLResourceKey> = [
+            .isRegularFileKey,
+            .totalFileAllocatedSizeKey,
+            .fileAllocatedSizeKey,
+        ]
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+
+        var total: Int64 = 0
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: keys),
+                  values.isRegularFile == true
+            else { continue }
+            total += Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
+        }
+        return total
+    }
+
     private init() {
         reloadFromDisk()
     }

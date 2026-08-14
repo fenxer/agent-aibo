@@ -4,6 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private enum SettingsPane: String, CaseIterable, Identifiable {
+    case pet
     case appearance
     case integrations
     case receiveLog
@@ -16,6 +17,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .pet: String(localized: "Pet")
         case .appearance: String(localized: "Appearance")
         case .integrations: String(localized: "Integrations")
         case .receiveLog: String(localized: "Receive Log")
@@ -28,6 +30,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
+        case .pet: "heart.fill"
         case .appearance: "paintbrush"
         case .integrations: "link"
         case .receiveLog: "tray.full"
@@ -52,7 +55,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
-    @State private var selection: SettingsPane? = .appearance
+    @State private var selection: SettingsPane? = .pet
     @Bindable private var navigator = SettingsNavigator.shared
 
     var body: some View {
@@ -64,9 +67,8 @@ struct SettingsView: View {
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
             .toolbar(removing: .sidebarToggle)
         } detail: {
-            // Avoid nesting NavigationStack inside the Settings scene — on recent
-            // macOS the pushed back control lands under the title instead of the
-            // window toolbar. Detail panes own any in-column sub-navigation.
+            // Detail panes own in-column sub-navigation and apply
+            // `settingsDetailChrome` for the System Settings–style toolbar.
             detailRoot
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -91,22 +93,21 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var detailRoot: some View {
-        switch selection ?? .appearance {
+        switch selection ?? .pet {
+        case .pet:
+            PetSettingsPane()
         case .appearance:
             AppearanceSettingsPane()
-                .navigationTitle(SettingsPane.appearance.title)
         case .integrations:
             IntegrationsSettingsPane()
         case .receiveLog:
             ReceiveLogSettingsPane()
-                .navigationTitle(SettingsPane.receiveLog.title)
         case .about:
             AboutSettingsPane()
-                .navigationTitle(SettingsPane.about.title)
         #if DEBUG
         case .development:
             DevelopmentSettingsPane()
-                .navigationTitle(SettingsPane.development.title)
+                .settingsDetailChrome(title: SettingsPane.development.title)
         #endif
         }
     }
@@ -114,12 +115,6 @@ struct SettingsView: View {
 
 private struct AppearanceSettingsPane: View {
     @Bindable private var settings = AppSettings.shared
-    @Bindable private var library = PetLibraryStore.shared
-    @State private var petdexInput = ""
-    @State private var isImportingImage = false
-
-    /// Labeled scale only — avoid `step:` which paints a tick at every increment.
-    private static let petScaleTickPercents: [Double] = [0, 50, 100, 150, 200]
 
     var body: some View {
         Form {
@@ -135,118 +130,6 @@ private struct AppearanceSettingsPane: View {
             }
 
             Section {
-                Picker(String(localized: "Active Pet"), selection: selectedPetBinding) {
-                    ForEach(library.records) { record in
-                        Text(record.displayName).tag(record.id)
-                    }
-                }
-
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    TextField(
-                        String(localized: "Petdex slug or URL"),
-                        text: $petdexInput
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(library.isInstalling)
-
-                    Button(String(localized: "Install")) {
-                        let input = petdexInput
-                        Task {
-                            await library.installPetdex(from: input)
-                            if library.lastErrorMessage == nil {
-                                petdexInput = ""
-                            }
-                        }
-                    }
-                    .disabled(library.isInstalling || petdexInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-
-                HStack {
-                    Button(String(localized: "Add Image…")) {
-                        isImportingImage = true
-                    }
-                    .disabled(library.isInstalling)
-
-                    if library.selectedRecord.isRemovable {
-                        Button(String(localized: "Remove Selected"), role: .destructive) {
-                            library.remove(id: library.selectedID)
-                        }
-                    }
-                }
-
-                if library.isInstalling {
-                    ProgressView(String(localized: "Installing…"))
-                        .controlSize(.small)
-                }
-
-                if let error = library.lastErrorMessage {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                Text(String(localized: "Install a Petdex pet by slug (e.g. boba) or page URL. Or add a local square image. Default stays available."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text(String(localized: "Pet Library"))
-            }
-
-            Section {
-                LabeledContent {
-                    HStack(spacing: 8) {
-                        Slider(
-                            value: petScalePercentBinding,
-                            in: AppSettings.petScalePercentRange
-                        ) {
-                            EmptyView()
-                        } ticks: {
-                            SliderTickContentForEach(Self.petScaleTickPercents, id: \.self) { value in
-                                SliderTick(value) {
-                                    Text("\(Int(value))%")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-
-                        TextField(
-                            String(localized: "Pet Size"),
-                            value: petScalePercentIntBinding,
-                            format: .number
-                        )
-                        .labelsHidden()
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 48)
-                        .monospacedDigit()
-
-                        Text("%")
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                } label: {
-                    Text(String(localized: "Pet Size"))
-                }
-
-                if Int(settings.petScalePercent.rounded()) != Int(AppSettings.defaultPetScalePercent) {
-                    Button(String(localized: "Reset Size")) {
-                        settings.resetPetScalePercent()
-                    }
-                }
-
-                Text(String(localized: "Scale the desktop pet image. 100% is the default size."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Toggle(
-                    String(localized: "Restore Last Position"),
-                    isOn: $settings.restoreLastPetPosition
-                )
-
-                Text(String(localized: "Open the pet where you left it, using a screen-relative position so it adapts to different resolutions. Off always uses the bottom-right corner."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
                 Toggle(
                     String(localized: "Hide When Fullscreen"),
                     isOn: $settings.hideWhenFullscreen
@@ -334,34 +217,7 @@ private struct AppearanceSettingsPane: View {
         }
         .formStyle(.grouped)
         .padding()
-        .fileImporter(
-            isPresented: $isImportingImage,
-            allowedContentTypes: [.png, .jpeg, .webP, .heic, .tiff, .image],
-            allowsMultipleSelection: false
-        ) { result in
-            handleImageImport(result)
-        }
-    }
-
-    private var selectedPetBinding: Binding<String> {
-        Binding(
-            get: { library.selectedID },
-            set: { library.select(id: $0) }
-        )
-    }
-
-    private var petScalePercentBinding: Binding<Double> {
-        Binding(
-            get: { settings.petScalePercent },
-            set: { settings.petScalePercent = $0.rounded() }
-        )
-    }
-
-    private var petScalePercentIntBinding: Binding<Int> {
-        Binding(
-            get: { Int(settings.petScalePercent.rounded()) },
-            set: { settings.petScalePercent = Double($0) }
-        )
+        .settingsDetailChrome(title: SettingsPane.appearance.title)
     }
 
     /// ColorPicker needs a non-optional `Color`; writing always enables a custom tint.
@@ -370,20 +226,6 @@ private struct AppearanceSettingsPane: View {
             get: { settings.bubbleGlassTint ?? .accentColor },
             set: { settings.bubbleGlassTint = $0 }
         )
-    }
-
-    private func handleImageImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            let accessed = url.startAccessingSecurityScopedResource()
-            defer {
-                if accessed { url.stopAccessingSecurityScopedResource() }
-            }
-            library.importStaticImage(from: url)
-        case .failure:
-            break
-        }
     }
 }
 
@@ -399,10 +241,9 @@ private struct IntegrationsSettingsPane: View {
                 AgentHookSpriteSettingsView(agent: advancedAgent) {
                     self.advancedAgent = nil
                 }
-                .navigationTitle("")
             } else {
                 integrationsForm
-                    .navigationTitle(SettingsPane.integrations.title)
+                    .settingsDetailChrome(title: SettingsPane.integrations.title)
             }
         }
         .onChange(of: navigator.pendingIntegrationsAnchor) { _, _ in
@@ -743,6 +584,7 @@ private struct ReceiveLogSettingsPane: View {
                 .listStyle(.inset)
             }
         }
+        .settingsDetailChrome(title: SettingsPane.receiveLog.title)
         .confirmationDialog(
             String(localized: "Clear all receive records?"),
             isPresented: $confirmClear,
@@ -802,6 +644,7 @@ private struct AboutSettingsPane: View {
         }
         .formStyle(.grouped)
         .padding()
+        .settingsDetailChrome(title: SettingsPane.about.title)
     }
 }
 
