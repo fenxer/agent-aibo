@@ -489,6 +489,38 @@ private struct IntegrationsSettingsPane: View {
                 }
 
                 Section {
+                    LabeledContent(String(localized: "Status")) {
+                        Text(
+                            runtime.deepseekPluginInstalled
+                                ? String(localized: "Installed")
+                                : String(localized: "Not installed")
+                        )
+                    }
+
+                    if runtime.deepseekPluginInstalled {
+                        Button(String(localized: "Uninstall DeepSeek Plugin")) {
+                            runtime.uninstallDeepSeekPlugin()
+                        }
+                    } else {
+                        Button(String(localized: "Install DeepSeek Plugin")) {
+                            runtime.installDeepSeekPlugin()
+                        }
+                    }
+
+                    Text(String(localized: "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Clicking the bubble does not switch apps yet."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    agentCapsuleColorControls(for: .deepseek)
+
+                    Button(String(localized: "Advanced Settings")) {
+                        advancedAgent = .deepseek
+                    }
+                } header: {
+                    Text(String(localized: "DeepSeek Harness"))
+                }
+
+                Section {
                     Toggle(String(localized: "Listen on localhost"), isOn: $settings.webhookEnabled)
 
                     LabeledContent(String(localized: "Listener")) {

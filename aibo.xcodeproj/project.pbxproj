@@ -12,6 +12,7 @@
 		3A3091E53017080000431C96 /* AiboLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 3A3091E23017080000431C96 /* AiboLLM */; };
 		3A3091F53017090000431C96 /* AiboHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3091F43017090000431C96 /* AiboHook.swift */; };
 		3A3091F83017090000431C96 /* aibo-hook in Copy Helpers */ = {isa = PBXBuildFile; fileRef = 3A3091F03017090000431C96 /* aibo-hook */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		A1B0D5H13017090000431CB1 /* dsh-aibo in Copy DeepSeek Plugin */ = {isa = PBXBuildFile; fileRef = A1B0D5H13017090000431CA1 /* dsh-aibo */; };
 		A1B0P0W43017080000431C96 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = A1B0P0W23017080000431C96 /* Pow */; };
 		B2C0M3D13017310000431C96 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; };
 		B2C0M3D43017310000431C96 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -37,6 +38,15 @@
 			);
 			name = "Copy Helpers";
 		};
+		A1B0D5H13017090000431CB0 /* Copy DeepSeek Plugin */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = Resources;
+			files = (
+				A1B0D5H13017090000431CB1 /* dsh-aibo in Copy DeepSeek Plugin */,
+			);
+			name = "Copy DeepSeek Plugin";
+		};
 		B2C0M3D33017310000431C96 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
@@ -53,6 +63,7 @@
 		3A3091CD3017070E00431C96 /* aibo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = aibo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3A3091F03017090000431C96 /* aibo-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "aibo-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3A3091F43017090000431C96 /* AiboHook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiboHook.swift; sourceTree = "<group>"; };
+		A1B0D5H13017090000431CA1 /* dsh-aibo */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "dsh-aibo"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -86,6 +97,7 @@
 			children = (
 				3A3091CF3017070E00431C96 /* App */,
 				3A3091F63017090000431C96 /* Hook */,
+				A1B0D5H13017090000431CA0 /* Plugins */,
 				3A301DB3301C678F004C7B4D /* heart.icon */,
 				3A3091CE3017070E00431C96 /* Products */,
 			);
@@ -108,6 +120,14 @@
 			path = Hook;
 			sourceTree = "<group>";
 		};
+		A1B0D5H13017090000431CA0 /* Plugins */ = {
+			isa = PBXGroup;
+			children = (
+				A1B0D5H13017090000431CA1 /* dsh-aibo */,
+			);
+			path = Plugins;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -119,6 +139,7 @@
 				3A3091CA3017070E00431C96 /* Frameworks */,
 				3A3091CB3017070E00431C96 /* Resources */,
 				3A3091F73017090000431C96 /* Copy Helpers */,
+				A1B0D5H13017090000431CB0 /* Copy DeepSeek Plugin */,
 				B2C0M3D33017310000431C96 /* Embed Frameworks */,
 			);
 			buildRules = (

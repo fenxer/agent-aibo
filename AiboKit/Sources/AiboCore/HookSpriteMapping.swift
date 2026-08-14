@@ -6,10 +6,24 @@ public struct HookSpriteMappingFile: Codable, Sendable, Equatable {
     public var cursor: [String: String]
     /// Codex hook event name → `PetdexSpriteState.rawValue`.
     public var codex: [String: String]
+    /// DeepSeek Harness hook event name → `PetdexSpriteState.rawValue`.
+    public var deepseek: [String: String]
 
-    public init(cursor: [String: String] = [:], codex: [String: String] = [:]) {
+    public init(
+        cursor: [String: String] = [:],
+        codex: [String: String] = [:],
+        deepseek: [String: String] = [:]
+    ) {
         self.cursor = cursor
         self.codex = codex
+        self.deepseek = deepseek
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cursor = try container.decodeIfPresent([String: String].self, forKey: .cursor) ?? [:]
+        codex = try container.decodeIfPresent([String: String].self, forKey: .codex) ?? [:]
+        deepseek = try container.decodeIfPresent([String: String].self, forKey: .deepseek) ?? [:]
     }
 }
 
@@ -21,6 +35,8 @@ public enum HookSpriteMapping {
             return CursorHooksInstaller.cursorEventNames
         case .codex:
             return CodexHooksInstaller.codexEventNames
+        case .deepseek:
+            return DeepSeekHarnessPlugin.eventNames
         }
     }
 
@@ -28,7 +44,7 @@ public enum HookSpriteMapping {
         switch agent {
         case .cursor:
             return defaultCursorSprite(hookEventName)
-        case .codex:
+        case .codex, .deepseek:
             return defaultCodexSprite(hookEventName)
         }
     }
@@ -82,6 +98,7 @@ public enum HookSpriteMapping {
         switch agent {
         case .cursor: file.cursor[hookEventName]
         case .codex: file.codex[hookEventName]
+        case .deepseek: file.deepseek[hookEventName]
         }
     }
 

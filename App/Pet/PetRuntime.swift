@@ -13,6 +13,7 @@ final class PetRuntime {
     private(set) var bubbleItems: [StatusBubbleItem] = []
     private(set) var cursorHooksInstalled = false
     private(set) var codexHooksInstalled = false
+    private(set) var deepseekPluginInstalled = false
     private(set) var webhookListening = false
     private(set) var lastErrorMessage: String?
     /// Last tunnel probe result for Integrations (Unknown / OK / Down / …).
@@ -137,6 +138,7 @@ final class PetRuntime {
     func start() {
         cursorHooksInstalled = (try? CursorHooksFile.isInstalled()) ?? false
         codexHooksInstalled = (try? CodexHooksFile.isInstalled()) ?? false
+        deepseekPluginInstalled = (try? DshAiboPluginFile.isInstalled()) ?? false
         reloadReceiveLog()
 
         do {
@@ -571,6 +573,27 @@ final class PetRuntime {
         }
     }
 
+    func installDeepSeekPlugin() {
+        do {
+            let source = try Self.bundledDeepSeekPluginDirectory()
+            try DshAiboPluginFile.install(sourceDirectory: source)
+            deepseekPluginInstalled = true
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = String(localized: "Failed to install DeepSeek plugin")
+        }
+    }
+
+    func uninstallDeepSeekPlugin() {
+        do {
+            try DshAiboPluginFile.uninstall()
+            deepseekPluginInstalled = false
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = String(localized: "Failed to uninstall DeepSeek plugin")
+        }
+    }
+
     #if DEBUG
     /// Adds an arbitrary bubble for local UI testing.
     ///
@@ -637,7 +660,10 @@ final class PetRuntime {
     }
 
     private static func debugAgentKind(from agentName: String) -> AgentKind {
-        agentName.localizedCaseInsensitiveContains("codex") ? .codex : .cursor
+        let lowered = agentName.lowercased()
+        if lowered.contains("deepseek") { return .deepseek }
+        if lowered.contains("codex") { return .codex }
+        return .cursor
     }
 
     /// Posts a signed webhook to the local listener (requires webhook enabled).
@@ -969,6 +995,7 @@ final class PetRuntime {
         switch agent {
         case .cursor: "cursor"
         case .codex: "codex"
+        case .deepseek: "deepseek"
         }
     }
 
@@ -1122,5 +1149,18 @@ final class PetRuntime {
             throw CocoaError(.fileNoSuchFile)
         }
         return candidate
+    }
+
+    static func bundledDeepSeekPluginDirectory() throws -> URL {
+        if let bundled = DshAiboPluginFile.bundledPluginDirectory(),
+           FileManager.default.fileExists(
+               atPath: bundled.appendingPathComponent(
+                   DeepSeekHarnessPlugin.pluginMainFileName
+               ).path
+           )
+        {
+            return bundled
+        }
+        throw CocoaError(.fileNoSuchFile)
     }
 }

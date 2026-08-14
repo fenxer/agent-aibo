@@ -13,6 +13,9 @@ enum SourceAppActivator {
             // ChatGPT Desktop now ships as `com.openai.codex` (Info shows ChatGPT.app).
             // Keep Classic as a fallback for older installs.
             ["com.openai.codex", "com.openai.chat"]
+        case .deepseek:
+            // DeepSeek Harness is a local Web UI / `dsh` process, not a .app.
+            []
         }
     }
 

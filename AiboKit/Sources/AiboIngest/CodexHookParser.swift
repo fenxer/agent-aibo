@@ -9,7 +9,10 @@ public enum CodexHookParser {
         return parse(payload: payload)
     }
 
-    public static func parse(payload: [String: Any]) -> ParsedHookLine? {
+    public static func parse(
+        payload: [String: Any],
+        agent: AgentKind = .codex
+    ) -> ParsedHookLine? {
         let eventName = (payload["hook_event_name"] as? String)
             ?? (payload["hookEventName"] as? String)
         guard let eventName, !eventName.isEmpty else { return nil }
@@ -45,7 +48,7 @@ public enum CodexHookParser {
         )
 
         return ParsedHookLine(
-            session: SessionKey(agent: .codex, conversationID: sessionID),
+            session: SessionKey(agent: agent, conversationID: sessionID),
             transition: transition,
             eventName: eventName,
             projectName: HookPayloadFields.projectName(from: payload),

@@ -108,6 +108,10 @@ import Testing
     )
     #expect(HookSpriteMapping.configurableHooks(for: .cursor).contains("stop"))
     #expect(HookSpriteMapping.configurableHooks(for: .codex).contains("Stop"))
+    #expect(HookSpriteMapping.configurableHooks(for: .deepseek).contains("PermissionRequest"))
+    #expect(
+        HookSpriteMapping.defaultSprite(agent: .deepseek, hookEventName: "PreToolUse") == .running
+    )
 }
 
 @Test func petdexInstallerWritesPackViaInjectedFetch() async throws {

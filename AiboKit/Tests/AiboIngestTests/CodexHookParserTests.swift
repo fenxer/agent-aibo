@@ -100,3 +100,21 @@ import Testing
     #expect(cursorParsed?.transition == .apply(.thinking))
     #expect(codexParsed?.transition == .apply(.thinking))
 }
+
+@Test func hookLineParserRoutesDeepSeekAgentMarker() throws {
+    let line = """
+    {"aibo_agent":"deepseek","session_id":"ses_1","hook_event_name":"PreToolUse","tool_name":"bash","cwd":"/tmp/aibo"}
+    """
+    let parsed = try HookLineParser.parse(jsonLine: line)
+    #expect(parsed?.session == SessionKey(agent: .deepseek, conversationID: "ses_1"))
+    #expect(parsed?.transition == .apply(.usingTool("bash")))
+    #expect(parsed?.projectName == "aibo")
+}
+
+@Test func hookLineParserDoesNotTreatUnmarkedPascalCaseAsDeepSeek() throws {
+    let line = """
+    {"session_id":"thr_1","hook_event_name":"UserPromptSubmit","prompt":"hi"}
+    """
+    let parsed = try HookLineParser.parse(jsonLine: line)
+    #expect(parsed?.session.agent == .codex)
+}

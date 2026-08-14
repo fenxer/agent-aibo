@@ -30,6 +30,7 @@ struct AgentHookSpriteSettingsView: View {
         switch agent {
         case .cursor: String(localized: "Cursor Hooks")
         case .codex: String(localized: "Codex Hooks")
+        case .deepseek: String(localized: "DeepSeek Hooks")
         }
     }
 

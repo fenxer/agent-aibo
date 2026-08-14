@@ -1,3 +1,4 @@
+import AiboCore
 import Foundation
 
 /// Dispatches a raw NDJSON hook line to the Cursor or Codex adapter.
@@ -11,6 +12,15 @@ public enum HookLineParser {
             ?? (payload["hookEventName"] as? String)
         let hasSessionID = ((payload["session_id"] as? String)?.isEmpty == false)
         let hasConversationID = ((payload["conversation_id"] as? String)?.isEmpty == false)
+        let aiboAgent = (payload["aibo_agent"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        // DeepSeek Harness plugin stamps `aibo_agent` so PascalCase payloads
+        // are not mistaken for Codex (same stdin vocabulary).
+        if aiboAgent == DeepSeekHarnessPlugin.agentMarker, hasSessionID {
+            return CodexHookParser.parse(payload: payload, agent: .deepseek)
+        }
 
         // Cursor: camelCase events (`preToolUse`). Codex: PascalCase (`PreToolUse`).
         // ChatGPT Desktop may include both id fields — event casing is the stable signal.

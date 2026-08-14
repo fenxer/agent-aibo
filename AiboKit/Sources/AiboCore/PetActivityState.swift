@@ -3,6 +3,7 @@ import Foundation
 public enum AgentKind: String, Sendable, Codable, CaseIterable {
     case cursor
     case codex
+    case deepseek
 }
 
 public enum PetActivityState: Equatable, Sendable, Codable {

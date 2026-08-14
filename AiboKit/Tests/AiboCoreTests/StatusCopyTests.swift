@@ -44,4 +44,8 @@ import Testing
     #expect(
         StatusCopy.exampleBubblePhrase(agent: .codex, hookEventName: "Stop") == "finished"
     )
+    #expect(
+        StatusCopy.exampleBubblePhrase(agent: .deepseek, hookEventName: "UserPromptSubmit")
+            == "is thinking"
+    )
 }

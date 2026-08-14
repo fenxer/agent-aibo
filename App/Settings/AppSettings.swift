@@ -17,6 +17,7 @@ final class AppSettings {
         static let bubbleGlassTint = "settings.bubbleGlassTint"
         static let cursorCapsuleColor = "settings.agentCapsuleColor.cursor"
         static let codexCapsuleColor = "settings.agentCapsuleColor.codex"
+        static let deepseekCapsuleColor = "settings.agentCapsuleColor.deepseek"
         static let petScalePercent = "settings.petScalePercent"
         static let restoreLastPetPosition = "settings.restoreLastPetPosition"
         static let hideWhenFullscreen = "settings.hideWhenFullscreen"
@@ -155,6 +156,15 @@ final class AppSettings {
         }
     }
 
+    /// Optional DeepSeek agent-capsule fill. `nil` keeps the default black/white capsule.
+    var deepseekCapsuleColor: Color? {
+        didSet {
+            guard oldValue != deepseekCapsuleColor else { return }
+            Self.persistColor(deepseekCapsuleColor, key: Keys.deepseekCapsuleColor)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
     var webhookEnabled: Bool {
         didSet {
             guard oldValue != webhookEnabled else { return }
@@ -244,6 +254,7 @@ final class AppSettings {
         bubbleGlassTint = Self.loadColor(key: Keys.bubbleGlassTint)
         cursorCapsuleColor = Self.loadColor(key: Keys.cursorCapsuleColor)
         codexCapsuleColor = Self.loadColor(key: Keys.codexCapsuleColor)
+        deepseekCapsuleColor = Self.loadColor(key: Keys.deepseekCapsuleColor)
 
         if UserDefaults.standard.object(forKey: Keys.petScalePercent) != nil {
             petScalePercent = Self.clampPetScalePercent(
@@ -338,6 +349,7 @@ final class AppSettings {
         switch agent {
         case .cursor: cursorCapsuleColor
         case .codex: codexCapsuleColor
+        case .deepseek: deepseekCapsuleColor
         }
     }
 
@@ -345,6 +357,7 @@ final class AppSettings {
         switch agent {
         case .cursor: cursorCapsuleColor = color
         case .codex: codexCapsuleColor = color
+        case .deepseek: deepseekCapsuleColor = color
         }
     }
 

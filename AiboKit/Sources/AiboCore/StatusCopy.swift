@@ -69,7 +69,7 @@ public enum StatusCopy {
                 toolName: "Shell",
                 stopStatus: "completed"
             )
-        case .codex:
+        case .codex, .deepseek:
             transition = CodexEventMapper.transition(
                 eventName: hookEventName,
                 toolName: "Bash"
@@ -94,6 +94,7 @@ public enum StatusCopy {
         switch agent {
         case .cursor: "Cursor"
         case .codex: "Codex"
+        case .deepseek: "DeepSeek"
         }
     }
 }

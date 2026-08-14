@@ -40,6 +40,12 @@ final class HookSpriteSettings {
             } else {
                 next.codex[hookEventName] = sprite.rawValue
             }
+        case .deepseek:
+            if sprite == defaultValue {
+                next.deepseek.removeValue(forKey: hookEventName)
+            } else {
+                next.deepseek[hookEventName] = sprite.rawValue
+            }
         }
         file = next
         persist()
@@ -50,6 +56,7 @@ final class HookSpriteSettings {
         switch agent {
         case .cursor: next.cursor = [:]
         case .codex: next.codex = [:]
+        case .deepseek: next.deepseek = [:]
         }
         file = next
         persist()
@@ -59,6 +66,7 @@ final class HookSpriteSettings {
         switch agent {
         case .cursor: !file.cursor.isEmpty
         case .codex: !file.codex.isEmpty
+        case .deepseek: !file.deepseek.isEmpty
         }
     }
 
