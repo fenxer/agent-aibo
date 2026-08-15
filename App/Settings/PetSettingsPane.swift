@@ -136,6 +136,8 @@ private struct PetConfigurationSection: View {
             )
 
             Toggle("Restore Last Position", isOn: $settings.restoreLastPetPosition)
+
+            Toggle("Hide When Fullscreen", isOn: $settings.hideWhenFullscreen)
         }
     }
 }

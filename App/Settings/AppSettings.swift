@@ -93,7 +93,7 @@ final class AppSettings {
     }
 
     /// When true, hide the pet for native fullscreen (Spaces type 4) or
-    /// `currentSystemPresentationOptions` containing `.fullScreen`. Default off.
+    /// `currentSystemPresentationOptions` containing `.fullScreen`. Default on.
     var hideWhenFullscreen: Bool {
         didSet {
             guard oldValue != hideWhenFullscreen else { return }
@@ -355,7 +355,7 @@ final class AppSettings {
         if UserDefaults.standard.object(forKey: Keys.hideWhenFullscreen) != nil {
             hideWhenFullscreen = UserDefaults.standard.bool(forKey: Keys.hideWhenFullscreen)
         } else {
-            hideWhenFullscreen = false
+            hideWhenFullscreen = true
         }
 
         if UserDefaults.standard.object(forKey: Keys.petPositionXPercent) != nil,
