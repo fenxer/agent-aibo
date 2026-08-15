@@ -28,7 +28,7 @@ public struct HookSpriteMappingFile: Codable, Sendable, Equatable {
 }
 
 public enum HookSpriteMapping {
-    /// Hooks shown in Advanced Settings / used for sprite lookup (installed set).
+    /// Hooks shown in Agent Hook advanced settings / used for sprite lookup (installed set).
     public static func configurableHooks(for agent: AgentKind) -> [String] {
         switch agent {
         case .cursor:

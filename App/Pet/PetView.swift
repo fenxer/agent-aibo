@@ -49,12 +49,12 @@ struct PetView: View {
         petSizeOverride ?? basePetSize * CGFloat(AppSettings.shared.petScalePercent / 100)
     }
 
-    private var glassStyle: BubbleGlassStyle {
-        AppSettings.shared.bubbleGlassStyle
+    private func glassStyle(for item: StatusBubbleItem) -> BubbleGlassStyle {
+        AppSettings.shared.bubbleGlassStyle(for: item.kind == .agent ? item.agent : nil)
     }
 
-    private var glassTint: Color? {
-        AppSettings.shared.bubbleGlassTint
+    private func glassTint(for item: StatusBubbleItem) -> Color? {
+        AppSettings.shared.bubbleGlassTint(for: item.kind == .agent ? item.agent : nil)
     }
 
     private var shouldEmitMusicNotes: Bool {
@@ -161,8 +161,8 @@ struct PetView: View {
             showsArrow: showsArrow,
             onActivate: activateAction(for: item),
             onDismiss: dismissAction(for: item),
-            glassStyle: glassStyle,
-            glassTint: glassTint
+            glassStyle: glassStyle(for: item),
+            glassTint: glassTint(for: item)
         )
 
         // Warning must open Settings via SettingsLink (openSettings() warns on current SDKs).
@@ -215,8 +215,8 @@ struct PetView: View {
                 item: bubbleItems[nearPetIndex],
                 placement: placement,
                 showsArrow: true,
-                glassStyle: glassStyle,
-                glassTint: glassTint
+                glassStyle: glassStyle(for: bubbleItems[nearPetIndex]),
+                glassTint: glassTint(for: bubbleItems[nearPetIndex])
             )
         } else {
             Color.clear.frame(width: 1, height: petSize)

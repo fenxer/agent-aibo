@@ -632,6 +632,30 @@ final class PetRuntime {
         }
     }
 
+    func isHookInstalled(for agent: AgentKind) -> Bool {
+        switch agent {
+        case .cursor: cursorHooksInstalled
+        case .codex: codexHooksInstalled
+        case .deepseek: deepseekPluginInstalled
+        }
+    }
+
+    func installHooks(for agent: AgentKind) {
+        switch agent {
+        case .cursor: installCursorHooks()
+        case .codex: installCodexHooks()
+        case .deepseek: installDeepSeekPlugin()
+        }
+    }
+
+    func uninstallHooks(for agent: AgentKind) {
+        switch agent {
+        case .cursor: uninstallCursorHooks()
+        case .codex: uninstallCodexHooks()
+        case .deepseek: uninstallDeepSeekPlugin()
+        }
+    }
+
     #if DEBUG
     /// Adds an arbitrary bubble for local UI testing.
     ///

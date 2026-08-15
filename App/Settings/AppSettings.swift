@@ -15,6 +15,12 @@ final class AppSettings {
         static let bubblePlacement = "settings.bubblePlacement"
         static let bubbleGlassStyle = "settings.bubbleGlassStyle"
         static let bubbleGlassTint = "settings.bubbleGlassTint"
+        static let cursorBubbleGlassStyle = "settings.agentBubbleGlassStyle.cursor"
+        static let codexBubbleGlassStyle = "settings.agentBubbleGlassStyle.codex"
+        static let deepseekBubbleGlassStyle = "settings.agentBubbleGlassStyle.deepseek"
+        static let cursorBubbleGlassTint = "settings.agentBubbleGlassTint.cursor"
+        static let codexBubbleGlassTint = "settings.agentBubbleGlassTint.codex"
+        static let deepseekBubbleGlassTint = "settings.agentBubbleGlassTint.deepseek"
         static let cursorCapsuleColor = "settings.agentCapsuleColor.cursor"
         static let codexCapsuleColor = "settings.agentCapsuleColor.codex"
         static let deepseekCapsuleColor = "settings.agentCapsuleColor.deepseek"
@@ -165,6 +171,56 @@ final class AppSettings {
         }
     }
 
+    /// Cursor bubble glass. Seeded from the former global style when unset.
+    var cursorBubbleGlassStyle: BubbleGlassStyle {
+        didSet {
+            guard oldValue != cursorBubbleGlassStyle else { return }
+            UserDefaults.standard.set(cursorBubbleGlassStyle.rawValue, forKey: Keys.cursorBubbleGlassStyle)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    var codexBubbleGlassStyle: BubbleGlassStyle {
+        didSet {
+            guard oldValue != codexBubbleGlassStyle else { return }
+            UserDefaults.standard.set(codexBubbleGlassStyle.rawValue, forKey: Keys.codexBubbleGlassStyle)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    var deepseekBubbleGlassStyle: BubbleGlassStyle {
+        didSet {
+            guard oldValue != deepseekBubbleGlassStyle else { return }
+            UserDefaults.standard.set(deepseekBubbleGlassStyle.rawValue, forKey: Keys.deepseekBubbleGlassStyle)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Optional Cursor glass tint. `nil` means no tint.
+    var cursorBubbleGlassTint: Color? {
+        didSet {
+            guard oldValue != cursorBubbleGlassTint else { return }
+            Self.persistColor(cursorBubbleGlassTint, key: Keys.cursorBubbleGlassTint)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    var codexBubbleGlassTint: Color? {
+        didSet {
+            guard oldValue != codexBubbleGlassTint else { return }
+            Self.persistColor(codexBubbleGlassTint, key: Keys.codexBubbleGlassTint)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    var deepseekBubbleGlassTint: Color? {
+        didSet {
+            guard oldValue != deepseekBubbleGlassTint else { return }
+            Self.persistColor(deepseekBubbleGlassTint, key: Keys.deepseekBubbleGlassTint)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
     var webhookEnabled: Bool {
         didSet {
             guard oldValue != webhookEnabled else { return }
@@ -250,8 +306,34 @@ final class AppSettings {
 
         let glassRaw = UserDefaults.standard.string(forKey: Keys.bubbleGlassStyle)
             ?? BubbleGlassStyle.clear.rawValue
-        bubbleGlassStyle = BubbleGlassStyle(rawValue: glassRaw) ?? .clear
-        bubbleGlassTint = Self.loadColor(key: Keys.bubbleGlassTint)
+        let resolvedGlassStyle = BubbleGlassStyle(rawValue: glassRaw) ?? .clear
+        let resolvedGlassTint = Self.loadColor(key: Keys.bubbleGlassTint)
+        bubbleGlassStyle = resolvedGlassStyle
+        bubbleGlassTint = resolvedGlassTint
+        let cursorGlass = Self.migrateAgentGlass(
+            styleKey: Keys.cursorBubbleGlassStyle,
+            tintKey: Keys.cursorBubbleGlassTint,
+            globalStyle: resolvedGlassStyle,
+            globalTint: resolvedGlassTint
+        )
+        cursorBubbleGlassStyle = cursorGlass.style
+        cursorBubbleGlassTint = cursorGlass.tint
+        let codexGlass = Self.migrateAgentGlass(
+            styleKey: Keys.codexBubbleGlassStyle,
+            tintKey: Keys.codexBubbleGlassTint,
+            globalStyle: resolvedGlassStyle,
+            globalTint: resolvedGlassTint
+        )
+        codexBubbleGlassStyle = codexGlass.style
+        codexBubbleGlassTint = codexGlass.tint
+        let deepseekGlass = Self.migrateAgentGlass(
+            styleKey: Keys.deepseekBubbleGlassStyle,
+            tintKey: Keys.deepseekBubbleGlassTint,
+            globalStyle: resolvedGlassStyle,
+            globalTint: resolvedGlassTint
+        )
+        deepseekBubbleGlassStyle = deepseekGlass.style
+        deepseekBubbleGlassTint = deepseekGlass.tint
         cursorCapsuleColor = Self.loadColor(key: Keys.cursorCapsuleColor)
         codexCapsuleColor = Self.loadColor(key: Keys.codexCapsuleColor)
         deepseekCapsuleColor = Self.loadColor(key: Keys.deepseekCapsuleColor)
@@ -361,6 +443,50 @@ final class AppSettings {
         }
     }
 
+    /// Per-agent bubble glass. Webhook / warning bubbles keep `bubbleGlassStyle`.
+    func agentBubbleGlassStyle(for agent: AgentKind) -> BubbleGlassStyle {
+        switch agent {
+        case .cursor: cursorBubbleGlassStyle
+        case .codex: codexBubbleGlassStyle
+        case .deepseek: deepseekBubbleGlassStyle
+        }
+    }
+
+    func setAgentBubbleGlassStyle(_ style: BubbleGlassStyle, for agent: AgentKind) {
+        switch agent {
+        case .cursor: cursorBubbleGlassStyle = style
+        case .codex: codexBubbleGlassStyle = style
+        case .deepseek: deepseekBubbleGlassStyle = style
+        }
+    }
+
+    func agentBubbleGlassTint(for agent: AgentKind) -> Color? {
+        switch agent {
+        case .cursor: cursorBubbleGlassTint
+        case .codex: codexBubbleGlassTint
+        case .deepseek: deepseekBubbleGlassTint
+        }
+    }
+
+    func setAgentBubbleGlassTint(_ color: Color?, for agent: AgentKind) {
+        switch agent {
+        case .cursor: cursorBubbleGlassTint = color
+        case .codex: codexBubbleGlassTint = color
+        case .deepseek: deepseekBubbleGlassTint = color
+        }
+    }
+
+    /// Agent bubbles use that agent’s glass; webhook / warning use the global style.
+    func bubbleGlassStyle(for agent: AgentKind?) -> BubbleGlassStyle {
+        guard let agent else { return bubbleGlassStyle }
+        return agentBubbleGlassStyle(for: agent)
+    }
+
+    func bubbleGlassTint(for agent: AgentKind?) -> Color? {
+        guard let agent else { return bubbleGlassTint }
+        return agentBubbleGlassTint(for: agent)
+    }
+
     /// Persist pet center as fractions of the screen visible frame (resolution-independent).
     func savePetCenterRelativePosition(xPercent: Double, yPercent: Double) {
         let x = min(max(xPercent, 0), 1)
@@ -403,6 +529,32 @@ final class AppSettings {
         var bytes = [UInt8](repeating: 0, count: 32)
         _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func migrateAgentGlass(
+        styleKey: String,
+        tintKey: String,
+        globalStyle: BubbleGlassStyle,
+        globalTint: Color?
+    ) -> (style: BubbleGlassStyle, tint: Color?) {
+        let hasStyle = UserDefaults.standard.object(forKey: styleKey) != nil
+        let hasTint = UserDefaults.standard.object(forKey: tintKey) != nil
+        if hasStyle || hasTint {
+            return (
+                loadGlassStyle(key: styleKey, fallback: globalStyle),
+                loadColor(key: tintKey)
+            )
+        }
+        UserDefaults.standard.set(globalStyle.rawValue, forKey: styleKey)
+        persistColor(globalTint, key: tintKey)
+        return (globalStyle, globalTint)
+    }
+
+    private static func loadGlassStyle(key: String, fallback: BubbleGlassStyle) -> BubbleGlassStyle {
+        guard let raw = UserDefaults.standard.string(forKey: key),
+              let style = BubbleGlassStyle(rawValue: raw)
+        else { return fallback }
+        return style
     }
 
     private static func persistColor(_ color: Color?, key: String) {

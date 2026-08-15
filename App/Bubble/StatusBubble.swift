@@ -37,7 +37,7 @@ struct StatusBubble: View {
         let ink = prefersLightLabel ? Color.white : Color.black
         // Untinted: keep a dark brand capsule (white label) in both schemes.
         // Tinted: invert the capsule against ink for contrast on the fill.
-        // Per-agent custom capsule color (Integrations) overrides both.
+        // Per-agent custom capsule color (Agent Hook) overrides both.
         let defaultCapsuleFill = glassTint == nil ? Color.black : ink
         let defaultCapsuleContent =
             glassTint == nil
@@ -456,7 +456,7 @@ struct StatusBubble: View {
         return relativeLuminance(r: r, g: g, b: b) < 0.55
     }
 
-    /// Agent capsule fill/content: Integrations custom color wins over glass defaults.
+    /// Agent capsule fill/content: per-agent custom color wins over glass defaults.
     private static func resolvedAgentCapsuleColors(
         agent: AgentKind?,
         defaultFill: Color,

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 private enum SettingsPane: String, CaseIterable, Identifiable {
     case pet
+    case agentHook
     case appearance
     case integrations
     case receiveLog
@@ -18,6 +19,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .pet: String(localized: "Pet")
+        case .agentHook: String(localized: "Agent Hook")
         case .appearance: String(localized: "Appearance")
         case .integrations: String(localized: "Integrations")
         case .receiveLog: String(localized: "Receive Log")
@@ -28,15 +30,35 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         }
     }
 
-    var systemImage: String {
+    enum Icon {
+        case asset(String)
+        case system(String)
+    }
+
+    var icon: Icon {
         switch self {
-        case .pet: "heart.fill"
-        case .appearance: "paintbrush"
-        case .integrations: "link"
-        case .receiveLog: "tray.full"
-        case .about: "info.circle"
+        case .pet: .asset("HeartMenu")
+        case .agentHook: .system("point.bottomleft.forward.to.point.topright.scurvepath")
+        case .appearance: .system("paintbrush.fill")
+        case .integrations: .system("link")
+        case .receiveLog: .system("tray.full")
+        case .about: .system("info.circle")
         #if DEBUG
-        case .development: "hammer"
+        case .development: .system("hammer")
+        #endif
+        }
+    }
+
+    var iconColor: Color {
+        switch self {
+        case .pet: .red
+        case .agentHook: .blue
+        case .appearance: .purple
+        case .integrations: .blue
+        case .receiveLog: .indigo
+        case .about: Color(nsColor: .systemGray)
+        #if DEBUG
+        case .development: .orange
         #endif
         }
     }
@@ -54,18 +76,83 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     }
 }
 
+private struct SettingsSidebar: View {
+    @Binding var selection: SettingsPane?
+
+    var body: some View {
+        List(selection: $selection) {
+            Section {
+                ForEach([SettingsPane.pet, .agentHook, .appearance, .integrations]) { pane in
+                    SettingsSidebarRow(pane: pane)
+                }
+            }
+            Section {
+                SettingsSidebarRow(pane: .receiveLog)
+            }
+            Section {
+                SettingsSidebarRow(pane: .about)
+            }
+            #if DEBUG
+            Section {
+                SettingsSidebarRow(pane: .development)
+            }
+            #endif
+        }
+        .listStyle(.sidebar)
+        .environment(\.defaultMinListHeaderHeight, 0)
+        .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+        .toolbar(removing: .sidebarToggle)
+    }
+}
+
+private struct SettingsSidebarRow: View {
+    let pane: SettingsPane
+
+    var body: some View {
+        Label {
+            Text(pane.title)
+        } icon: {
+            SettingsSidebarIcon(pane: pane)
+        }
+        .tag(pane)
+    }
+}
+
+private struct SettingsSidebarIcon: View {
+    let pane: SettingsPane
+
+    private let side: CGFloat = 24
+    private let iconSize: CGFloat = 15
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: side * 0.25, style: .continuous)
+            .fill(pane.iconColor)
+            .frame(width: side, height: side)
+            .overlay {
+                switch pane.icon {
+                case .asset(let name):
+                    Image(name)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: iconSize, height: iconSize)
+                case .system(let name):
+                    Image(systemName: name)
+                        .font(.system(size: iconSize, weight: .medium))
+                        .symbolRenderingMode(.monochrome)
+                }
+            }
+            .foregroundStyle(.white)
+    }
+}
+
 struct SettingsView: View {
     @State private var selection: SettingsPane? = .pet
     @Bindable private var navigator = SettingsNavigator.shared
 
     var body: some View {
         NavigationSplitView {
-            List(SettingsPane.allCases, selection: $selection) { pane in
-                Label(pane.title, systemImage: pane.systemImage)
-                    .tag(pane)
-            }
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
-            .toolbar(removing: .sidebarToggle)
+            SettingsSidebar(selection: $selection)
         } detail: {
             // Detail panes own in-column sub-navigation and apply
             // `settingsDetailChrome` for the System Settings–style toolbar.
@@ -96,6 +183,8 @@ struct SettingsView: View {
         switch selection ?? .pet {
         case .pet:
             PetSettingsPane()
+        case .agentHook:
+            AgentHookSettingsPane()
         case .appearance:
             AppearanceSettingsPane()
         case .integrations:
@@ -183,49 +272,10 @@ private struct AppearanceSettingsPane: View {
             } header: {
                 Text(String(localized: "Status Bubble"))
             }
-
-            Section {
-                Picker(String(localized: "Glass Style"), selection: $settings.bubbleGlassStyle) {
-                    ForEach(BubbleGlassStyle.allCases) { style in
-                        Text(style.title).tag(style)
-                    }
-                }
-                .pickerStyle(.radioGroup)
-
-                Text(String(localized: "Clear is see-through glass; Regular is the system glass; Translucent skips Liquid Glass and uses a soft fill."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                ColorPicker(
-                    String(localized: "Glass Tint"),
-                    selection: glassTintBinding,
-                    supportsOpacity: true
-                )
-
-                if settings.bubbleGlassTint != nil {
-                    Button(String(localized: "Reset Tint")) {
-                        settings.bubbleGlassTint = nil
-                    }
-                }
-
-                Text(String(localized: "Optional color wash on the glass. Reset removes the tint."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text(String(localized: "Bubble Glass"))
-            }
         }
         .formStyle(.grouped)
         .padding()
         .settingsDetailChrome(title: SettingsPane.appearance.title)
-    }
-
-    /// ColorPicker needs a non-optional `Color`; writing always enables a custom tint.
-    private var glassTintBinding: Binding<Color> {
-        Binding(
-            get: { settings.bubbleGlassTint ?? .accentColor },
-            set: { settings.bubbleGlassTint = $0 }
-        )
     }
 }
 
@@ -233,134 +283,10 @@ private struct IntegrationsSettingsPane: View {
     @State private var runtime = PetRuntime.shared
     @Bindable private var settings = AppSettings.shared
     @Bindable private var navigator = SettingsNavigator.shared
-    @State private var advancedAgent: AgentKind?
 
     var body: some View {
-        Group {
-            if let advancedAgent {
-                AgentHookSpriteSettingsView(agent: advancedAgent) {
-                    self.advancedAgent = nil
-                }
-            } else {
-                integrationsForm
-                    .settingsDetailChrome(title: SettingsPane.integrations.title)
-            }
-        }
-        .onChange(of: navigator.pendingIntegrationsAnchor) { _, _ in
-            applyPendingIntegrationsAnchor()
-        }
-        .onAppear {
-            applyPendingIntegrationsAnchor()
-        }
-    }
-
-    /// Leave advanced sub-page if needed so the webhook section can scroll into view.
-    private func applyPendingIntegrationsAnchor() {
-        guard navigator.pendingIntegrationsAnchor != nil else { return }
-        if advancedAgent != nil {
-            advancedAgent = nil
-        }
-    }
-
-    private var integrationsForm: some View {
         ScrollViewReader { proxy in
             Form {
-                Section {
-                    LabeledContent(String(localized: "Status")) {
-                        Text(
-                            runtime.cursorHooksInstalled
-                                ? String(localized: "Installed")
-                                : String(localized: "Not installed")
-                        )
-                    }
-
-                    if runtime.cursorHooksInstalled {
-                        Button(String(localized: "Uninstall Cursor Hooks")) {
-                            runtime.uninstallCursorHooks()
-                        }
-                    } else {
-                        Button(String(localized: "Install Cursor Hooks")) {
-                            runtime.installCursorHooks()
-                        }
-                    }
-
-                    Text(String(localized: "Cursor has no approval / waiting-for-you hook event yet."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    agentCapsuleColorControls(for: .cursor)
-
-                    Button(String(localized: "Advanced Settings")) {
-                        advancedAgent = .cursor
-                    }
-                } header: {
-                    Text(String(localized: "Cursor"))
-                }
-
-                Section {
-                    LabeledContent(String(localized: "Status")) {
-                        Text(
-                            runtime.codexHooksInstalled
-                                ? String(localized: "Installed")
-                                : String(localized: "Not installed")
-                        )
-                    }
-
-                    if runtime.codexHooksInstalled {
-                        Button(String(localized: "Uninstall Codex Hooks")) {
-                            runtime.uninstallCodexHooks()
-                        }
-                    } else {
-                        Button(String(localized: "Install Codex Hooks")) {
-                            runtime.installCodexHooks()
-                        }
-                    }
-
-                    Text(String(localized: "Codex PermissionRequest starts as “is reviewing”, then escalates to “got stuck?” after a few seconds."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    agentCapsuleColorControls(for: .codex)
-
-                    Button(String(localized: "Advanced Settings")) {
-                        advancedAgent = .codex
-                    }
-                } header: {
-                    Text(String(localized: "Codex"))
-                }
-
-                Section {
-                    LabeledContent(String(localized: "Status")) {
-                        Text(
-                            runtime.deepseekPluginInstalled
-                                ? String(localized: "Installed")
-                                : String(localized: "Not installed")
-                        )
-                    }
-
-                    if runtime.deepseekPluginInstalled {
-                        Button(String(localized: "Uninstall DeepSeek Plugin")) {
-                            runtime.uninstallDeepSeekPlugin()
-                        }
-                    } else {
-                        Button(String(localized: "Install DeepSeek Plugin")) {
-                            runtime.installDeepSeekPlugin()
-                        }
-                    }
-
-                    Text(String(localized: "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Clicking the bubble does not switch apps yet."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    agentCapsuleColorControls(for: .deepseek)
-
-                    Button(String(localized: "Advanced Settings")) {
-                        advancedAgent = .deepseek
-                    }
-                } header: {
-                    Text(String(localized: "DeepSeek Harness"))
-                }
-
                 Section {
                     Toggle(String(localized: "Listen on localhost"), isOn: $settings.webhookEnabled)
 
@@ -458,24 +384,18 @@ private struct IntegrationsSettingsPane: View {
             }
             .formStyle(.grouped)
             .padding()
+            .settingsDetailChrome(title: SettingsPane.integrations.title)
             .onAppear {
                 scrollToPendingAnchor(using: proxy)
             }
             .onChange(of: navigator.pendingIntegrationsAnchor) { _, _ in
                 scrollToPendingAnchor(using: proxy)
             }
-            .onChange(of: advancedAgent) { _, newValue in
-                // After leaving Advanced Settings, honor a pending webhook scroll.
-                if newValue == nil {
-                    scrollToPendingAnchor(using: proxy)
-                }
-            }
         }
     }
 
     private func scrollToPendingAnchor(using proxy: ScrollViewProxy) {
         guard let anchor = navigator.consumePendingIntegrationsAnchor() else { return }
-        // Pane / Form layout may land a tick after the sidebar selection flips.
         Task { @MainActor in
             for delay in [Duration.milliseconds(16), .milliseconds(120)] {
                 try? await Task.sleep(for: delay)
@@ -484,33 +404,6 @@ private struct IntegrationsSettingsPane: View {
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private func agentCapsuleColorControls(for agent: AgentKind) -> some View {
-        ColorPicker(
-            String(localized: "Capsule Color"),
-            selection: agentCapsuleColorBinding(for: agent),
-            supportsOpacity: false
-        )
-
-        if settings.agentCapsuleColor(for: agent) != nil {
-            Button(String(localized: "Reset Capsule Color")) {
-                settings.setAgentCapsuleColor(nil, for: agent)
-            }
-        }
-
-        Text(String(localized: "Optional fill for this agent’s status capsule. Reset restores the default black capsule with a white label."))
-            .font(.caption)
-            .foregroundStyle(.secondary)
-    }
-
-    /// ColorPicker needs a non-optional `Color`; writing always enables a custom fill.
-    private func agentCapsuleColorBinding(for agent: AgentKind) -> Binding<Color> {
-        Binding(
-            get: { settings.agentCapsuleColor(for: agent) ?? .black },
-            set: { settings.setAgentCapsuleColor($0, for: agent) }
-        )
     }
 }
 
