@@ -1,14 +1,12 @@
 import AiboCore
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 private enum SettingsPane: String, CaseIterable, Identifiable {
     case pet
     case agentHook
+    case webhook
     case appearance
-    case integrations
-    case receiveLog
     case about
     #if DEBUG
     case development
@@ -20,9 +18,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .pet: String(localized: "Pet")
         case .agentHook: String(localized: "Agent Hook")
+        case .webhook: String(localized: "Webhook")
         case .appearance: String(localized: "Appearance")
-        case .integrations: String(localized: "Integrations")
-        case .receiveLog: String(localized: "Receive Log")
         case .about: String(localized: "About")
         #if DEBUG
         case .development: String(localized: "Development")
@@ -38,13 +35,12 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     var icon: Icon {
         switch self {
         case .pet: .asset("HeartMenu")
-        case .agentHook: .system("point.bottomleft.forward.to.point.topright.scurvepath")
+        case .agentHook: .system("poweroutlet.type.b.fill")
+        case .webhook: .system("globe")
         case .appearance: .system("paintbrush.fill")
-        case .integrations: .system("link")
-        case .receiveLog: .system("tray.full")
-        case .about: .system("info.circle")
+        case .about: .system("info.circle.fill")
         #if DEBUG
-        case .development: .system("hammer")
+        case .development: .system("hammer.fill")
         #endif
         }
     }
@@ -53,9 +49,8 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         switch self {
         case .pet: .red
         case .agentHook: .blue
+        case .webhook: .blue
         case .appearance: .purple
-        case .integrations: .blue
-        case .receiveLog: .indigo
         case .about: Color(nsColor: .systemGray)
         #if DEBUG
         case .development: .orange
@@ -66,8 +61,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     init?(_ destination: SettingsNavigator.Pane) {
         switch destination {
         case .appearance: self = .appearance
-        case .integrations: self = .integrations
-        case .receiveLog: self = .receiveLog
+        case .webhook: self = .webhook
         case .about: self = .about
         #if DEBUG
         case .development: self = .development
@@ -82,12 +76,9 @@ private struct SettingsSidebar: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                ForEach([SettingsPane.pet, .agentHook, .appearance, .integrations]) { pane in
+                ForEach([SettingsPane.pet, .agentHook, .webhook, .appearance]) { pane in
                     SettingsSidebarRow(pane: pane)
                 }
-            }
-            Section {
-                SettingsSidebarRow(pane: .receiveLog)
             }
             Section {
                 SettingsSidebarRow(pane: .about)
@@ -122,7 +113,8 @@ private struct SettingsSidebarIcon: View {
     let pane: SettingsPane
 
     private let side: CGFloat = 24
-    private let iconSize: CGFloat = 15
+    private let assetIconSize: CGFloat = 18 
+    private let symbolIconSize: CGFloat = 16
 
     var body: some View {
         RoundedRectangle(cornerRadius: side * 0.25, style: .continuous)
@@ -135,14 +127,33 @@ private struct SettingsSidebarIcon: View {
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: iconSize, height: iconSize)
+                        .frame(width: assetIconSize, height: assetIconSize)
                 case .system(let name):
-                    Image(systemName: name)
-                        .font(.system(size: iconSize, weight: .medium))
-                        .symbolRenderingMode(.monochrome)
+                    Image(nsImage: Self.centeredSymbol(name, pointSize: symbolIconSize))
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: symbolIconSize, height: symbolIconSize)
                 }
             }
             .foregroundStyle(.white)
+    }
+
+    /// SF Symbols keep a text-baseline alignment rect, so `Image(systemName:)`
+    /// sits low in a square. Bake a plain template image to center geometrically.
+    private static func centeredSymbol(_ name: String, pointSize: CGFloat) -> NSImage {
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
+        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+        else {
+            return NSImage()
+        }
+        let baked = NSImage(size: symbol.size, flipped: false) { rect in
+            symbol.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+            return true
+        }
+        baked.isTemplate = true
+        return baked
     }
 }
 
@@ -187,10 +198,8 @@ struct SettingsView: View {
             AgentHookSettingsPane()
         case .appearance:
             AppearanceSettingsPane()
-        case .integrations:
-            IntegrationsSettingsPane()
-        case .receiveLog:
-            ReceiveLogSettingsPane()
+        case .webhook:
+            WebhookSettingsPane()
         case .about:
             AboutSettingsPane()
         #if DEBUG
@@ -276,248 +285,6 @@ private struct AppearanceSettingsPane: View {
         .formStyle(.grouped)
         .padding()
         .settingsDetailChrome(title: SettingsPane.appearance.title)
-    }
-}
-
-private struct IntegrationsSettingsPane: View {
-    @State private var runtime = PetRuntime.shared
-    @Bindable private var settings = AppSettings.shared
-    @Bindable private var navigator = SettingsNavigator.shared
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            Form {
-                Section {
-                    Toggle(String(localized: "Listen on localhost"), isOn: $settings.webhookEnabled)
-
-                    LabeledContent(String(localized: "Listener")) {
-                        Text(
-                            runtime.webhookListening
-                                ? String(localized: "Running")
-                                : String(localized: "Stopped")
-                        )
-                    }
-
-                    LabeledContent(String(localized: "URL")) {
-                        Text(settings.webhookURLString)
-                            .textSelection(.enabled)
-                    }
-
-                    LabeledContent(String(localized: "Public URL")) {
-                        TextField(
-                            String(localized: "https://…/webhook"),
-                            text: $settings.publicWebhookURLString
-                        )
-                        .labelsHidden()
-                        .textFieldStyle(.roundedBorder)
-                    }
-
-                    LabeledContent(String(localized: "Tunnel")) {
-                        Text(runtime.tunnelHealthStatus.settingsLabel)
-                    }
-
-                    LabeledContent(String(localized: "Port")) {
-                        TextField(
-                            String(localized: "Port"),
-                            value: $settings.webhookPort,
-                            format: .number
-                        )
-                        .labelsHidden()
-                        .frame(width: 80)
-                    }
-
-                    LabeledContent(String(localized: "Shared Secret")) {
-                        Text(settings.webhookSecret)
-                            .font(.caption.monospaced())
-                            .textSelection(.enabled)
-                            .lineLimit(2)
-                    }
-
-                    HStack {
-                        Button(String(localized: "Copy URL")) {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(settings.webhookURLString, forType: .string)
-                        }
-                        Button(String(localized: "Copy Secret")) {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(settings.webhookSecret, forType: .string)
-                        }
-                        Button(String(localized: "Regenerate Secret")) {
-                            settings.regenerateWebhookSecret()
-                        }
-                        Button(String(localized: "Check Tunnel")) {
-                            TunnelHealthMonitor.shared.scheduleCheck(reason: .manual)
-                        }
-                        .disabled(
-                            !settings.webhookEnabled
-                                || settings.resolvedPublicWebhookURL == nil
-                                || runtime.tunnelHealthStatus == .checking
-                        )
-                    }
-
-                    Picker(String(localized: "Dismiss Bubble"), selection: $settings.webhookDismissMode) {
-                        ForEach(WebhookDismissMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.radioGroup)
-
-                    if settings.webhookDismissMode == .afterSeconds {
-                        LabeledContent(String(localized: "Seconds")) {
-                            TextField(
-                                String(localized: "Seconds"),
-                                value: $settings.webhookAutoDismissSeconds,
-                                format: .number
-                            )
-                            .labelsHidden()
-                            .frame(width: 64)
-                        }
-                    }
-
-                    Text(String(localized: "Bound to 127.0.0.1 only. Set Public URL to your tunnel HTTPS endpoint (Cloudflare Tunnel, Tailscale Funnel, etc.) so aibo can warn after sleep if the tunnel is down. Requests are shown as raw bubble text for now — no LLM rewrite yet. Default dismiss is click; optional auto-dismiss uses the seconds above."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text(String(localized: "Remote Webhook"))
-                }
-                .id(SettingsNavigator.IntegrationsAnchor.remoteWebhook)
-            }
-            .formStyle(.grouped)
-            .padding()
-            .settingsDetailChrome(title: SettingsPane.integrations.title)
-            .onAppear {
-                scrollToPendingAnchor(using: proxy)
-            }
-            .onChange(of: navigator.pendingIntegrationsAnchor) { _, _ in
-                scrollToPendingAnchor(using: proxy)
-            }
-        }
-    }
-
-    private func scrollToPendingAnchor(using proxy: ScrollViewProxy) {
-        guard let anchor = navigator.consumePendingIntegrationsAnchor() else { return }
-        Task { @MainActor in
-            for delay in [Duration.milliseconds(16), .milliseconds(120)] {
-                try? await Task.sleep(for: delay)
-                withAnimation {
-                    proxy.scrollTo(anchor, anchor: .top)
-                }
-            }
-        }
-    }
-}
-
-private struct ReceiveLogSettingsPane: View {
-    @State private var runtime = PetRuntime.shared
-    @State private var confirmClear = false
-    @State private var exportError: String?
-
-    private static let timestampFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .medium
-        return formatter
-    }()
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(receiveLogStatusText)
-                .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Button(String(localized: "Export…")) {
-                    exportLog()
-                }
-                .disabled(runtime.receiveLogEntries.isEmpty)
-
-                Button(String(localized: "Clear"), role: .destructive) {
-                    confirmClear = true
-                }
-                .disabled(runtime.receiveLogEntries.isEmpty)
-            }
-            .padding(.horizontal)
-            .padding(.top)
-
-            if let exportError {
-                Text(exportError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .padding(.horizontal)
-            }
-
-            if runtime.receiveLogEntries.isEmpty {
-                ContentUnavailableView(
-                    String(localized: "Receive Log"),
-                    systemImage: "tray",
-                    description: Text(String(localized: "Webhook deliveries show up here with timestamp and sender. The list shows the newest 100; export includes everything on disk."))
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(runtime.receiveLogEntries) { entry in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(entry.source)
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(.quaternary, in: Capsule())
-                            Spacer()
-                            Text(Self.timestampFormatter.string(from: entry.receivedAt))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Text(entry.message)
-                            .font(.body)
-                            .textSelection(.enabled)
-                    }
-                    .padding(.vertical, 2)
-                }
-                .listStyle(.inset)
-            }
-        }
-        .settingsDetailChrome(title: SettingsPane.receiveLog.title)
-        .confirmationDialog(
-            String(localized: "Clear all receive records?"),
-            isPresented: $confirmClear,
-            titleVisibility: .visible
-        ) {
-            Button(String(localized: "Clear"), role: .destructive) {
-                runtime.clearReceiveLog()
-            }
-            Button(String(localized: "Cancel"), role: .cancel) {}
-        }
-    }
-
-    private var receiveLogStatusText: String {
-        if runtime.receiveLogTotalCount == 0 {
-            return String(localized: "No receive records yet.")
-        }
-        if runtime.receiveLogTotalCount > runtime.receiveLogEntries.count {
-            return String(
-                localized: "Showing \(runtime.receiveLogEntries.count) of \(runtime.receiveLogTotalCount)"
-            )
-        }
-        return String(localized: "\(runtime.receiveLogTotalCount) records")
-    }
-
-    private func exportLog() {
-        exportError = nil
-        guard let data = runtime.exportReceiveLog() else {
-            exportError = String(localized: "Failed to export receive log")
-            return
-        }
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "aibo-receive-log.json"
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            try data.write(to: url, options: .atomic)
-        } catch {
-            exportError = String(localized: "Failed to write export file")
-        }
     }
 }
 

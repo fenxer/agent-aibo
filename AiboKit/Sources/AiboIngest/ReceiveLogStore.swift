@@ -6,7 +6,7 @@ public enum ReceiveLogStore {
     /// Soft cap on disk; oldest lines are dropped beyond this.
     public static let diskMaxEntries = 5_000
     /// How many newest entries the UI should keep in memory.
-    public static let uiDisplayLimit = 100
+    public static let uiDisplayLimit = 200
 
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()

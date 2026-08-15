@@ -12,7 +12,7 @@ enum WebhookDismissMode: String, CaseIterable, Identifiable, Sendable, Hashable 
     var title: String {
         switch self {
         case .onClick: String(localized: "Click to Dismiss")
-        case .afterSeconds: String(localized: "After N Seconds")
+        case .afterSeconds: String(localized: "Auto Disappear")
         }
     }
 }

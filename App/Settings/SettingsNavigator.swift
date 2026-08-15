@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-/// Deep-links into the Settings scene sidebar (Integrations, etc.).
+/// Deep-links into the Settings scene sidebar (Webhook, etc.).
 ///
 /// Opening Settings must go through `SettingsLink` (calling `openSettings()` /
 /// `showSettingsWindow:` warns and often no-ops on current SDKs).
@@ -16,24 +16,18 @@ final class SettingsNavigator {
 
     enum Pane: String, Equatable {
         case appearance
-        case integrations
-        case receiveLog
+        case webhook
         case about
         #if DEBUG
         case development
         #endif
     }
 
-    /// Scroll target inside Integrations (consumed by `IntegrationsSettingsPane`).
-    enum IntegrationsAnchor: String, Equatable {
-        case remoteWebhook
-    }
-
     /// Consumed by `SettingsView` when the window appears or this value changes.
     private(set) var pendingPane: Pane?
 
-    /// Consumed by Integrations after the pane is selected (may outlive `pendingPane`).
-    private(set) var pendingIntegrationsAnchor: IntegrationsAnchor?
+    /// Consumed by `WebhookSettingsPane` so a deep link pops Receive Logs.
+    private(set) var pendingRevealWebhookRoot = false
 
     private var bringToFrontTask: Task<Void, Never>?
     private var menuWillSendActionObserver: NSObjectProtocol?
@@ -52,17 +46,10 @@ final class SettingsNavigator {
         }
     }
 
-    /// Prepare Integrations selection before a `SettingsLink` opens the scene.
-    func prepareIntegrations() {
-        pendingPane = .integrations
-        pendingIntegrationsAnchor = nil
-        prepareForOpeningSettings()
-    }
-
-    /// Integrations + scroll to Remote Webhook (tunnel / webhook menu & warning).
+    /// Webhook root (tunnel / webhook menu & warning). Pops Receive Logs if open.
     func prepareRemoteWebhook() {
-        pendingPane = .integrations
-        pendingIntegrationsAnchor = .remoteWebhook
+        pendingPane = .webhook
+        pendingRevealWebhookRoot = true
         prepareForOpeningSettings()
     }
 
@@ -75,7 +62,7 @@ final class SettingsNavigator {
     /// Drop a stale deep link (e.g. plain Settings… after a failed hop).
     func clearPendingDeepLink() {
         pendingPane = nil
-        pendingIntegrationsAnchor = nil
+        pendingRevealWebhookRoot = false
     }
 
     func consumePendingPane() -> Pane? {
@@ -84,10 +71,10 @@ final class SettingsNavigator {
         return pane
     }
 
-    func consumePendingIntegrationsAnchor() -> IntegrationsAnchor? {
-        let anchor = pendingIntegrationsAnchor
-        pendingIntegrationsAnchor = nil
-        return anchor
+    func consumePendingRevealWebhookRoot() -> Bool {
+        let value = pendingRevealWebhookRoot
+        pendingRevealWebhookRoot = false
+        return value
     }
 
     /// Stay `.accessory` (no Dock). Activate so Settings can become key.
@@ -111,8 +98,8 @@ final class SettingsNavigator {
 
         if menuItemMatchesWebhookConnectivity(item) {
             // Before SettingsLink opens Settings — pending is ready for onAppear/onChange.
-            pendingPane = .integrations
-            pendingIntegrationsAnchor = .remoteWebhook
+            pendingPane = .webhook
+            pendingRevealWebhookRoot = true
             prepareForOpeningSettings()
             return
         }

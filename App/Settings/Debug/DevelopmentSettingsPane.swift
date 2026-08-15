@@ -128,7 +128,7 @@ struct DevelopmentSettingsPane: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(String(localized: "Inject skips HTTP and stacks a bubble from the payload text. POST signs the body and hits the localhost listener (enable it in Integrations first). Neither writes to Receive Log."))
+            Text(String(localized: "Inject skips HTTP and stacks a bubble from the payload text. POST signs the body and hits the localhost listener (enable it in Webhook first). Neither writes to Receive Log."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {

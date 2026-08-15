@@ -16,7 +16,7 @@ final class PetRuntime {
     private(set) var deepseekPluginInstalled = false
     private(set) var webhookListening = false
     private(set) var lastErrorMessage: String?
-    /// Last tunnel probe result for Integrations (Unknown / OK / Down / …).
+    /// Last tunnel probe result for Webhook settings (Unknown / OK / Down / …).
     private(set) var tunnelHealthStatus: TunnelHealthStatus = .unknown
     /// Newest-first webhook receive history shown in Settings (capped).
     private(set) var receiveLogEntries: [ReceiveLogEntry] = []
@@ -50,7 +50,7 @@ final class PetRuntime {
             switch self {
             case .ok: "checkmark.circle.fill"
             case .down, .listenerStopped: "xmark.octagon.fill"
-            case .checking: "wave.3.right"
+            case .checking: "wave.3.left"
             case .unknown, .skipped: "questionmark.circle"
             }
         }
@@ -732,7 +732,7 @@ final class PetRuntime {
     /// Posts a signed webhook to the local listener (requires webhook enabled).
     func postTestWebhook(body: Data) async -> String? {
         guard AppSettings.shared.webhookEnabled else {
-            return String(localized: "Enable the webhook listener in Integrations first.")
+            return String(localized: "Enable the webhook listener in Webhook first.")
         }
         let secret = AppSettings.shared.webhookSecret
         let urlString = AppSettings.shared.webhookURLString
