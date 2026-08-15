@@ -11,8 +11,8 @@ enum BubblePlacement: String, CaseIterable, Identifiable, Sendable, Hashable {
 
     var title: String {
         switch self {
-        case .top: String(localized: "Above")
-        case .bottom: String(localized: "Below")
+        case .top: String(localized: "Up")
+        case .bottom: String(localized: "Down")
         case .left: String(localized: "Left")
         case .right: String(localized: "Right")
         }

@@ -11,9 +11,20 @@ enum AppThemeMode: String, CaseIterable, Identifiable, Sendable, Hashable {
 
     var title: String {
         switch self {
-        case .system: String(localized: "Follow System")
+        case .system: String(localized: "Auto")
         case .light: String(localized: "Light")
         case .dark: String(localized: "Dark")
+        }
+    }
+
+    /// Settings radio order: Light / Dark / Auto.
+    static var settingsCases: [AppThemeMode] { [.light, .dark, .system] }
+
+    func resolvedColorScheme(system: ColorScheme) -> ColorScheme {
+        switch self {
+        case .light: .light
+        case .dark: .dark
+        case .system: system
         }
     }
 

@@ -6,7 +6,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     case pet
     case agentHook
     case webhook
-    case appearance
+    case general
     case about
     #if DEBUG
     case development
@@ -19,7 +19,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .pet: String(localized: "Pet")
         case .agentHook: String(localized: "Agent Hook")
         case .webhook: String(localized: "Webhook")
-        case .appearance: String(localized: "Appearance")
+        case .general: String(localized: "General")
         case .about: String(localized: "About")
         #if DEBUG
         case .development: String(localized: "Development")
@@ -37,7 +37,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .pet: .asset("HeartMenu")
         case .agentHook: .system("poweroutlet.type.b.fill")
         case .webhook: .system("globe")
-        case .appearance: .system("paintbrush.fill")
+        case .general: .system("gearshape.fill")
         case .about: .system("info.circle.fill")
         #if DEBUG
         case .development: .system("hammer.fill")
@@ -50,7 +50,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .pet: .red
         case .agentHook: .blue
         case .webhook: .blue
-        case .appearance: .purple
+        case .general: .purple
         case .about: Color(nsColor: .systemGray)
         #if DEBUG
         case .development: .orange
@@ -60,7 +60,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 
     init?(_ destination: SettingsNavigator.Pane) {
         switch destination {
-        case .appearance: self = .appearance
+        case .general: self = .general
         case .webhook: self = .webhook
         case .about: self = .about
         #if DEBUG
@@ -76,7 +76,7 @@ private struct SettingsSidebar: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                ForEach([SettingsPane.pet, .agentHook, .webhook, .appearance]) { pane in
+                ForEach([SettingsPane.pet, .agentHook, .webhook, .general]) { pane in
                     SettingsSidebarRow(pane: pane)
                 }
             }
@@ -196,8 +196,8 @@ struct SettingsView: View {
             PetSettingsPane()
         case .agentHook:
             AgentHookSettingsPane()
-        case .appearance:
-            AppearanceSettingsPane()
+        case .general:
+            GeneralSettingsPane()
         case .webhook:
             WebhookSettingsPane()
         case .about:
@@ -208,70 +208,6 @@ struct SettingsView: View {
                 .settingsDetailChrome(title: SettingsPane.development.title)
         #endif
         }
-    }
-}
-
-private struct AppearanceSettingsPane: View {
-    @Bindable private var settings = AppSettings.shared
-
-    var body: some View {
-        Form {
-            Section {
-                Picker(String(localized: "Theme"), selection: $settings.themeMode) {
-                    ForEach(AppThemeMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.radioGroup)
-            } header: {
-                Text(String(localized: "Theme"))
-            }
-
-            Section {
-                Toggle(
-                    String(localized: "Music Notes"),
-                    isOn: $settings.musicNotesEnabled
-                )
-
-                Text(String(localized: "When any app reports Now Playing (Apple Music, Spotify, NetEase, …), notes float up from the pet. Uses MediaRemoteAdapter plus Music/Spotify distributed notifications as fallback."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                DisclosureGroup(String(localized: "Advanced")) {
-                    TextField(
-                        String(localized: "Custom notification names"),
-                        text: $settings.customMusicNotificationNames,
-                        prompt: Text("com.example.playerInfo"),
-                        axis: .vertical
-                    )
-                    .lineLimit(3...6)
-
-                    Text(String(localized: "Optional fallback: one distributed notification name per line. Payload should include Player State = Playing / Paused. Most Chinese clients do not post these — Now Playing covers them instead."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text(String(localized: "Music"))
-            }
-
-            Section {
-                Picker(String(localized: "Bubble Position"), selection: $settings.bubblePlacement) {
-                    ForEach(BubblePlacement.allCases) { placement in
-                        Text(placement.title).tag(placement)
-                    }
-                }
-                .pickerStyle(.radioGroup)
-
-                Text(String(localized: "Choose where the status popover appears relative to the pet."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text(String(localized: "Status Bubble"))
-            }
-        }
-        .formStyle(.grouped)
-        .padding()
-        .settingsDetailChrome(title: SettingsPane.appearance.title)
     }
 }
 

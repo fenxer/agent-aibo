@@ -1,6 +1,11 @@
 import SwiftUI
 
-/// System Settings–style detail toolbar: nav capsule + leading title.
+/// System Settings–style detail toolbar: nav capsule, plus a leading title
+/// on secondary pages only.
+///
+/// Root panes already name themselves in the sidebar and in-content headers,
+/// so repeating the title in the toolbar is noise. Show it only when
+/// `canGoBack` is true (a pushed settings page).
 ///
 /// Relies on `SettingsWindowConfigurator` forcing `NSWindow.toolbarStyle`
 /// off `.preference` (which centers items). With `.unified`, navigation
@@ -43,14 +48,16 @@ struct SettingsDetailChromeModifier<Trailing: ToolbarContent>: ViewModifier {
                     .controlGroupStyle(.navigation)
                 }
 
-                ToolbarItem(placement: .navigation) {
-                    Text(title)
-                        .font(.title3)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .accessibilityAddTraits(.isHeader)
+                if canGoBack {
+                    ToolbarItem(placement: .navigation) {
+                        Text(title)
+                            .font(.title3)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .accessibilityAddTraits(.isHeader)
+                    }
+                    .sharedBackgroundVisibility(.hidden)
                 }
-                .sharedBackgroundVisibility(.hidden)
 
                 ToolbarSpacer(.flexible)
 

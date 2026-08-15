@@ -15,7 +15,7 @@ final class SettingsNavigator {
     static let shared = SettingsNavigator()
 
     enum Pane: String, Equatable {
-        case appearance
+        case general
         case webhook
         case about
         #if DEBUG

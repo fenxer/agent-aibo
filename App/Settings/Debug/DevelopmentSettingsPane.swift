@@ -192,7 +192,7 @@ struct DevelopmentSettingsPane: View {
                 isOn: debugMusicPlayingBinding
             )
 
-            Text(String(localized: "Forces the music-note rise overlay without a real player. Appearance → Music Notes must stay on (default)."))
+            Text(String(localized: "Forces the music-note rise overlay without a real player. General → Music Notes must stay on (default)."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
