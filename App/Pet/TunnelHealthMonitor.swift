@@ -12,7 +12,7 @@ final class TunnelHealthMonitor {
         case wake
         /// Local network became usable (unsatisfied → satisfied, or interface set changed while up).
         case pathBecameSatisfied
-        /// Local network dropped — mark down without HTTP.
+        /// Local network dropped — mark down without HTTP (Warning present is deferred).
         case pathBecameUnsatisfied
         case settingsChanged
         case manual

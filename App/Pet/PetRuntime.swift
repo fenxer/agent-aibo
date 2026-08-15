@@ -58,15 +58,20 @@ final class PetRuntime {
 
     private static let tunnelWarningBubbleID = "tunnel:health"
     private static let tunnelProbeTimeout: TimeInterval = 10
-    /// First time we detected tunnel down; kept across reprobes so relative time doesn't jump.
+    /// Automatic Down (wake / path / recovery) waits this long before the Warning bubble.
+    /// Manual Check and settings changes present immediately. One-shot, not a poll.
+    private static let tunnelWarningPresentGrace: Duration = .seconds(12)
+    /// First time the warning was actually shown; kept across reprobes so relative time doesn't jump.
     private var tunnelWarningDetectedAt: Date?
     /// Consecutive `.ok` probes while a warning may be up — recovery series needs 2 before clear.
     private var consecutiveTunnelOKCount = 0
+    /// Pending Warning present after present-grace; nil when none armed.
+    private var tunnelWarningPresentTask: Task<Void, Never>?
 
     enum TunnelHealthClearPolicy: Sendable {
-        /// Manual / settings: one OK clears the warning.
+        /// Manual / settings: one OK clears; Down presents immediately.
         case immediate
-        /// Wake / path recovery series: require two consecutive OKs before clearing.
+        /// Wake / path recovery: two OKs to clear; Down waits for present grace.
         case recovery
     }
 
@@ -192,6 +197,7 @@ final class PetRuntime {
         watchdogTask?.cancel()
         tunnelProbeTask?.cancel()
         tunnelProbeTask = nil
+        cancelDeferredTunnelWarning()
         for task in cursorUsingToolStallTasks.values {
             task.cancel()
         }
@@ -297,6 +303,7 @@ final class PetRuntime {
     }
 
     /// Local network path is unsatisfied — tunnel cannot work; skip HTTP.
+    /// Warning bubble uses recovery grace (lid-open / Wi-Fi reconnect is usually brief).
     func markTunnelOfflineFromLocalPath() {
         guard AppSettings.shared.webhookEnabled else {
             applyTunnelHealth(.skipped, clearPolicy: .immediate)
@@ -306,7 +313,7 @@ final class PetRuntime {
             applyTunnelHealth(.skipped, clearPolicy: .immediate)
             return
         }
-        applyTunnelHealth(.down, clearPolicy: .immediate)
+        applyTunnelHealth(.down, clearPolicy: .recovery)
     }
 
     private func applyTunnelHealth(_ status: TunnelHealthStatus, clearPolicy: TunnelHealthClearPolicy) {
@@ -314,8 +321,14 @@ final class PetRuntime {
         case .down:
             consecutiveTunnelOKCount = 0
             tunnelHealthStatus = .down
-            presentTunnelWarningBubble()
+            if clearPolicy == .immediate {
+                cancelDeferredTunnelWarning()
+                presentTunnelWarningBubble()
+            } else {
+                scheduleDeferredTunnelWarning()
+            }
         case .ok:
+            cancelDeferredTunnelWarning()
             consecutiveTunnelOKCount += 1
             tunnelHealthStatus = .ok
             let shouldClear =
@@ -327,6 +340,7 @@ final class PetRuntime {
                 clearTunnelWarningBubble(resetDetectionClock: true)
             }
         case .skipped:
+            cancelDeferredTunnelWarning()
             consecutiveTunnelOKCount = 0
             tunnelHealthStatus = .skipped
             clearTunnelWarningBubble(resetDetectionClock: true)
@@ -337,6 +351,29 @@ final class PetRuntime {
         case .checking:
             tunnelHealthStatus = .checking
         }
+    }
+
+    private func scheduleDeferredTunnelWarning() {
+        guard tunnelWarningBubble == nil else { return }
+        guard tunnelWarningPresentTask == nil else { return }
+        tunnelWarningPresentTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.tunnelWarningPresentGrace)
+            guard !Task.isCancelled else { return }
+            self?.finishDeferredTunnelWarning()
+        }
+    }
+
+    private func cancelDeferredTunnelWarning() {
+        tunnelWarningPresentTask?.cancel()
+        tunnelWarningPresentTask = nil
+    }
+
+    private func finishDeferredTunnelWarning() {
+        tunnelWarningPresentTask = nil
+        guard AppSettings.shared.webhookEnabled else { return }
+        guard AppSettings.shared.resolvedPublicWebhookURL != nil else { return }
+        // Not cancelled by OK/skipped — present even if a probe is in flight (.checking).
+        presentTunnelWarningBubble()
     }
 
     private func presentTunnelWarningBubble() {
@@ -471,6 +508,7 @@ final class PetRuntime {
     #if DEBUG
     /// Stacks the tunnel Warning bubble for Bubble Preview (no probe).
     func showDebugTunnelWarningBubble() {
+        cancelDeferredTunnelWarning()
         let detectedAt = tunnelWarningDetectedAt ?? Date()
         tunnelWarningDetectedAt = detectedAt
         tunnelWarningBubble = StatusBubbleItem(
@@ -654,6 +692,7 @@ final class PetRuntime {
 
     func clearDebugBubble() {
         debugBubbleItems = []
+        cancelDeferredTunnelWarning()
         clearTunnelWarningBubble(resetDetectionClock: true)
         refreshBubbleItems()
         PetPanelController.shared.refreshContent()
