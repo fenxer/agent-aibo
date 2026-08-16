@@ -113,15 +113,103 @@ private struct PetPreviewBanner: View {
     var record: PetLibraryRecord
 
     var body: some View {
-        PetSpriteView(
-            record: record,
-            activity: .idle,
-            spriteState: .idle,
-            size: 96
-        )
-        .frame(maxWidth: .infinity)
+        ZStack {
+            PetNameMarquee(name: record.displayName)
+                .id(record.displayName)
+            PetSpriteView(
+                record: record,
+                activity: .idle,
+                spriteState: .idle,
+                size: 96
+            )
+        }
+        .frame(minWidth: 0, maxWidth: .infinity)
         .frame(height: 138)
+        .clipped()
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(record.displayName)
+    }
+}
+
+/// Repeating pet-name watermark. Linear `withAnimation` loop — not `TimelineView`.
+private struct PetNameMarquee: View {
+    var name: String
+
+    @State private var offset: CGFloat = 0
+    @State private var lineWidth: CGFloat = 0
+
+    private static let fontSize: CGFloat = 40
+    private static let pointsPerSecond: CGFloat = 40
+    private static let repeatsPerLine = 8
+    private static let edgeFade: CGFloat = 0.12
+
+    private var line: String {
+        String(repeating: "\(name) ", count: Self.repeatsPerLine)
+    }
+
+    var body: some View {
+        Color.clear
+            .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .leading) {
+                HStack(spacing: 0) {
+                    lineText
+                        .onGeometryChange(for: CGFloat.self) { proxy in
+                            proxy.size.width
+                        } action: { width in
+                            guard width > 0, width != lineWidth else { return }
+                            lineWidth = width
+                            start()
+                        }
+                    lineText
+                }
+                .offset(x: offset)
+            }
+            .mask {
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: Self.edgeFade),
+                        .init(color: .black, location: 1 - Self.edgeFade),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            }
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onAppear { start() }
+    }
+
+    private var lineText: some View {
+        Text(verbatim: line)
+            .font(.system(size: Self.fontSize, weight: .black).italic())
+            .foregroundStyle(.quaternary)
+            .textCase(.uppercase)
+            .lineLimit(1)
+            .fixedSize()
+    }
+
+    private func start() {
+        let width = lineWidth
+        guard width > 0 else { return }
+        // Settings first-attach can drop a same-turn animation; wait one turn.
+        Task { @MainActor in
+            await Task.yield()
+            guard lineWidth == width else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                offset = 0
+            }
+            withAnimation(
+                .linear(duration: width / Self.pointsPerSecond)
+                .repeatForever(autoreverses: false)
+            ) {
+                offset = -width
+            }
+        }
     }
 }
 

@@ -50,10 +50,23 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .pet: .red
         case .agentHook: .blue
         case .webhook: .blue
-        case .general: .purple
+        case .general: .indigo
         case .about: Color(nsColor: .systemGray)
         #if DEBUG
         case .development: .orange
+        #endif
+        }
+    }
+
+    var iconSize: CGFloat {
+        switch self {
+        case .pet: 18
+        case .agentHook: 20
+        case .webhook: 18
+        case .general: 18
+        case .about: 16
+        #if DEBUG
+        case .development: 16
         #endif
         }
     }
@@ -76,9 +89,12 @@ private struct SettingsSidebar: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                ForEach([SettingsPane.pet, .agentHook, .webhook, .general]) { pane in
+                ForEach([SettingsPane.pet, .agentHook, .webhook]) { pane in
                     SettingsSidebarRow(pane: pane)
                 }
+            }
+            Section {
+                SettingsSidebarRow(pane: .general)
             }
             Section {
                 SettingsSidebarRow(pane: .about)
@@ -113,8 +129,6 @@ private struct SettingsSidebarIcon: View {
     let pane: SettingsPane
 
     private let side: CGFloat = 24
-    private let assetIconSize: CGFloat = 18 
-    private let symbolIconSize: CGFloat = 16
 
     var body: some View {
         RoundedRectangle(cornerRadius: side * 0.25, style: .continuous)
@@ -127,13 +141,13 @@ private struct SettingsSidebarIcon: View {
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: assetIconSize, height: assetIconSize)
+                        .frame(width: pane.iconSize, height: pane.iconSize)
                 case .system(let name):
-                    Image(nsImage: Self.centeredSymbol(name, pointSize: symbolIconSize))
+                    Image(nsImage: Self.centeredSymbol(name, pointSize: pane.iconSize))
                         .renderingMode(.template)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: symbolIconSize, height: symbolIconSize)
+                        .frame(width: pane.iconSize, height: pane.iconSize)
                 }
             }
             .foregroundStyle(.white)

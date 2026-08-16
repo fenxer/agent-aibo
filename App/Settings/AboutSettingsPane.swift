@@ -59,6 +59,19 @@ private struct AboutUpdatesSection: View {
         } header: {
             Text(String(localized: "Updates"))
         }
+        .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
+    }
+}
+
+/// Form `LabeledContent` aligns to the title baseline, so a taller trailing
+/// button sits visually low. Center against the label instead.
+private struct VerticallyCenteredLabeledContentStyle: LabeledContentStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            configuration.label
+            Spacer(minLength: 8)
+            configuration.content
+        }
     }
 }
 
