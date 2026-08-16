@@ -86,8 +86,7 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
         // Drag the panel only from opaque pet pixels; bubbles need SwiftUI taps
         // (e.g. dismiss `.failed`).
         if isOpaquePetHit(at: point) {
-            window?.performDrag(with: event)
-            AiboPanelController.shared.persistRelativePositionNow()
+            AiboPanelController.shared.performPetDrag(with: event)
             return
         }
         super.mouseDown(with: event)

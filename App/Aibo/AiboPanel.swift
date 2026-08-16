@@ -24,7 +24,7 @@ final class AiboPanel: NSPanel {
         hidesOnDeactivate = false
         animationBehavior = .none
         isMovable = true
-        // Drag only via PassThroughHostingView.performDrag on opaque pet pixels.
+        // Drag only via PassThroughHostingView on opaque pet pixels.
         // Background-move would also grab music-note padding / empty layout.
         isMovableByWindowBackground = false
     }

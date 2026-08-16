@@ -70,7 +70,7 @@ struct AiboSpriteView: View {
 
     /// Only read the panel property while idle so agent animations don't invalidate.
     private var resolvedLookDirection: PetdexLookDirection? {
-        guard followsPointer, activity == .idle else { return nil }
+        guard followsPointer, activity == .idle, spriteState == .idle else { return nil }
         return AiboPanelController.shared.lookDirection
     }
 
@@ -89,8 +89,9 @@ struct AiboSpriteView: View {
     }
 
     /// Idle stays on a still frame — no animation at all (PLANS §7).
+    /// Drag shares that idle slot with pointer-look; hook sprites keep `activity != .idle`.
     private func shouldAnimate(_ state: PetdexSpriteState) -> Bool {
-        state != .idle && activity != .idle
+        state != .idle
     }
 
     private func frameInterval(for state: PetdexSpriteState) -> TimeInterval {

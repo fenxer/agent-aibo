@@ -27,7 +27,10 @@ struct AiboView: View {
 
     private var resolvedSpriteState: PetdexSpriteState {
         _ = hookSprites.file
-        return runtime.primarySpriteState
+        return AiboActionMapping.overlay(
+            hookSprite: runtime.primarySpriteState,
+            userActionSprite: panelController.dragActionSprite
+        )
     }
 
     private var placement: BubblePlacement {
@@ -62,7 +65,7 @@ struct AiboView: View {
         // Hide vanishes only the aibo sprite (local transition) and fades bubbles —
         // never remove this root tree while resizing the NSPanel (constraint loop).
         // No root WindowDragGesture — that made music-note padding (and other
-        // empty layout) steal clicks. Pet drag is AppKit performDrag on opaque
+        // empty layout) steal clicks. Pet drag is AppKit mouse tracking on opaque
         // pixels only (PassThroughHostingView); bubbles keep their own taps.
         positionedContent
             .padding(AiboContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled).edgeInsets)
@@ -256,7 +259,7 @@ struct AiboView: View {
                     activity: runtime.world.primarySession?.snapshot.activity ?? .idle,
                     spriteState: resolvedSpriteState,
                     size: aiboSize,
-                    followsPointer: true
+                    followsPointer: panelController.dragActionSprite == nil
                 )
                 .id(library.selectedID)
                 .scaleEffect(x: widen, y: squash, anchor: .bottom)

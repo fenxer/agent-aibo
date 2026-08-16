@@ -18,6 +18,8 @@ struct GeneralSettingsPane: View {
             GeneralMusicSection(settings: settings)
 
             GeneralBubbleSection(placement: $settings.bubblePlacement)
+
+            GeneralActionSection()
         }
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -372,5 +374,33 @@ private struct GeneralBubbleSection: View {
         } header: {
             Text(String(localized: "Bubble"))
         }
+    }
+}
+
+private struct GeneralActionSection: View {
+    @Bindable private var actions = AiboActionSettings.shared
+
+    var body: some View {
+        Section {
+            ForEach(AiboUserAction.allCases) { action in
+                Picker(action.settingsTitle, selection: spriteBinding(for: action)) {
+                    ForEach(PetdexSpriteState.allCases, id: \.self) { state in
+                        Text(state.localizedTitle).tag(state)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+        } header: {
+            Text(String(localized: "Action"))
+        } footer: {
+            Text(String(localized: "Choose which Petdex animation plays while dragging the aibo."))
+        }
+    }
+
+    private func spriteBinding(for action: AiboUserAction) -> Binding<PetdexSpriteState> {
+        Binding(
+            get: { actions.sprite(for: action) },
+            set: { actions.setSprite($0, for: action) }
+        )
     }
 }

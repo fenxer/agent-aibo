@@ -234,6 +234,32 @@ import Testing
     )
 }
 
+@Test func aiboActionMappingDefaultsToRunDirections() {
+    #expect(AiboActionMapping.defaultSprite(for: .dragLeft) == .runningLeft)
+    #expect(AiboActionMapping.defaultSprite(for: .dragRight) == .runningRight)
+    #expect(AiboActionMapping.resolve(.dragLeft, overrides: [:]) == .runningLeft)
+    #expect(AiboActionMapping.resolve(.dragRight, overrides: [:]) == .runningRight)
+
+    let overrides = [AiboUserAction.dragLeft.rawValue: PetdexSpriteState.jumping.rawValue]
+    #expect(AiboActionMapping.resolve(.dragLeft, overrides: overrides) == .jumping)
+    #expect(AiboActionMapping.resolve(.dragRight, overrides: overrides) == .runningRight)
+
+    let invalid = [AiboUserAction.dragLeft.rawValue: "not-a-sprite"]
+    #expect(AiboActionMapping.resolve(.dragLeft, overrides: invalid) == .runningLeft)
+}
+
+@Test func aiboActionOverlayYieldsToHookSprite() {
+    #expect(
+        AiboActionMapping.overlay(hookSprite: .idle, userActionSprite: .runningLeft) == .runningLeft
+    )
+    #expect(
+        AiboActionMapping.overlay(hookSprite: .jumping, userActionSprite: .runningLeft) == .jumping
+    )
+    #expect(
+        AiboActionMapping.overlay(hookSprite: .idle, userActionSprite: nil) == .idle
+    )
+}
+
 @Test func petdexInstallerWritesPackViaInjectedFetch() async throws {
     let slug = "test-pet-\(UUID().uuidString.prefix(8).lowercased())"
     let petJSON = #"{"id":"\#(slug)","displayName":"Test","spriteVersionNumber":2,"spritesheetPath":"spritesheet.webp"}"#

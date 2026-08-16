@@ -14,6 +14,13 @@ final class AiboPanelController {
     private(set) var aiboAppearProgress: CGFloat = 1
     /// V2 idle look cell toward the pointer; `nil` in the deadzone or on V1.
     private(set) var lookDirection: PetdexLookDirection?
+    /// True while the user is dragging the aibo from an opaque pixel.
+    private(set) var isPetDragging = false
+    /// Mapped drag animation once horizontal direction is known; `nil` before that.
+    private(set) var dragActionSprite: PetdexSpriteState?
+    private var pendingDragDeltaX: CGFloat = 0
+    /// Horizontal drag must exceed this before the run animation (or a reverse) kicks in.
+    private static let dragDirectionThreshold: CGFloat = 4
 
     private var panel: AiboPanel?
     private var rootView: AiboPanelRootView?
@@ -336,7 +343,7 @@ final class AiboPanelController {
     }
 
     private func applyGeometryPreservingPetCenter() {
-        guard let panel else { return }
+        guard let panel, !isPetDragging else { return }
 
         let items = AiboRuntime.shared.bubbleItems
         let placement = AppSettings.shared.bubblePlacement
@@ -722,7 +729,26 @@ final class AiboPanelController {
         panel?.ignoresMouseEvents = false
     }
 
+    private func refreshDragAction(deltaX: CGFloat) {
+        let activity = AiboRuntime.shared.world.primarySession?.snapshot.activity ?? .idle
+        guard activity == .idle else {
+            if dragActionSprite != nil { dragActionSprite = nil }
+            return
+        }
+        pendingDragDeltaX += deltaX
+        guard abs(pendingDragDeltaX) >= Self.dragDirectionThreshold else { return }
+        let action: AiboUserAction = pendingDragDeltaX < 0 ? .dragLeft : .dragRight
+        pendingDragDeltaX = 0
+        let next = AiboActionSettings.shared.sprite(for: action)
+        guard dragActionSprite != next else { return }
+        dragActionSprite = next
+        // Event-tracking mode doesn't pump `.default`; drain it once so SwiftUI
+        // can swap the sprite layer while the drag is still in progress.
+        RunLoop.current.run(mode: .default, before: Date())
+    }
+
     private func refreshClickThroughState() {
+        if isPetDragging { return }
         refreshLookDirection()
         guard let panel else { return }
         guard isVisible, isContentPresented, shouldPresentPanelOnScreen, !isSuppressedForFullscreen else {
@@ -823,7 +849,7 @@ final class AiboPanelController {
     /// Keep the *pet* inside the padded visible frame. Stacked bubbles may
     /// extend off-screen — clamping the whole panel would shove the aibo up/down.
     private func clampToVisibleScreen() {
-        guard let panel else { return }
+        guard let panel, !isPetDragging else { return }
         let screen = panel.screen ?? NSScreen.main
         guard let screen else { return }
 
@@ -870,6 +896,100 @@ final class AiboPanelController {
         pinContentSize(frame.size)
     }
 
+    private func beginPetDrag() {
+        isPetDragging = true
+        pendingDragDeltaX = 0
+        dragActionSprite = nil
+        let activity = AiboRuntime.shared.world.primarySession?.snapshot.activity ?? .idle
+        if activity == .idle, lookDirection != nil {
+            lookDirection = nil
+        }
+    }
+
+    private func endPetDrag() {
+        isPetDragging = false
+        pendingDragDeltaX = 0
+        if dragActionSprite != nil {
+            dragActionSprite = nil
+        }
+    }
+
+    /// Move the panel from opaque-pixel mouse-down. Waits on `nextEvent` (not a
+    /// timer) so horizontal direction can drive the mapped run animation.
+    ///
+    /// Pins the aibo to the original grab offset each event (not incremental
+    /// `origin + delta`). Sprite swaps drain `.default` and can shift the frame;
+    /// re-pinning after that keeps the cursor on the same pixel.
+    func performPetDrag(with startEvent: NSEvent) {
+        guard let panel else { return }
+        beginPetDrag()
+        let grabOffset = grabOffsetFromAibo(for: startEvent)
+        var lastMouseX = NSEvent.mouseLocation.x
+        while true {
+            guard let event = panel.nextEvent(
+                matching: [.leftMouseDragged, .leftMouseUp],
+                until: .distantFuture,
+                inMode: .eventTracking,
+                dequeue: true
+            ) else { break }
+            if event.type == .leftMouseUp { break }
+            let mouseX = NSEvent.mouseLocation.x
+            let dx = mouseX - lastMouseX
+            lastMouseX = mouseX
+            pinAiboToMouse(grabOffset: grabOffset)
+            refreshDragAction(deltaX: dx)
+            pinAiboToMouse(grabOffset: grabOffset)
+        }
+        endPetDrag()
+        persistRelativePositionNow()
+    }
+
+    /// Cursor minus aibo-center at mouse-down, in screen points.
+    private func grabOffsetFromAibo(for event: NSEvent) -> CGPoint {
+        let mouse = screenPoint(for: event)
+        let aibo = aiboScreenCenter()
+        return CGPoint(x: mouse.x - aibo.x, y: mouse.y - aibo.y)
+    }
+
+    private func screenPoint(for event: NSEvent) -> NSPoint {
+        guard let window = event.window else { return NSEvent.mouseLocation }
+        return window.convertPoint(toScreen: event.locationInWindow)
+    }
+
+    private func aiboScreenCenter() -> CGPoint {
+        guard let panel else { return .zero }
+        let center = aiboCenter(
+            in: panel.frame.size,
+            aiboSize: laidOutAiboSize,
+            placement: laidOutPlacement,
+            bubbleCount: laidOutBubbleCount
+        )
+        return CGPoint(
+            x: panel.frame.origin.x + center.x,
+            y: panel.frame.origin.y + center.y
+        )
+    }
+
+    private func pinAiboToMouse(grabOffset: CGPoint) {
+        let mouse = NSEvent.mouseLocation
+        moveAiboScreenCenter(
+            to: CGPoint(x: mouse.x - grabOffset.x, y: mouse.y - grabOffset.y)
+        )
+    }
+
+    private func moveAiboScreenCenter(to point: CGPoint) {
+        guard let panel else { return }
+        let center = aiboCenter(
+            in: panel.frame.size,
+            aiboSize: laidOutAiboSize,
+            placement: laidOutPlacement,
+            bubbleCount: laidOutBubbleCount
+        )
+        panel.setFrameOrigin(
+            NSPoint(x: point.x - center.x, y: point.y - center.y)
+        )
+    }
+
     /// Write the current pet-center fractions of the screen visible frame.
     /// Call after the user finishes dragging, and on quit.
     func persistRelativePositionNow() {
@@ -898,6 +1018,7 @@ final class AiboPanelController {
 
     /// Bucketed pointer look. Only assigns when the 22.5° cell changes.
     private func refreshLookDirection() {
+        guard !isPetDragging else { return }
         guard isVisible, isContentPresented, !isSuppressedForFullscreen, let panel else {
             return
         }
