@@ -14,6 +14,8 @@ final class AiboSpriteCache {
         var frames: [PetdexSpriteState: [NSImage]]
         /// Same pixels as `frames`, kept unwrapped for `CALayer.contents`.
         var layerFrames: [PetdexSpriteState: [CGImage]]
+        /// V2 rows 9–10; empty when the atlas has no look cells.
+        var lookLayerFrames: [CGImage]
         var idlePreview: NSImage
     }
 
@@ -64,6 +66,17 @@ final class AiboSpriteCache {
         return sheet.layerFrames[state] ?? sheet.layerFrames[.idle] ?? []
     }
 
+    func supportsLookDirections(for record: AiboLibraryRecord) -> Bool {
+        guard record.kind == .petdex, let sheet = sheet(for: record) else { return false }
+        return sheet.lookLayerFrames.count == PetdexLookDirection.count
+    }
+
+    func lookLayerFrame(for record: AiboLibraryRecord, index: Int) -> CGImage? {
+        guard record.kind == .petdex, let sheet = sheet(for: record) else { return nil }
+        guard sheet.lookLayerFrames.indices.contains(index) else { return nil }
+        return sheet.lookLayerFrames[index]
+    }
+
     private func staticImage(for record: AiboLibraryRecord) -> NSImage? {
         if let cached = staticImages[record.id] { return cached }
         guard let url = AiboLibraryStore.shared.artworkURL(for: record),
@@ -88,6 +101,7 @@ final class AiboSpriteCache {
             let cached = CachedSheet(
                 frames: [.idle: [whole]],
                 layerFrames: [.idle: [atlas]],
+                lookLayerFrames: [],
                 idlePreview: whole
             )
             sheets[record.id] = cached
@@ -122,11 +136,29 @@ final class AiboSpriteCache {
             }
         }
 
+        var lookLayerFrames: [CGImage] = []
+        if layout.supportsLookDirections {
+            lookLayerFrames.reserveCapacity(PetdexLookDirection.count)
+            for index in 0..<PetdexLookDirection.count {
+                guard let rect = layout.lookFrameRect(index: index),
+                      let cropped = atlas.cropping(
+                          to: CGRect(x: rect.x, y: rect.y, width: rect.w, height: rect.h)
+                      ),
+                      let frame = detachedBitmap(cropped)
+                else { continue }
+                lookLayerFrames.append(frame)
+            }
+            if lookLayerFrames.count != PetdexLookDirection.count {
+                lookLayerFrames = []
+            }
+        }
+
         let idlePreview = frames[.idle]?.first
             ?? NSImage(cgImage: atlas, size: NSSize(width: width, height: height))
         let cached = CachedSheet(
             frames: frames,
             layerFrames: layerFrames,
+            lookLayerFrames: lookLayerFrames,
             idlePreview: idlePreview
         )
         sheets[record.id] = cached

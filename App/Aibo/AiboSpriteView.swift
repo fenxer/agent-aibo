@@ -8,6 +8,8 @@ struct AiboSpriteView: View {
     var activity: AiboActivityState
     var spriteState: PetdexSpriteState
     var size: CGFloat
+    /// Desktop only: idle V2 pets look at the pointer via `AiboPanelController`.
+    var followsPointer: Bool = false
 
     var body: some View {
         Group {
@@ -41,8 +43,13 @@ struct AiboSpriteView: View {
     @ViewBuilder
     private var petdexAiboImage: some View {
         let animates = shouldAnimate(spriteState)
+        let look = resolvedLookDirection
         let state = animates ? spriteState : .idle
-        let frames = AiboSpriteCache.shared.layerFrames(for: record, state: state)
+        let lookFrame = look.flatMap {
+            AiboSpriteCache.shared.lookLayerFrame(for: record, index: $0.index)
+        }
+        let frames = lookFrame.map { [$0] }
+            ?? AiboSpriteCache.shared.layerFrames(for: record, state: state)
         if frames.isEmpty {
             stillFallbackImage
         } else {
@@ -50,7 +57,8 @@ struct AiboSpriteView: View {
                 key: AiboSpriteLayer.Key(
                     recordID: record.id,
                     state: state,
-                    animates: animates
+                    animates: animates,
+                    lookIndex: lookFrame == nil ? nil : look?.index
                 ),
                 frames: frames,
                 frameDuration: frameInterval(for: state),
@@ -58,6 +66,12 @@ struct AiboSpriteView: View {
             )
             .frame(width: size, height: size)
         }
+    }
+
+    /// Only read the panel property while idle so agent animations don't invalidate.
+    private var resolvedLookDirection: PetdexLookDirection? {
+        guard followsPointer, activity == .idle else { return nil }
+        return AiboPanelController.shared.lookDirection
     }
 
     /// Shown when the atlas failed to load or yielded no frames.
@@ -99,6 +113,7 @@ private struct AiboSpriteLayer: NSViewRepresentable {
         var recordID: String
         var state: PetdexSpriteState
         var animates: Bool
+        var lookIndex: Int?
     }
 
     var key: Key

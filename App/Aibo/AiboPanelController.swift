@@ -1,3 +1,4 @@
+import AiboCore
 import AppKit
 import SwiftUI
 
@@ -11,6 +12,8 @@ final class AiboPanelController {
     private(set) var isContentPresented = true
     /// 0 = above / squashed, 1 = settled. Explicit show motion (not Pow boing).
     private(set) var aiboAppearProgress: CGFloat = 1
+    /// V2 idle look cell toward the pointer; `nil` in the deadzone or on V1.
+    private(set) var lookDirection: PetdexLookDirection?
 
     private var panel: AiboPanel?
     private var rootView: AiboPanelRootView?
@@ -101,6 +104,7 @@ final class AiboPanelController {
         isVisible = true
         startObservingScreenChangesIfNeeded()
         startClickThroughMonitoringIfNeeded()
+        refreshLookDirection()
         syncFullscreenPolicy()
 
         // Keep the panel ordered in. When hide-when-fullscreen is on we use
@@ -300,6 +304,7 @@ final class AiboPanelController {
         #if DEBUG
         refreshHitRegionDebugOverlay()
         #endif
+        refreshLookDirection()
     }
 
     /// Flush any pending resize and apply now. Caller must not be mid-layout.
@@ -382,6 +387,7 @@ final class AiboPanelController {
             placement: placement,
             bubbleCount: bubbleCount
         )
+        refreshLookDirection()
     }
 
     private func aiboBlockMinimum(aiboSize: CGFloat) -> CGFloat {
@@ -717,6 +723,7 @@ final class AiboPanelController {
     }
 
     private func refreshClickThroughState() {
+        refreshLookDirection()
         guard let panel else { return }
         guard isVisible, isContentPresented, shouldPresentPanelOnScreen, !isSuppressedForFullscreen else {
             return
@@ -886,5 +893,38 @@ final class AiboPanelController {
         let xPercent = Double((aiboOnScreen.x - visible.minX) / visible.width)
         let yPercent = Double((aiboOnScreen.y - visible.minY) / visible.height)
         AppSettings.shared.saveAiboCenterRelativePosition(xPercent: xPercent, yPercent: yPercent)
+        refreshLookDirection()
+    }
+
+    /// Bucketed pointer look. Only assigns when the 22.5° cell changes.
+    private func refreshLookDirection() {
+        guard isVisible, isContentPresented, !isSuppressedForFullscreen, let panel else {
+            return
+        }
+        let record = AiboLibraryStore.shared.selectedRecord
+        guard AiboSpriteCache.shared.supportsLookDirections(for: record) else {
+            if lookDirection != nil { lookDirection = nil }
+            return
+        }
+
+        let mouse = NSEvent.mouseLocation
+        let centerInPanel = aiboCenter(
+            in: panel.frame.size,
+            aiboSize: laidOutAiboSize,
+            placement: laidOutPlacement,
+            bubbleCount: laidOutBubbleCount
+        )
+        let aiboOnScreen = CGPoint(
+            x: panel.frame.origin.x + centerInPanel.x,
+            y: panel.frame.origin.y + centerInPanel.y
+        )
+        let next = PetdexLookDirection.resolve(
+            deltaX: Double(mouse.x - aiboOnScreen.x),
+            deltaYDown: Double(aiboOnScreen.y - mouse.y),
+            deadzone: Double(laidOutAiboSize * 0.5)
+        )
+        if lookDirection != next {
+            lookDirection = next
+        }
     }
 }

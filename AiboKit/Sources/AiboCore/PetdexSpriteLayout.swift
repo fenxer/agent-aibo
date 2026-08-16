@@ -86,16 +86,75 @@ public struct PetdexSpriteLayout: Sendable, Equatable {
     public var cellPixelWidth: Int { Self.cellWidth * scale }
     public var cellPixelHeight: Int { Self.cellHeight * scale }
 
+    public var supportsLookDirections: Bool { rows >= Self.v2Rows }
+
     public func frameRect(state: PetdexSpriteState, frameIndex: Int) -> (x: Int, y: Int, w: Int, h: Int)? {
         guard state.row < rows else { return nil }
         let col = max(0, min(frameIndex, state.frameCount - 1))
         guard col < Self.columns else { return nil }
-        return (
-            x: col * cellPixelWidth,
-            y: state.row * cellPixelHeight,
+        return cellRect(row: state.row, column: col)
+    }
+
+    /// V2 rows 9–10: 16 clockwise look cells from up (`000°`).
+    public func lookFrameRect(index: Int) -> (x: Int, y: Int, w: Int, h: Int)? {
+        guard supportsLookDirections,
+              (0..<PetdexLookDirection.count).contains(index)
+        else { return nil }
+        return cellRect(
+            row: PetdexLookDirection.atlasRow(for: index),
+            column: PetdexLookDirection.atlasColumn(for: index)
+        )
+    }
+
+    private func cellRect(row: Int, column: Int) -> (x: Int, y: Int, w: Int, h: Int) {
+        (
+            x: column * cellPixelWidth,
+            y: row * cellPixelHeight,
             w: cellPixelWidth,
             h: cellPixelHeight
         )
+    }
+}
+
+/// One of the 16 V2 look cells. Clockwise from up, matching Codex / petx.
+public struct PetdexLookDirection: Sendable, Equatable, Hashable {
+    public static let count = 16
+    public static let stepDegrees = 22.5
+
+    /// `0...15`; `0` is up / 12 o'clock.
+    public var index: Int
+
+    public init?(index: Int) {
+        guard (0..<Self.count).contains(index) else { return nil }
+        self.index = index
+    }
+
+    public var degrees: Double { Double(index) * Self.stepDegrees }
+
+    public static func atlasRow(for index: Int) -> Int { 9 + index / 8 }
+    public static func atlasColumn(for index: Int) -> Int { index % 8 }
+
+    /// Quantize clockwise degrees from up into a look cell.
+    public static func resolve(degrees: Double) -> PetdexLookDirection? {
+        guard degrees.isFinite else { return nil }
+        var normalized = degrees.truncatingRemainder(dividingBy: 360)
+        if normalized < 0 { normalized += 360 }
+        let index = Int((normalized / stepDegrees).rounded()) % count
+        return PetdexLookDirection(index: index)
+    }
+
+    /// Screen-space vector: `+x` right, `+y` down (petx). Zero / deadzone → `nil`.
+    public static func resolve(
+        deltaX: Double,
+        deltaYDown: Double,
+        deadzone: Double = 0
+    ) -> PetdexLookDirection? {
+        guard deltaX.isFinite, deltaYDown.isFinite else { return nil }
+        let magnitude = hypot(deltaX, deltaYDown)
+        if magnitude == 0 || magnitude <= max(0, deadzone) { return nil }
+        // petx: atan2(x, -y) with y-down → clockwise degrees from up.
+        let degrees = atan2(deltaX, -deltaYDown) * 180 / .pi
+        return resolve(degrees: degrees)
     }
 }
 

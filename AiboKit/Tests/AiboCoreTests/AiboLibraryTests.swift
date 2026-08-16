@@ -154,15 +154,44 @@ import Testing
     let v1 = PetdexSpriteLayout(pixelWidth: 1536, pixelHeight: 1872)
     #expect(v1?.rows == 9)
     #expect(v1?.scale == 1)
+    #expect(v1?.supportsLookDirections == false)
+    #expect(v1?.lookFrameRect(index: 0) == nil)
 
     let v2 = PetdexSpriteLayout(pixelWidth: 1536, pixelHeight: 2288)
     #expect(v2?.rows == 11)
+    #expect(v2?.supportsLookDirections == true)
 
     let scaled = PetdexSpriteLayout(pixelWidth: 3072, pixelHeight: 4576)
     #expect(scaled?.scale == 2)
     #expect(scaled?.rows == 11)
 
     #expect(PetdexSpriteLayout(pixelWidth: 100, pixelHeight: 100) == nil)
+}
+
+@Test func petdexLookDirectionMatchesPetxClockwiseFromUp() {
+    #expect(PetdexLookDirection.resolve(deltaX: 0, deltaYDown: -1)?.index == 0)
+    #expect(PetdexLookDirection.resolve(deltaX: 1, deltaYDown: 0)?.index == 4)
+    #expect(PetdexLookDirection.resolve(deltaX: 0, deltaYDown: 1)?.index == 8)
+    #expect(PetdexLookDirection.resolve(deltaX: -1, deltaYDown: 0)?.index == 12)
+    #expect(PetdexLookDirection.resolve(degrees: 31)?.index == 1)
+    #expect(PetdexLookDirection.resolve(degrees: -22.5)?.index == 15)
+    #expect(PetdexLookDirection.resolve(deltaX: 0.1, deltaYDown: 0.1, deadzone: 0.2) == nil)
+    #expect(PetdexLookDirection.resolve(deltaX: 0, deltaYDown: 0) == nil)
+}
+
+@Test func petdexLookFrameRectsUseRows9And10() {
+    let v2 = PetdexSpriteLayout(pixelWidth: 1536, pixelHeight: 2288)
+    let up = v2?.lookFrameRect(index: 0)
+    let right = v2?.lookFrameRect(index: 4)
+    let down = v2?.lookFrameRect(index: 8)
+    let left = v2?.lookFrameRect(index: 12)
+    let wrap = v2?.lookFrameRect(index: 15)
+    #expect(up?.x == 0 && up?.y == 1872)
+    #expect(right?.x == 768 && right?.y == 1872)
+    #expect(down?.x == 0 && down?.y == 2080)
+    #expect(left?.x == 768 && left?.y == 2080)
+    #expect(wrap?.x == 1344 && wrap?.y == 2080)
+    #expect(v2?.lookFrameRect(index: 16) == nil)
 }
 
 @Test func petdexSpriteStateMapperMapsActivity() {

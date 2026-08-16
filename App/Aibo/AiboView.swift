@@ -255,7 +255,8 @@ struct AiboView: View {
                     record: library.selectedRecord,
                     activity: runtime.world.primarySession?.snapshot.activity ?? .idle,
                     spriteState: resolvedSpriteState,
-                    size: aiboSize
+                    size: aiboSize,
+                    followsPointer: true
                 )
                 .id(library.selectedID)
                 .scaleEffect(x: widen, y: squash, anchor: .bottom)
