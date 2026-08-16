@@ -154,12 +154,7 @@ private struct WebhookListenerSection: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .textSelection(.enabled)
-                    WebhookIconButton(
-                        systemImage: "square.on.square",
-                        help: String(localized: "Copy")
-                    ) {
-                        copyToPasteboard(settings.webhookURLString)
-                    }
+                    WebhookCopyButton(value: settings.webhookURLString)
                 }
             }
 
@@ -175,12 +170,7 @@ private struct WebhookListenerSection: View {
                     ) {
                         settings.regenerateWebhookSecret()
                     }
-                    WebhookIconButton(
-                        systemImage: "square.on.square",
-                        help: String(localized: "Copy")
-                    ) {
-                        copyToPasteboard(settings.webhookSecret)
-                    }
+                    WebhookCopyButton(value: settings.webhookSecret)
                 }
             }
         } header: {
@@ -542,9 +532,52 @@ private struct WebhookIconButton: View {
     }
 }
 
-private func copyToPasteboard(_ string: String) {
+private struct WebhookCopyButton: View {
+    var value: String
+    var help: String = String(localized: "Copy")
+
+    @State private var didCopy = false
+    @State private var resetTask: Task<Void, Never>?
+
+    var body: some View {
+        Button {
+            guard copyToPasteboard(value) else { return }
+            withAnimation {
+                didCopy = true
+            }
+            resetTask?.cancel()
+            resetTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard !Task.isCancelled else { return }
+                withAnimation {
+                    didCopy = false
+                }
+            }
+        } label: {
+            ZStack {
+                Image(systemName: "square.on.square")
+                    .hidden()
+                Image(systemName: didCopy ? "checkmark" : "square.on.square")
+                    .contentTransition(
+                        .symbolEffect(
+                            .replace.magic(fallback: .downUp.byLayer),
+                            options: .nonRepeating.speed(2)
+                        )
+                    )
+            }
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+        .accessibilityLabel(help)
+        .onDisappear {
+            resetTask?.cancel()
+        }
+    }
+}
+
+private func copyToPasteboard(_ string: String) -> Bool {
     NSPasteboard.general.clearContents()
-    NSPasteboard.general.setString(string, forType: .string)
+    return NSPasteboard.general.setString(string, forType: .string)
 }
 
 private func maskedSecret(_ secret: String) -> String {
