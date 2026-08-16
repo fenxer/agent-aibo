@@ -211,26 +211,6 @@ struct SettingsView: View {
     }
 }
 
-private struct AboutSettingsPane: View {
-    var body: some View {
-        Form {
-            Section {
-                LabeledContent(String(localized: "Version")) {
-                    Text(
-                        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-                            ?? "—"
-                    )
-                }
-            } header: {
-                Text(String(localized: "aibo"))
-            }
-        }
-        .formStyle(.grouped)
-        .padding()
-        .settingsDetailChrome(title: SettingsPane.about.title)
-    }
-}
-
 #Preview {
     SettingsView()
 }

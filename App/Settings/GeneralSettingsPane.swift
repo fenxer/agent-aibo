@@ -274,7 +274,7 @@ private struct GeneralBubbleSection: View {
             }
             .pickerStyle(.menu)
         } header: {
-            Text(String(localized: "Bubble (Default)"))
+            Text(String(localized: "Bubble"))
         }
     }
 }
