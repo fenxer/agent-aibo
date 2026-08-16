@@ -294,11 +294,6 @@ private struct AiboManageSection: View {
                 onInstall: onInstallPetdex
             )
 
-            if isInstalling {
-                ProgressView("Installing…")
-                    .controlSize(.small)
-            }
-
             if let lastErrorMessage {
                 Text(lastErrorMessage)
                     .font(.caption)
@@ -363,6 +358,14 @@ private struct InstallFromPetdexRow: View {
                         isInstalling
                             || petdexInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     )
+                    .opacity(isInstalling ? 0 : 1)
+                    .accessibilityHidden(isInstalling)
+                    .overlay {
+                        if isInstalling {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
             }
         } label: {
             VStack(alignment: .leading, spacing: 2) {
