@@ -21,17 +21,6 @@ struct PetView: View {
     private let stackSpacing: CGFloat = 4
     private let petBubbleSpacing: CGFloat = 6
     private let basePetSize: CGFloat = 96
-    /// Burst every few seconds — Pow `.rise` used TimelineView at display
-    /// refresh and drove 20–30% CPU while music played.
-    private static let musicNoteInterval: Duration = .seconds(4)
-    private static let musicNoteFlight: Duration = .milliseconds(1600)
-    private static let musicNoteStagger: Duration = .milliseconds(220)
-    private static let musicNoteSymbols = [
-        "music.note",
-        "music.note",
-        "music.quarternote.3",
-    ]
-
     private var bubbleItems: [StatusBubbleItem] {
         bubbleItemsOverride ?? runtime.bubbleItems
     }
@@ -61,6 +50,10 @@ struct PetView: View {
         AppSettings.shared.musicNotesEnabled
             && musicMonitor.isPlaying
             && panelController.isContentPresented
+    }
+
+    private var musicNoteColor: Color {
+        AppSettings.shared.resolvedMusicNotesColor(for: library.selectedRecord)
     }
 
     var body: some View {
@@ -249,7 +242,7 @@ struct PetView: View {
         let clamped = max(progress, 0)
         let squash = min(max(0.72 + clamped * 0.28, 0.55), 1.2)
         let widen = min(max(1.18 - clamped * 0.18, 0.9), 1.25)
-        let noteColor = PetAppearance.dominantColor(for: library.selectedRecord)
+        let noteColor = musicNoteColor
 
         return ZStack {
             // Keep layout size while the sprite is removed for Pow vanish.
@@ -299,75 +292,10 @@ struct PetView: View {
         }
         musicNoteTask = Task { @MainActor in
             while !Task.isCancelled {
-                await spawnMusicNoteBurst()
-                try? await Task.sleep(for: Self.musicNoteInterval)
+                await MusicNoteMotion.spawnBurst(into: $floatingNotes)
+                try? await Task.sleep(for: MusicNoteMotion.pulseInterval)
             }
         }
-    }
-
-    /// Random 1…3 notes, staggered so they ease out of phase.
-    private func spawnMusicNoteBurst() async {
-        let count = Int.random(in: 1 ... 3)
-        for index in 0..<count {
-            guard !Task.isCancelled else { return }
-            if index > 0 {
-                try? await Task.sleep(for: Self.musicNoteStagger)
-            }
-            spawnMusicNote()
-        }
-    }
-
-    private func spawnMusicNote() {
-        let note = FloatingMusicNote(
-            systemName: Self.musicNoteSymbols.randomElement() ?? "music.note",
-            xJitter: CGFloat.random(in: -14 ... 20),
-            fontSize: CGFloat.random(in: 12 ... 17),
-            flightSeconds: Double.random(in: 1.15 ... 1.55),
-            riseDistanceFactor: CGFloat.random(in: 0.55 ... 0.85),
-            sway: CGFloat.random(in: -10 ... 14)
-        )
-        floatingNotes.append(note)
-        let noteID = note.id
-        let removeAfter = Self.musicNoteFlight
-        Task { @MainActor in
-            try? await Task.sleep(for: removeAfter)
-            floatingNotes.removeAll { $0.id == noteID }
-        }
-    }
-}
-
-/// One rising note driven by a single SwiftUI animation (no display-linked TimelineView).
-private struct FloatingMusicNote: Identifiable {
-    let id = UUID()
-    let systemName: String
-    let xJitter: CGFloat
-    let fontSize: CGFloat
-    let flightSeconds: Double
-    let riseDistanceFactor: CGFloat
-    let sway: CGFloat
-}
-
-private struct FloatingMusicNoteView: View {
-    let note: FloatingMusicNote
-    let color: Color
-    let petSize: CGFloat
-    @State private var progress: CGFloat = 0
-
-    var body: some View {
-        Image(systemName: note.systemName)
-            .font(.system(size: note.fontSize, weight: .semibold))
-            .foregroundStyle(color.opacity(0.85 + Double(1 - progress) * 0.15))
-            .offset(
-                x: petSize * 0.28 + note.xJitter + note.sway * progress,
-                y: -petSize * 0.15 - progress * (petSize * note.riseDistanceFactor)
-            )
-            .opacity(Double(1 - progress))
-            .scaleEffect(0.92 + 0.12 * (1 - progress))
-            .onAppear {
-                withAnimation(.easeOut(duration: note.flightSeconds)) {
-                    progress = 1
-                }
-            }
     }
 }
 

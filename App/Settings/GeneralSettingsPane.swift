@@ -15,7 +15,7 @@ struct GeneralSettingsPane: View {
 
             GeneralThemeSection(themeMode: $settings.themeMode)
 
-            GeneralMusicSection(musicNotesEnabled: $settings.musicNotesEnabled)
+            GeneralMusicSection(settings: settings)
 
             GeneralBubbleSection(placement: $settings.bubblePlacement)
         }
@@ -49,6 +49,10 @@ private struct GeneralPreview: View {
     var record: PetLibraryRecord
 
     @Environment(\.colorScheme) private var systemColorScheme
+    @Bindable private var settings = AppSettings.shared
+    @State private var floatingNotes: [FloatingMusicNote] = []
+    @State private var burstTask: Task<Void, Never>?
+    @State private var colorBurstTask: Task<Void, Never>?
 
     private let petSize: CGFloat = 80
     private let spacing: CGFloat = 6
@@ -79,6 +83,22 @@ private struct GeneralPreview: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(String(localized: "Preview"))
+        .onChange(of: settings.musicNotesEnabled) { _, _ in
+            playPreviewNotes()
+        }
+        .onChange(of: settings.musicNotesColorMode) { _, _ in
+            playPreviewNotes()
+        }
+        .onChange(of: settings.musicNotesCustomColor) { _, _ in
+            playPreviewNotesAfterColorChange()
+        }
+        .onDisappear {
+            burstTask?.cancel()
+            colorBurstTask?.cancel()
+            burstTask = nil
+            colorBurstTask = nil
+            floatingNotes.removeAll()
+        }
     }
 
     @ViewBuilder
@@ -114,13 +134,41 @@ private struct GeneralPreview: View {
         )
     }
 
-    private var previewPet: PetSpriteView {
-        PetSpriteView(
-            record: record,
-            activity: .idle,
-            spriteState: .idle,
-            size: petSize
-        )
+    private var previewPet: some View {
+        ZStack {
+            PetSpriteView(
+                record: record,
+                activity: .idle,
+                spriteState: .idle,
+                size: petSize
+            )
+            ForEach(floatingNotes) { note in
+                FloatingMusicNoteView(
+                    note: note,
+                    color: settings.resolvedMusicNotesColor(for: record),
+                    petSize: petSize
+                )
+                .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func playPreviewNotes() {
+        colorBurstTask?.cancel()
+        burstTask?.cancel()
+        burstTask = Task { @MainActor in
+            await MusicNoteMotion.spawnBurst(into: $floatingNotes)
+        }
+    }
+
+    /// ColorPicker emits many updates while dragging; collapse them to one burst.
+    private func playPreviewNotesAfterColorChange() {
+        colorBurstTask?.cancel()
+        colorBurstTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled else { return }
+            playPreviewNotes()
+        }
     }
 }
 
@@ -229,12 +277,12 @@ private struct GeneralThemeSection: View {
 }
 
 private struct GeneralMusicSection: View {
-    @Binding var musicNotesEnabled: Bool
+    @Bindable var settings: AppSettings
     // @Binding var customMusicNotificationNames: String
 
     var body: some View {
         Section {
-            Toggle(isOn: $musicNotesEnabled) {
+            Toggle(isOn: $settings.musicNotesEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Music Notes"))
                     Text(String(localized: "When app play music / video, notes float up"))
@@ -242,6 +290,30 @@ private struct GeneralMusicSection: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .toggleStyle(VerticallyCenteredSwitchToggleStyle())
+
+            LabeledContent(String(localized: "Notes Color")) {
+                HStack(spacing: 8) {
+                    if settings.musicNotesColorMode == .custom {
+                        ColorPicker(
+                            String(localized: "Notes Color"),
+                            selection: $settings.musicNotesCustomColor,
+                            supportsOpacity: false
+                        )
+                        .labelsHidden()
+                    }
+
+                    Picker(String(localized: "Notes Color"), selection: $settings.musicNotesColorMode) {
+                        ForEach(MusicNotesColorMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+            }
+            .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
 
             // DisclosureGroup(String(localized: "Advanced")) {
             //     TextField(
@@ -258,6 +330,30 @@ private struct GeneralMusicSection: View {
             // }
         } header: {
             Text(String(localized: "Music"))
+        }
+    }
+}
+
+/// Form `Toggle` aligns the switch to the title baseline, so a subtitle
+/// makes the control sit high. Center against the whole label instead.
+private struct VerticallyCenteredSwitchToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            configuration.label
+            Spacer(minLength: 8)
+            Toggle(configuration)
+                .labelsHidden()
+                .toggleStyle(.switch)
+        }
+    }
+}
+
+private struct VerticallyCenteredLabeledContentStyle: LabeledContentStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            configuration.label
+            Spacer(minLength: 8)
+            configuration.content
         }
     }
 }

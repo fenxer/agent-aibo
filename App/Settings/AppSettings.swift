@@ -5,6 +5,20 @@ import Foundation
 import Security
 import SwiftUI
 
+enum MusicNotesColorMode: String, CaseIterable, Identifiable, Sendable, Hashable {
+    case petAccent
+    case custom
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .petAccent: String(localized: "Pet Accent Color")
+        case .custom: String(localized: "Custom")
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class AppSettings {
@@ -30,6 +44,8 @@ final class AppSettings {
         static let petPositionXPercent = "settings.petPositionXPercent"
         static let petPositionYPercent = "settings.petPositionYPercent"
         static let musicNotesEnabled = "settings.musicNotesEnabled"
+        static let musicNotesColorMode = "settings.musicNotesColorMode"
+        static let musicNotesCustomColor = "settings.musicNotesCustomColor"
         static let customMusicNotificationNames = "settings.customMusicNotificationNames"
         static let webhookEnabled = "settings.webhookEnabled"
         static let webhookPort = "settings.webhookPort"
@@ -113,6 +129,24 @@ final class AppSettings {
             guard oldValue != musicNotesEnabled else { return }
             UserDefaults.standard.set(musicNotesEnabled, forKey: Keys.musicNotesEnabled)
             PetRuntime.shared.syncMusicPlaybackMonitor()
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Default `.petAccent` — notes follow the selected pet’s dominant color.
+    var musicNotesColorMode: MusicNotesColorMode {
+        didSet {
+            guard oldValue != musicNotesColorMode else { return }
+            UserDefaults.standard.set(musicNotesColorMode.rawValue, forKey: Keys.musicNotesColorMode)
+            PetPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Used when `musicNotesColorMode == .custom`.
+    var musicNotesCustomColor: Color {
+        didSet {
+            guard oldValue != musicNotesCustomColor else { return }
+            Self.persistColor(musicNotesCustomColor, key: Keys.musicNotesCustomColor)
             PetPanelController.shared.refreshContent()
         }
     }
@@ -373,6 +407,11 @@ final class AppSettings {
         } else {
             musicNotesEnabled = true
         }
+        let notesColorRaw = UserDefaults.standard.string(forKey: Keys.musicNotesColorMode)
+            ?? MusicNotesColorMode.petAccent.rawValue
+        musicNotesColorMode = MusicNotesColorMode(rawValue: notesColorRaw) ?? .petAccent
+        musicNotesCustomColor = Self.loadColor(key: Keys.musicNotesCustomColor)
+            ?? Color(nsColor: .systemPink)
         customMusicNotificationNames =
             UserDefaults.standard.string(forKey: Keys.customMusicNotificationNames) ?? ""
 
@@ -413,6 +452,15 @@ final class AppSettings {
         } else {
             webhookSecret = Self.makeSecret()
             try? KeychainStore.setString(webhookSecret, forAccount: Keys.webhookSecretAccount)
+        }
+    }
+
+    func resolvedMusicNotesColor(for record: PetLibraryRecord) -> Color {
+        switch musicNotesColorMode {
+        case .petAccent:
+            PetAppearance.dominantColor(for: record)
+        case .custom:
+            musicNotesCustomColor
         }
     }
 
