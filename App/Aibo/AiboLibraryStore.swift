@@ -102,6 +102,34 @@ final class AiboLibraryStore {
         }
     }
 
+    func importLocal(from sourceURL: URL, displayName: String? = nil) async {
+        guard !isInstalling else { return }
+        isInstalling = true
+        lastErrorMessage = nil
+        defer { isInstalling = false }
+
+        switch LocalAiboImporter.classify(url: sourceURL) {
+        case .staticImage:
+            importStaticImage(from: sourceURL, displayName: displayName)
+        case .zipArchive:
+            do {
+                let record = try await Task.detached {
+                    try LocalAiboImporter.installPack(fromArchive: sourceURL)
+                }.value
+                upsert(record)
+                selectedID = record.id
+                persist()
+                notifyAppearanceChanged()
+            } catch let error as LocalAiboImportError {
+                lastErrorMessage = Self.message(for: error)
+            } catch {
+                lastErrorMessage = String(localized: "Failed to install aibo")
+            }
+        case nil:
+            lastErrorMessage = String(localized: "This file isn’t a supported image or Petdex pack")
+        }
+    }
+
     func importStaticImage(from sourceURL: URL, displayName: String? = nil) {
         lastErrorMessage = nil
         do {
@@ -253,6 +281,17 @@ final class AiboLibraryStore {
             return String(localized: "Failed to download aibo assets")
         case .invalidSpritesheet:
             return String(localized: "Unsupported image file")
+        case .ioFailed:
+            return String(localized: "Failed to save aibo files")
+        }
+    }
+
+    private static func message(for error: LocalAiboImportError) -> String {
+        switch error {
+        case .unsupportedFile:
+            return String(localized: "This file isn’t a supported image or Petdex pack")
+        case .invalidPack:
+            return String(localized: "This archive isn’t a valid Petdex pack")
         case .ioFailed:
             return String(localized: "Failed to save aibo files")
         }

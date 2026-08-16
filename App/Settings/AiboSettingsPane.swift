@@ -27,7 +27,7 @@ private struct AiboSettingsRootView: View {
     @Bindable private var settings = AppSettings.shared
     @Bindable private var library = AiboLibraryStore.shared
     @State private var petdexInput = ""
-    @State private var isImportingImage = false
+    @State private var isImportingLocal = false
 
     var body: some View {
         Form {
@@ -39,7 +39,7 @@ private struct AiboSettingsRootView: View {
                 petdexInput: $petdexInput,
                 isInstalling: library.isInstalling,
                 lastErrorMessage: library.lastErrorMessage,
-                onAddImage: { isImportingImage = true },
+                onAddLocal: { isImportingLocal = true },
                 onInstallPetdex: installPetdex
             )
 
@@ -51,11 +51,11 @@ private struct AiboSettingsRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .settingsDetailChrome(title: String(localized: "Aibo"))
         .fileImporter(
-            isPresented: $isImportingImage,
-            allowedContentTypes: [.png, .jpeg, .webP, .heic, .tiff, .image],
+            isPresented: $isImportingLocal,
+            allowedContentTypes: [.png, .jpeg, .webP, .heic, .tiff, .image, .zip],
             allowsMultipleSelection: false
         ) { result in
-            handleImageImport(result)
+            handleLocalImport(result)
         }
     }
 
@@ -69,15 +69,17 @@ private struct AiboSettingsRootView: View {
         }
     }
 
-    private func handleImageImport(_ result: Result<[URL], Error>) {
+    private func handleLocalImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            let accessed = url.startAccessingSecurityScopedResource()
-            defer {
-                if accessed { url.stopAccessingSecurityScopedResource() }
+            Task {
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer {
+                    if accessed { url.stopAccessingSecurityScopedResource() }
+                }
+                await library.importLocal(from: url)
             }
-            library.importStaticImage(from: url)
         case .failure:
             break
         }
@@ -281,12 +283,12 @@ private struct AiboManageSection: View {
     @Binding var petdexInput: String
     var isInstalling: Bool
     var lastErrorMessage: String?
-    var onAddImage: () -> Void
+    var onAddLocal: () -> Void
     var onInstallPetdex: () -> Void
 
     var body: some View {
         Section {
-            InstallFromLocalImageRow(isInstalling: isInstalling, action: onAddImage)
+            InstallFromLocalRow(isInstalling: isInstalling, action: onAddLocal)
 
             InstallFromPetdexRow(
                 petdexInput: $petdexInput,
@@ -318,17 +320,17 @@ private struct VerticallyCenteredLabeledContentStyle: LabeledContentStyle {
     }
 }
 
-private struct InstallFromLocalImageRow: View {
+private struct InstallFromLocalRow: View {
     var isInstalling: Bool
     var action: () -> Void
 
     var body: some View {
         LabeledContent {
-            Button("Add Image", action: action)
+            Button("Add", action: action)
                 .disabled(isInstalling)
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Install from Local Image")
+                Text("Install from Local")
                 Text("Compatible with single images or Codex / Petdex sprite formats.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

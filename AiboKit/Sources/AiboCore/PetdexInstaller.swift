@@ -46,46 +46,13 @@ public struct PetdexInstaller: Sendable {
         let record = PetdexInstallAPI.makeRecord(installable: pet, petJSON: petJSON)
 
         let destination = AiboPaths.petdexAiboDirectory(slug: pet.slug)
-        try materialize(
+        try PetdexPackStore.writeAtomically(
             destination: destination,
             petJSONData: petJSONData,
             spriteData: spriteData,
             spriteFileName: record.spriteFileName ?? "spritesheet.webp"
         )
         return record
-    }
-
-    private func materialize(
-        destination: URL,
-        petJSONData: Data,
-        spriteData: Data,
-        spriteFileName: String
-    ) throws {
-        let fileManager = FileManager.default
-        let parent = destination.deletingLastPathComponent()
-        try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
-
-        let staging = parent.appendingPathComponent(
-            ".staging-\(destination.lastPathComponent)-\(UUID().uuidString)",
-            isDirectory: true
-        )
-        try? fileManager.removeItem(at: staging)
-        try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
-
-        do {
-            try petJSONData.write(to: staging.appendingPathComponent("pet.json"), options: .atomic)
-            try spriteData.write(
-                to: staging.appendingPathComponent(spriteFileName),
-                options: .atomic
-            )
-            if fileManager.fileExists(atPath: destination.path) {
-                try fileManager.removeItem(at: destination)
-            }
-            try fileManager.moveItem(at: staging, to: destination)
-        } catch {
-            try? fileManager.removeItem(at: staging)
-            throw PetdexInstallError.ioFailed
-        }
     }
 
     private static let petdexHeaders: [String: String] = [

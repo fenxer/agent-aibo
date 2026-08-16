@@ -269,6 +269,102 @@ import Testing
     try? FileManager.default.removeItem(at: dir)
 }
 
+@Test func localAiboImporterClassifiesImageAndZip() {
+    #expect(LocalAiboImporter.classify(url: URL(fileURLWithPath: "/tmp/aibo.png")) == .staticImage)
+    #expect(LocalAiboImporter.classify(url: URL(fileURLWithPath: "/tmp/aibo.WEBP")) == .staticImage)
+    #expect(LocalAiboImporter.classify(url: URL(fileURLWithPath: "/tmp/pack.zip")) == .zipArchive)
+    #expect(LocalAiboImporter.classify(url: URL(fileURLWithPath: "/tmp/notes.pdf")) == nil)
+}
+
+@Test func localAiboImporterSanitizesSlug() {
+    #expect(LocalAiboImporter.sanitizeSlug("boba") == "boba")
+    #expect(LocalAiboImporter.sanitizeSlug("Phoebibi") == "phoebibi")
+    #expect(LocalAiboImporter.sanitizeSlug("My Pet!") == "my-pet")
+    #expect(LocalAiboImporter.sanitizeSlug("你好") == nil)
+}
+
+@Test func localAiboImporterInstallsPackFromDirectory() throws {
+    let slug = "local-pack-\(UUID().uuidString.prefix(8).lowercased())"
+    let source = FileManager.default.temporaryDirectory
+        .appendingPathComponent("aibo-pack-src-\(slug)", isDirectory: true)
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+    let petJSON = #"{"id":"\#(slug)","displayName":"Local Pack","spriteVersionNumber":2,"spritesheetPath":"spritesheet.webp"}"#
+    try Data(petJSON.utf8).write(to: source.appendingPathComponent("pet.json"))
+    try Data([0x52, 0x49, 0x46, 0x46]).write(to: source.appendingPathComponent("spritesheet.webp"))
+
+    let record = try LocalAiboImporter.installPack(fromDirectory: source, fallbackSlug: "ignored")
+    #expect(record.id == "petdex.\(slug)")
+    #expect(record.kind == .petdex)
+    #expect(record.displayName == "Local Pack")
+    #expect(record.installSource == "Local")
+    #expect(record.spriteFileName == "spritesheet.webp")
+    #expect(record.spriteVersionNumber == 2)
+
+    let dest = AiboPaths.petdexAiboDirectory(slug: slug)
+    #expect(FileManager.default.fileExists(atPath: dest.appendingPathComponent("pet.json").path))
+    #expect(FileManager.default.fileExists(atPath: dest.appendingPathComponent("spritesheet.webp").path))
+
+    try? FileManager.default.removeItem(at: source)
+    try? FileManager.default.removeItem(at: dest)
+}
+
+@Test func localAiboImporterRejectsPackWithoutSpritesheet() throws {
+    let source = FileManager.default.temporaryDirectory
+        .appendingPathComponent("aibo-pack-bad-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+    try Data(#"{"id":"bad-pack","displayName":"Bad"}"#.utf8)
+        .write(to: source.appendingPathComponent("pet.json"))
+    defer { try? FileManager.default.removeItem(at: source) }
+
+    #expect(throws: LocalAiboImportError.invalidPack) {
+        try LocalAiboImporter.installPack(fromDirectory: source, fallbackSlug: "bad-pack")
+    }
+}
+
+@Test func localAiboImporterRejectsPathTraversalSpritesheet() throws {
+    let source = FileManager.default.temporaryDirectory
+        .appendingPathComponent("aibo-pack-traverse-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+    try Data(#"{"id":"traverse-pack","spritesheetPath":"../outside.webp"}"#.utf8)
+        .write(to: source.appendingPathComponent("pet.json"))
+    defer { try? FileManager.default.removeItem(at: source) }
+
+    #expect(throws: LocalAiboImportError.invalidPack) {
+        try LocalAiboImporter.installPack(fromDirectory: source, fallbackSlug: "traverse-pack")
+    }
+}
+
+@Test func localAiboImporterInstallsPackFromZip() throws {
+    let slug = "local-zip-\(UUID().uuidString.prefix(8).lowercased())"
+    let fileManager = FileManager.default
+    let source = fileManager.temporaryDirectory
+        .appendingPathComponent("aibo-zip-src-\(slug)", isDirectory: true)
+    let nested = source.appendingPathComponent(slug, isDirectory: true)
+    try fileManager.createDirectory(at: nested, withIntermediateDirectories: true)
+    let petJSON = #"{"id":"\#(slug)","displayName":"Zipped","spritesheetPath":"spritesheet.webp"}"#
+    try Data(petJSON.utf8).write(to: nested.appendingPathComponent("pet.json"))
+    try Data([0x52, 0x49, 0x46, 0x46]).write(to: nested.appendingPathComponent("spritesheet.webp"))
+
+    let zipURL = fileManager.temporaryDirectory.appendingPathComponent("\(slug).zip")
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+    process.arguments = ["-c", "-k", "--keepParent", source.path, zipURL.path]
+    try process.run()
+    process.waitUntilExit()
+    #expect(process.terminationStatus == 0)
+
+    let record = try LocalAiboImporter.installPack(fromArchive: zipURL)
+    #expect(record.slug == slug)
+    #expect(record.installSource == "Local")
+
+    let dest = AiboPaths.petdexAiboDirectory(slug: slug)
+    #expect(FileManager.default.fileExists(atPath: dest.appendingPathComponent("pet.json").path))
+
+    try? fileManager.removeItem(at: source)
+    try? fileManager.removeItem(at: zipURL)
+    try? fileManager.removeItem(at: dest)
+}
+
 @Test func migrateLegacyLibraryDirectoryMovesPetsToAibos() throws {
     let fileManager = FileManager.default
     let support = fileManager.temporaryDirectory
