@@ -52,7 +52,7 @@ public enum HookSpriteMapping {
     public static func resolve(
         agent: AgentKind,
         hookEventName: String?,
-        activity: PetActivityState,
+        activity: AiboActivityState,
         overrides: HookSpriteMappingFile
     ) -> PetdexSpriteState {
         if activity == .idle {

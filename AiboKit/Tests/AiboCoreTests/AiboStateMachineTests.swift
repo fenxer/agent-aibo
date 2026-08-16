@@ -6,14 +6,14 @@ import Testing
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 1_000)
 
-    var state = PetWorldState()
-    state = PetStateMachine.reduce(
+    var state = AiboWorldState()
+    state = AiboStateMachine.reduce(
         state,
         event: .agent(session: key, transition: .apply(.thinking), at: t0)
     )
     #expect(state.sessions[key]?.activity == .thinking)
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
         event: .agent(session: key, transition: .removeSession, at: t0.addingTimeInterval(1))
     )
@@ -24,22 +24,22 @@ import Testing
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 2_000)
 
-    var state = PetWorldState()
-    state = PetStateMachine.reduce(
+    var state = AiboWorldState()
+    state = AiboStateMachine.reduce(
         state,
         event: .agent(session: key, transition: .apply(.done), at: t0)
     )
     #expect(state.sessions[key]?.activity == .done)
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
-        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.doneIdleDelay - 0.1))
+        event: .idleDeadline(at: t0.addingTimeInterval(AiboStateMachine.doneIdleDelay - 0.1))
     )
     #expect(state.sessions[key]?.activity == .done)
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
-        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.doneIdleDelay))
+        event: .idleDeadline(at: t0.addingTimeInterval(AiboStateMachine.doneIdleDelay))
     )
     #expect(state.sessions[key]?.activity == .idle)
 }
@@ -48,23 +48,23 @@ import Testing
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 2_500)
 
-    var state = PetWorldState()
-    state = PetStateMachine.reduce(
+    var state = AiboWorldState()
+    state = AiboStateMachine.reduce(
         state,
         event: .agent(session: key, transition: .apply(.registered), at: t0)
     )
     #expect(state.sessions[key]?.activity == .registered)
-    #expect(state.sessions[key]?.idleAt == t0.addingTimeInterval(PetStateMachine.doneIdleDelay))
+    #expect(state.sessions[key]?.idleAt == t0.addingTimeInterval(AiboStateMachine.doneIdleDelay))
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
-        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.doneIdleDelay - 0.1))
+        event: .idleDeadline(at: t0.addingTimeInterval(AiboStateMachine.doneIdleDelay - 0.1))
     )
     #expect(state.sessions[key]?.activity == .registered)
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
-        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.doneIdleDelay))
+        event: .idleDeadline(at: t0.addingTimeInterval(AiboStateMachine.doneIdleDelay))
     )
     #expect(state.sessions[key]?.activity == .idle)
 }
@@ -73,17 +73,17 @@ import Testing
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 2_750)
 
-    var state = PetWorldState()
-    state = PetStateMachine.reduce(
+    var state = AiboWorldState()
+    state = AiboStateMachine.reduce(
         state,
         event: .agent(session: key, transition: .apply(.interrupted), at: t0)
     )
     #expect(state.sessions[key]?.activity == .interrupted)
-    #expect(state.sessions[key]?.idleAt == t0.addingTimeInterval(PetStateMachine.doneIdleDelay))
+    #expect(state.sessions[key]?.idleAt == t0.addingTimeInterval(AiboStateMachine.doneIdleDelay))
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
-        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.doneIdleDelay))
+        event: .idleDeadline(at: t0.addingTimeInterval(AiboStateMachine.doneIdleDelay))
     )
     #expect(state.sessions[key]?.activity == .idle)
 }
@@ -92,27 +92,27 @@ import Testing
     let key = SessionKey(agent: .codex, conversationID: "thr_1")
     let t0 = Date(timeIntervalSince1970: 2_760)
 
-    var state = PetWorldState()
-    state = PetStateMachine.reduce(
+    var state = AiboWorldState()
+    state = AiboStateMachine.reduce(
         state,
         event: .agent(session: key, transition: .apply(.waiting), at: t0)
     )
     #expect(state.sessions[key]?.activity == .waiting)
     #expect(
         state.sessions[key]?.idleAt
-            == t0.addingTimeInterval(PetStateMachine.waitingIdleDelay)
+            == t0.addingTimeInterval(AiboStateMachine.waitingIdleDelay)
     )
-    #expect(PetStateMachine.idleFallbackDelay(for: .waiting) == 60)
+    #expect(AiboStateMachine.idleFallbackDelay(for: .waiting) == 60)
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
-        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.waitingIdleDelay - 0.1))
+        event: .idleDeadline(at: t0.addingTimeInterval(AiboStateMachine.waitingIdleDelay - 0.1))
     )
     #expect(state.sessions[key]?.activity == .waiting)
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
-        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.waitingIdleDelay))
+        event: .idleDeadline(at: t0.addingTimeInterval(AiboStateMachine.waitingIdleDelay))
     )
     #expect(state.sessions[key]?.activity == .idle)
 }
@@ -121,41 +121,41 @@ import Testing
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 2_800)
 
-    var state = PetWorldState()
-    state = PetStateMachine.reduce(
+    var state = AiboWorldState()
+    state = AiboStateMachine.reduce(
         state,
         event: .agent(session: key, transition: .apply(.failed), at: t0)
     )
     #expect(state.sessions[key]?.activity == .failed)
     #expect(state.sessions[key]?.idleAt == nil)
-    #expect(PetStateMachine.schedulesIdleFallback(.failed) == false)
+    #expect(AiboStateMachine.schedulesIdleFallback(.failed) == false)
 }
 
 @Test func respondingSchedulesOneMinuteIdleFallback() {
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 2_900)
 
-    var state = PetWorldState()
-    state = PetStateMachine.reduce(
+    var state = AiboWorldState()
+    state = AiboStateMachine.reduce(
         state,
         event: .agent(session: key, transition: .apply(.responding), at: t0)
     )
     #expect(state.sessions[key]?.activity == .responding)
     #expect(
         state.sessions[key]?.idleAt
-            == t0.addingTimeInterval(PetStateMachine.respondingIdleDelay)
+            == t0.addingTimeInterval(AiboStateMachine.respondingIdleDelay)
     )
-    #expect(PetStateMachine.idleFallbackDelay(for: .responding) == 60)
+    #expect(AiboStateMachine.idleFallbackDelay(for: .responding) == 60)
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
-        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.respondingIdleDelay - 0.1))
+        event: .idleDeadline(at: t0.addingTimeInterval(AiboStateMachine.respondingIdleDelay - 0.1))
     )
     #expect(state.sessions[key]?.activity == .responding)
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
-        event: .idleDeadline(at: t0.addingTimeInterval(PetStateMachine.respondingIdleDelay))
+        event: .idleDeadline(at: t0.addingTimeInterval(AiboStateMachine.respondingIdleDelay))
     )
     #expect(state.sessions[key]?.activity == .idle)
 }
@@ -164,18 +164,18 @@ import Testing
     let key = SessionKey(agent: .cursor, conversationID: "c1")
     let t0 = Date(timeIntervalSince1970: 3_000)
 
-    var state = PetWorldState()
-    state = PetStateMachine.reduce(
+    var state = AiboWorldState()
+    state = AiboStateMachine.reduce(
         state,
         event: .agent(session: key, transition: .apply(.thinking), at: t0)
     )
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
         event: .watchdog(at: t0.addingTimeInterval(119), timeout: 120)
     )
     #expect(state.sessions[key]?.activity == .thinking)
 
-    state = PetStateMachine.reduce(
+    state = AiboStateMachine.reduce(
         state,
         event: .watchdog(at: t0.addingTimeInterval(120), timeout: 120)
     )
@@ -184,7 +184,7 @@ import Testing
 
 @Test func cursorUsingToolStallHintOnlyForCursorUsingToolAfterDelay() {
     let t0 = Date(timeIntervalSince1970: 3_000)
-    #expect(PetStateMachine.cursorUsingToolStallDelay == 10)
+    #expect(AiboStateMachine.cursorUsingToolStallDelay == 10)
     #expect(
         CursorUsingToolStallHint.isDue(
             agent: .cursor,
@@ -221,7 +221,7 @@ import Testing
 
 @Test func waitingApprovalEscalationHintOnlyAfterDelay() {
     let t0 = Date(timeIntervalSince1970: 4_000)
-    #expect(PetStateMachine.waitingApprovalEscalationDelay == 5)
+    #expect(AiboStateMachine.waitingApprovalEscalationDelay == 5)
     #expect(
         WaitingApprovalEscalationHint.isDue(
             activity: .waiting,

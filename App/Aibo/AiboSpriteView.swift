@@ -3,9 +3,9 @@ import AppKit
 import SwiftUI
 
 /// Renders the selected library pet: Default / static square / Petdex atlas.
-struct PetSpriteView: View {
-    var record: PetLibraryRecord
-    var activity: PetActivityState
+struct AiboSpriteView: View {
+    var record: AiboLibraryRecord
+    var activity: AiboActivityState
     var spriteState: PetdexSpriteState
     var size: CGFloat
 
@@ -15,7 +15,7 @@ struct PetSpriteView: View {
             case .builtInDefault, .staticImage:
                 staticPetImage
             case .petdex:
-                petdexPetImage
+                petdexAiboImage
             }
         }
         .frame(width: size, height: size)
@@ -23,14 +23,14 @@ struct PetSpriteView: View {
 
     @ViewBuilder
     private var staticPetImage: some View {
-        if let image = PetSpriteCache.shared.previewImage(for: record) {
+        if let image = AiboSpriteCache.shared.previewImage(for: record) {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
                 .frame(width: size, height: size)
         } else {
-            Image("DefaultPet")
+            Image("DefaultAibo")
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
@@ -39,15 +39,15 @@ struct PetSpriteView: View {
     }
 
     @ViewBuilder
-    private var petdexPetImage: some View {
+    private var petdexAiboImage: some View {
         let animates = shouldAnimate(spriteState)
         let state = animates ? spriteState : .idle
-        let frames = PetSpriteCache.shared.layerFrames(for: record, state: state)
+        let frames = AiboSpriteCache.shared.layerFrames(for: record, state: state)
         if frames.isEmpty {
             stillFallbackImage
         } else {
-            PetSpriteLayer(
-                key: PetSpriteLayer.Key(
+            AiboSpriteLayer(
+                key: AiboSpriteLayer.Key(
                     recordID: record.id,
                     state: state,
                     animates: animates
@@ -63,8 +63,8 @@ struct PetSpriteView: View {
     /// Shown when the atlas failed to load or yielded no frames.
     @ViewBuilder
     private var stillFallbackImage: some View {
-        let image = PetSpriteCache.shared.previewImage(for: record)
-            ?? NSImage(named: "DefaultPet")
+        let image = AiboSpriteCache.shared.previewImage(for: record)
+            ?? NSImage(named: "DefaultAibo")
         if let image {
             Image(nsImage: image)
                 .resizable()
@@ -93,7 +93,7 @@ struct PetSpriteView: View {
 /// tracking-area rebuild. A discrete keyframe animation is submitted once and
 /// then played by the render server, so the main thread only does work when the
 /// sprite state actually changes.
-private struct PetSpriteLayer: NSViewRepresentable {
+private struct AiboSpriteLayer: NSViewRepresentable {
     /// Identifies the mounted loop; the animation is rebuilt only when it changes.
     struct Key: Equatable {
         var recordID: String
@@ -139,11 +139,11 @@ private struct PetSpriteLayer: NSViewRepresentable {
 
         @available(*, unavailable)
         required init?(coder: NSCoder) {
-            fatalError("PetSpriteLayer.SpriteView is not loadable from a nib")
+            fatalError("AiboSpriteLayer.SpriteView is not loadable from a nib")
         }
 
         /// Let the SwiftUI frame decide the size; an intrinsic size here would
-        /// feed AppKit constraints back into PetPanel's sizing.
+        /// feed AppKit constraints back into AiboPanel's sizing.
         override var intrinsicContentSize: NSSize {
             NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
         }

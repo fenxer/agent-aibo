@@ -6,14 +6,14 @@ import Security
 import SwiftUI
 
 enum MusicNotesColorMode: String, CaseIterable, Identifiable, Sendable, Hashable {
-    case petAccent
+    case aiboAccent
     case custom
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .petAccent: String(localized: "Pet Accent Color")
+        case .aiboAccent: String(localized: "Aibo Accent Color")
         case .custom: String(localized: "Custom")
         }
     }
@@ -38,11 +38,11 @@ final class AppSettings {
         static let cursorCapsuleColor = "settings.agentCapsuleColor.cursor"
         static let codexCapsuleColor = "settings.agentCapsuleColor.codex"
         static let deepseekCapsuleColor = "settings.agentCapsuleColor.deepseek"
-        static let petScalePercent = "settings.petScalePercent"
-        static let restoreLastPetPosition = "settings.restoreLastPetPosition"
+        static let aiboScalePercent = "settings.aiboScalePercent"
+        static let restoreLastAiboPosition = "settings.restoreLastAiboPosition"
         static let hideWhenFullscreen = "settings.hideWhenFullscreen"
-        static let petPositionXPercent = "settings.petPositionXPercent"
-        static let petPositionYPercent = "settings.petPositionYPercent"
+        static let aiboPositionXPercent = "settings.aiboPositionXPercent"
+        static let aiboPositionYPercent = "settings.aiboPositionYPercent"
         static let musicNotesEnabled = "settings.musicNotesEnabled"
         static let musicNotesColorMode = "settings.musicNotesColorMode"
         static let musicNotesCustomColor = "settings.musicNotesCustomColor"
@@ -57,9 +57,9 @@ final class AppSettings {
     }
 
     static let defaultWebhookPort: UInt16 = 8787
-    /// Pet image size as a percentage of the base 96pt sprite. Range 0…200; default 100.
-    static let defaultPetScalePercent: Double = 100
-    static let petScalePercentRange: ClosedRange<Double> = 0...200
+    /// Aibo image size as a percentage of the base 96pt sprite. Range 0…200; default 100.
+    static let defaultAiboScalePercent: Double = 100
+    static let aiboScalePercentRange: ClosedRange<Double> = 0...200
     static let defaultWebhookAutoDismissSeconds = 12
     static let webhookAutoDismissSecondsRange = 1...600
 
@@ -74,7 +74,7 @@ final class AppSettings {
             guard oldValue != themeMode else { return }
             UserDefaults.standard.set(themeMode.rawValue, forKey: Keys.themeMode)
             Self.applyAppearance(themeMode)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -82,63 +82,63 @@ final class AppSettings {
         didSet {
             guard oldValue != bubblePlacement else { return }
             UserDefaults.standard.set(bubblePlacement.rawValue, forKey: Keys.bubblePlacement)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
-    /// Pet sprite scale relative to the default size (`100` = 96×96 pt).
-    var petScalePercent: Double {
+    /// Aibo sprite scale relative to the default size (`100` = 96×96 pt).
+    var aiboScalePercent: Double {
         didSet {
-            let clamped = Self.clampPetScalePercent(petScalePercent)
-            if clamped != petScalePercent {
-                petScalePercent = clamped
+            let clamped = Self.clampAiboScalePercent(aiboScalePercent)
+            if clamped != aiboScalePercent {
+                aiboScalePercent = clamped
                 return
             }
-            guard oldValue != petScalePercent else { return }
-            UserDefaults.standard.set(petScalePercent, forKey: Keys.petScalePercent)
-            PetPanelController.shared.refreshContent()
+            guard oldValue != aiboScalePercent else { return }
+            UserDefaults.standard.set(aiboScalePercent, forKey: Keys.aiboScalePercent)
+            AiboPanelController.shared.refreshContent()
         }
     }
 
-    /// When true, the pet opens at its last screen-relative position. Default on.
-    var restoreLastPetPosition: Bool {
+    /// When true, the aibo opens at its last screen-relative position. Default on.
+    var restoreLastAiboPosition: Bool {
         didSet {
-            guard oldValue != restoreLastPetPosition else { return }
-            UserDefaults.standard.set(restoreLastPetPosition, forKey: Keys.restoreLastPetPosition)
+            guard oldValue != restoreLastAiboPosition else { return }
+            UserDefaults.standard.set(restoreLastAiboPosition, forKey: Keys.restoreLastAiboPosition)
         }
     }
 
-    /// When true, hide the pet for native fullscreen (Spaces type 4) or
+    /// When true, hide the aibo for native fullscreen (Spaces type 4) or
     /// `currentSystemPresentationOptions` containing `.fullScreen`. Default on.
     var hideWhenFullscreen: Bool {
         didSet {
             guard oldValue != hideWhenFullscreen else { return }
             UserDefaults.standard.set(hideWhenFullscreen, forKey: Keys.hideWhenFullscreen)
-            PetPanelController.shared.syncFullscreenPolicy()
+            AiboPanelController.shared.syncFullscreenPolicy()
         }
     }
 
-    /// Pet center X within the screen `visibleFrame`, 0…1. `nil` until the user has moved the pet.
-    private(set) var savedPetCenterXPercent: Double?
-    /// Pet center Y within the screen `visibleFrame`, 0…1. `nil` until the user has moved the pet.
-    private(set) var savedPetCenterYPercent: Double?
+    /// Pet center X within the screen `visibleFrame`, 0…1. `nil` until the user has moved the aibo.
+    private(set) var savedAiboCenterXPercent: Double?
+    /// Pet center Y within the screen `visibleFrame`, 0…1. `nil` until the user has moved the aibo.
+    private(set) var savedAiboCenterYPercent: Double?
 
     /// Overlay music-note rise effect while a known player is playing. Default on.
     var musicNotesEnabled: Bool {
         didSet {
             guard oldValue != musicNotesEnabled else { return }
             UserDefaults.standard.set(musicNotesEnabled, forKey: Keys.musicNotesEnabled)
-            PetRuntime.shared.syncMusicPlaybackMonitor()
-            PetPanelController.shared.refreshContent()
+            AiboRuntime.shared.syncMusicPlaybackMonitor()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
-    /// Default `.petAccent` — notes follow the selected pet’s dominant color.
+    /// Default `.aiboAccent` — notes follow the selected aibo’s dominant color.
     var musicNotesColorMode: MusicNotesColorMode {
         didSet {
             guard oldValue != musicNotesColorMode else { return }
             UserDefaults.standard.set(musicNotesColorMode.rawValue, forKey: Keys.musicNotesColorMode)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -147,7 +147,7 @@ final class AppSettings {
         didSet {
             guard oldValue != musicNotesCustomColor else { return }
             Self.persistColor(musicNotesCustomColor, key: Keys.musicNotesCustomColor)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -165,7 +165,7 @@ final class AppSettings {
         didSet {
             guard oldValue != bubbleGlassStyle else { return }
             UserDefaults.standard.set(bubbleGlassStyle.rawValue, forKey: Keys.bubbleGlassStyle)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -174,7 +174,7 @@ final class AppSettings {
         didSet {
             guard oldValue != bubbleGlassTint else { return }
             Self.persistColor(bubbleGlassTint, key: Keys.bubbleGlassTint)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -183,7 +183,7 @@ final class AppSettings {
         didSet {
             guard oldValue != cursorCapsuleColor else { return }
             Self.persistColor(cursorCapsuleColor, key: Keys.cursorCapsuleColor)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -192,7 +192,7 @@ final class AppSettings {
         didSet {
             guard oldValue != codexCapsuleColor else { return }
             Self.persistColor(codexCapsuleColor, key: Keys.codexCapsuleColor)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -201,7 +201,7 @@ final class AppSettings {
         didSet {
             guard oldValue != deepseekCapsuleColor else { return }
             Self.persistColor(deepseekCapsuleColor, key: Keys.deepseekCapsuleColor)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -210,7 +210,7 @@ final class AppSettings {
         didSet {
             guard oldValue != cursorBubbleGlassStyle else { return }
             UserDefaults.standard.set(cursorBubbleGlassStyle.rawValue, forKey: Keys.cursorBubbleGlassStyle)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -218,7 +218,7 @@ final class AppSettings {
         didSet {
             guard oldValue != codexBubbleGlassStyle else { return }
             UserDefaults.standard.set(codexBubbleGlassStyle.rawValue, forKey: Keys.codexBubbleGlassStyle)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -226,7 +226,7 @@ final class AppSettings {
         didSet {
             guard oldValue != deepseekBubbleGlassStyle else { return }
             UserDefaults.standard.set(deepseekBubbleGlassStyle.rawValue, forKey: Keys.deepseekBubbleGlassStyle)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -235,7 +235,7 @@ final class AppSettings {
         didSet {
             guard oldValue != cursorBubbleGlassTint else { return }
             Self.persistColor(cursorBubbleGlassTint, key: Keys.cursorBubbleGlassTint)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -243,7 +243,7 @@ final class AppSettings {
         didSet {
             guard oldValue != codexBubbleGlassTint else { return }
             Self.persistColor(codexBubbleGlassTint, key: Keys.codexBubbleGlassTint)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -251,7 +251,7 @@ final class AppSettings {
         didSet {
             guard oldValue != deepseekBubbleGlassTint else { return }
             Self.persistColor(deepseekBubbleGlassTint, key: Keys.deepseekBubbleGlassTint)
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -259,7 +259,7 @@ final class AppSettings {
         didSet {
             guard oldValue != webhookEnabled else { return }
             UserDefaults.standard.set(webhookEnabled, forKey: Keys.webhookEnabled)
-            PetRuntime.shared.syncWebhookServer()
+            AiboRuntime.shared.syncWebhookServer()
             TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
         }
     }
@@ -268,7 +268,7 @@ final class AppSettings {
         didSet {
             guard oldValue != webhookPort else { return }
             UserDefaults.standard.set(Int(webhookPort), forKey: Keys.webhookPort)
-            PetRuntime.shared.syncWebhookServer()
+            AiboRuntime.shared.syncWebhookServer()
             TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
         }
     }
@@ -329,6 +329,8 @@ final class AppSettings {
     }
 
     private init() {
+        Self.migrateLegacyPetKeys()
+
         let themeRaw = UserDefaults.standard.string(forKey: Keys.themeMode)
             ?? AppThemeMode.system.rawValue
         let resolvedTheme = AppThemeMode(rawValue: themeRaw) ?? .system
@@ -372,18 +374,18 @@ final class AppSettings {
         codexCapsuleColor = Self.loadColor(key: Keys.codexCapsuleColor)
         deepseekCapsuleColor = Self.loadColor(key: Keys.deepseekCapsuleColor)
 
-        if UserDefaults.standard.object(forKey: Keys.petScalePercent) != nil {
-            petScalePercent = Self.clampPetScalePercent(
-                UserDefaults.standard.double(forKey: Keys.petScalePercent)
+        if UserDefaults.standard.object(forKey: Keys.aiboScalePercent) != nil {
+            aiboScalePercent = Self.clampAiboScalePercent(
+                UserDefaults.standard.double(forKey: Keys.aiboScalePercent)
             )
         } else {
-            petScalePercent = Self.defaultPetScalePercent
+            aiboScalePercent = Self.defaultAiboScalePercent
         }
 
-        if UserDefaults.standard.object(forKey: Keys.restoreLastPetPosition) != nil {
-            restoreLastPetPosition = UserDefaults.standard.bool(forKey: Keys.restoreLastPetPosition)
+        if UserDefaults.standard.object(forKey: Keys.restoreLastAiboPosition) != nil {
+            restoreLastAiboPosition = UserDefaults.standard.bool(forKey: Keys.restoreLastAiboPosition)
         } else {
-            restoreLastPetPosition = true
+            restoreLastAiboPosition = true
         }
 
         if UserDefaults.standard.object(forKey: Keys.hideWhenFullscreen) != nil {
@@ -392,14 +394,14 @@ final class AppSettings {
             hideWhenFullscreen = true
         }
 
-        if UserDefaults.standard.object(forKey: Keys.petPositionXPercent) != nil,
-           UserDefaults.standard.object(forKey: Keys.petPositionYPercent) != nil
+        if UserDefaults.standard.object(forKey: Keys.aiboPositionXPercent) != nil,
+           UserDefaults.standard.object(forKey: Keys.aiboPositionYPercent) != nil
         {
-            savedPetCenterXPercent = UserDefaults.standard.double(forKey: Keys.petPositionXPercent)
-            savedPetCenterYPercent = UserDefaults.standard.double(forKey: Keys.petPositionYPercent)
+            savedAiboCenterXPercent = UserDefaults.standard.double(forKey: Keys.aiboPositionXPercent)
+            savedAiboCenterYPercent = UserDefaults.standard.double(forKey: Keys.aiboPositionYPercent)
         } else {
-            savedPetCenterXPercent = nil
-            savedPetCenterYPercent = nil
+            savedAiboCenterXPercent = nil
+            savedAiboCenterYPercent = nil
         }
 
         if UserDefaults.standard.object(forKey: Keys.musicNotesEnabled) != nil {
@@ -408,8 +410,8 @@ final class AppSettings {
             musicNotesEnabled = true
         }
         let notesColorRaw = UserDefaults.standard.string(forKey: Keys.musicNotesColorMode)
-            ?? MusicNotesColorMode.petAccent.rawValue
-        musicNotesColorMode = MusicNotesColorMode(rawValue: notesColorRaw) ?? .petAccent
+            ?? MusicNotesColorMode.aiboAccent.rawValue
+        musicNotesColorMode = MusicNotesColorMode(rawValue: notesColorRaw) ?? .aiboAccent
         musicNotesCustomColor = Self.loadColor(key: Keys.musicNotesCustomColor)
             ?? Color(nsColor: .systemPink)
         customMusicNotificationNames =
@@ -455,10 +457,10 @@ final class AppSettings {
         }
     }
 
-    func resolvedMusicNotesColor(for record: PetLibraryRecord) -> Color {
+    func resolvedMusicNotesColor(for record: AiboLibraryRecord) -> Color {
         switch musicNotesColorMode {
-        case .petAccent:
-            PetAppearance.dominantColor(for: record)
+        case .aiboAccent:
+            AiboAppearance.dominantColor(for: record)
         case .custom:
             musicNotesCustomColor
         }
@@ -467,11 +469,11 @@ final class AppSettings {
     func regenerateWebhookSecret() {
         webhookSecret = Self.makeSecret()
         try? KeychainStore.setString(webhookSecret, forAccount: Keys.webhookSecretAccount)
-        PetRuntime.shared.syncWebhookServer()
+        AiboRuntime.shared.syncWebhookServer()
     }
 
-    func resetPetScalePercent() {
-        petScalePercent = Self.defaultPetScalePercent
+    func resetAiboScalePercent() {
+        aiboScalePercent = Self.defaultAiboScalePercent
     }
 
     /// Custom agent-capsule fill, or `nil` for the default black/white look.
@@ -535,15 +537,15 @@ final class AppSettings {
         return agentBubbleGlassTint(for: agent)
     }
 
-    /// Persist pet center as fractions of the screen visible frame (resolution-independent).
-    func savePetCenterRelativePosition(xPercent: Double, yPercent: Double) {
+    /// Persist aibo center as fractions of the screen visible frame (resolution-independent).
+    func saveAiboCenterRelativePosition(xPercent: Double, yPercent: Double) {
         let x = min(max(xPercent, 0), 1)
         let y = min(max(yPercent, 0), 1)
-        guard savedPetCenterXPercent != x || savedPetCenterYPercent != y else { return }
-        savedPetCenterXPercent = x
-        savedPetCenterYPercent = y
-        UserDefaults.standard.set(x, forKey: Keys.petPositionXPercent)
-        UserDefaults.standard.set(y, forKey: Keys.petPositionYPercent)
+        guard savedAiboCenterXPercent != x || savedAiboCenterYPercent != y else { return }
+        savedAiboCenterXPercent = x
+        savedAiboCenterYPercent = y
+        UserDefaults.standard.set(x, forKey: Keys.aiboPositionXPercent)
+        UserDefaults.standard.set(y, forKey: Keys.aiboPositionYPercent)
     }
 
     func saveSettingsWindowHeight(_ height: CGFloat) {
@@ -553,12 +555,33 @@ final class AppSettings {
         UserDefaults.standard.set(Double(clamped), forKey: Keys.settingsWindowHeight)
     }
 
+    /// Copies pre-rename `settings.pet*` keys (and `petAccent`) into the aibo names once.
+    private static func migrateLegacyPetKeys() {
+        let defaults = UserDefaults.standard
+        let pairs = [
+            ("settings.petScalePercent", Keys.aiboScalePercent),
+            ("settings.restoreLastPetPosition", Keys.restoreLastAiboPosition),
+            ("settings.petPositionXPercent", Keys.aiboPositionXPercent),
+            ("settings.petPositionYPercent", Keys.aiboPositionYPercent),
+        ]
+        for (old, new) in pairs {
+            guard defaults.object(forKey: new) == nil,
+                  let value = defaults.object(forKey: old)
+            else { continue }
+            defaults.set(value, forKey: new)
+            defaults.removeObject(forKey: old)
+        }
+        if defaults.string(forKey: Keys.musicNotesColorMode) == "petAccent" {
+            defaults.set(MusicNotesColorMode.aiboAccent.rawValue, forKey: Keys.musicNotesColorMode)
+        }
+    }
+
     private static func applyAppearance(_ mode: AppThemeMode) {
         NSApp.appearance = mode.nsAppearance
     }
 
-    private static func clampPetScalePercent(_ value: Double) -> Double {
-        min(max(value, petScalePercentRange.lowerBound), petScalePercentRange.upperBound)
+    private static func clampAiboScalePercent(_ value: Double) -> Double {
+        min(max(value, aiboScalePercentRange.lowerBound), aiboScalePercentRange.upperBound)
     }
 
     private static func clampSettingsWindowHeight(_ value: CGFloat) -> CGFloat {

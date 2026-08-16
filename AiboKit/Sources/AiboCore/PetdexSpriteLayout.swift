@@ -101,7 +101,7 @@ public struct PetdexSpriteLayout: Sendable, Equatable {
 
 /// Maps aibo agent activity onto a Petdex atlas row.
 public enum PetdexSpriteStateMapper {
-    public static func state(for activity: PetActivityState) -> PetdexSpriteState {
+    public static func state(for activity: AiboActivityState) -> PetdexSpriteState {
         switch activity {
         case .idle:
             return .idle

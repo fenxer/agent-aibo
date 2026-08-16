@@ -30,28 +30,52 @@ public enum AiboPaths: Sendable {
         applicationSupportDirectory.appendingPathComponent(ingestLogFileName, isDirectory: false)
     }
 
-    public static let petsDirectoryName = "pets"
-    public static let petLibraryFileName = "library.json"
-    public static let petdexPetsDirectoryName = "petdex"
-    public static let staticPetsDirectoryName = "static"
+    /// Pre-rename folder. `migrateLegacyLibraryDirectoryIfNeeded` moves this to `aibos`.
+    public static let legacyPetsDirectoryName = "pets"
+    public static let aibosDirectoryName = "aibos"
+    public static let libraryFileName = "library.json"
+    public static let petdexDirectoryName = "petdex"
+    public static let staticDirectoryName = "static"
 
-    public static var petsDirectory: URL {
-        applicationSupportDirectory.appendingPathComponent(petsDirectoryName, isDirectory: true)
+    public static var aibosDirectory: URL {
+        applicationSupportDirectory.appendingPathComponent(aibosDirectoryName, isDirectory: true)
     }
 
-    public static var petLibraryURL: URL {
-        petsDirectory.appendingPathComponent(petLibraryFileName, isDirectory: false)
+    public static var libraryURL: URL {
+        aibosDirectory.appendingPathComponent(libraryFileName, isDirectory: false)
     }
 
-    public static var petdexPetsDirectory: URL {
-        petsDirectory.appendingPathComponent(petdexPetsDirectoryName, isDirectory: true)
+    public static var petdexDirectory: URL {
+        aibosDirectory.appendingPathComponent(petdexDirectoryName, isDirectory: true)
     }
 
-    public static var staticPetsDirectory: URL {
-        petsDirectory.appendingPathComponent(staticPetsDirectoryName, isDirectory: true)
+    public static var staticDirectory: URL {
+        aibosDirectory.appendingPathComponent(staticDirectoryName, isDirectory: true)
     }
 
-    public static func petdexPetDirectory(slug: String) -> URL {
-        petdexPetsDirectory.appendingPathComponent(slug, isDirectory: true)
+    public static func petdexAiboDirectory(slug: String) -> URL {
+        petdexDirectory.appendingPathComponent(slug, isDirectory: true)
+    }
+
+    /// Moves `Application Support/aibo/pets` → `aibos` once. No-op if the new folder already exists.
+    public static func migrateLegacyLibraryDirectoryIfNeeded() {
+        migrateLegacyLibraryDirectory(in: applicationSupportDirectory)
+    }
+
+    /// Testable migrate: `…/<support>/pets` → `…/<support>/aibos`.
+    public static func migrateLegacyLibraryDirectory(
+        in applicationSupport: URL,
+        fileManager: FileManager = .default
+    ) {
+        let destination = applicationSupport.appendingPathComponent(aibosDirectoryName, isDirectory: true)
+        let legacy = applicationSupport.appendingPathComponent(legacyPetsDirectoryName, isDirectory: true)
+        guard fileManager.fileExists(atPath: legacy.path) else { return }
+        guard !fileManager.fileExists(atPath: destination.path) else { return }
+        do {
+            try fileManager.createDirectory(at: applicationSupport, withIntermediateDirectories: true)
+            try fileManager.moveItem(at: legacy, to: destination)
+        } catch {
+            // Leave the legacy folder in place; the next launch can retry.
+        }
     }
 }

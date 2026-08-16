@@ -2,25 +2,25 @@ import AiboCore
 import Pow
 import SwiftUI
 
-struct PetView: View {
-    /// Preview / test override; `nil` reads `PetRuntime.shared`.
+struct AiboView: View {
+    /// Preview / test override; `nil` reads `AiboRuntime.shared`.
     var bubbleItemsOverride: [StatusBubbleItem]? = nil
     /// Preview / test override; `nil` reads `AppSettings.shared`.
     var placementOverride: BubblePlacement? = nil
-    /// Preview / test override; `nil` derives from `AppSettings.shared.petScalePercent`.
-    var petSizeOverride: CGFloat? = nil
+    /// Preview / test override; `nil` derives from `AppSettings.shared.aiboScalePercent`.
+    var aiboSizeOverride: CGFloat? = nil
 
-    @State private var panelController = PetPanelController.shared
+    @State private var panelController = AiboPanelController.shared
     @State private var floatingNotes: [FloatingMusicNote] = []
     @State private var musicNoteTask: Task<Void, Never>?
-    private var library = PetLibraryStore.shared
-    private var runtime = PetRuntime.shared
+    private var library = AiboLibraryStore.shared
+    private var runtime = AiboRuntime.shared
     private var hookSprites = HookSpriteSettings.shared
     private var musicMonitor = MusicPlaybackMonitor.shared
 
     private let stackSpacing: CGFloat = 4
-    private let petBubbleSpacing: CGFloat = 6
-    private let basePetSize: CGFloat = 96
+    private let aiboBubbleSpacing: CGFloat = 6
+    private let baseAiboSize: CGFloat = 96
     private var bubbleItems: [StatusBubbleItem] {
         bubbleItemsOverride ?? runtime.bubbleItems
     }
@@ -34,8 +34,8 @@ struct PetView: View {
         placementOverride ?? AppSettings.shared.bubblePlacement
     }
 
-    private var petSize: CGFloat {
-        petSizeOverride ?? basePetSize * CGFloat(AppSettings.shared.petScalePercent / 100)
+    private var aiboSize: CGFloat {
+        aiboSizeOverride ?? baseAiboSize * CGFloat(AppSettings.shared.aiboScalePercent / 100)
     }
 
     private func glassStyle(for item: StatusBubbleItem) -> BubbleGlassStyle {
@@ -59,13 +59,13 @@ struct PetView: View {
     var body: some View {
         // Keep one layout tree (even with zero bubbles) so insert/remove
         // transitions are not torn down by switching to a pet-only branch.
-        // Hide vanishes only the pet sprite (local transition) and fades bubbles —
+        // Hide vanishes only the aibo sprite (local transition) and fades bubbles —
         // never remove this root tree while resizing the NSPanel (constraint loop).
         // No root WindowDragGesture — that made music-note padding (and other
         // empty layout) steal clicks. Pet drag is AppKit performDrag on opaque
         // pixels only (PassThroughHostingView); bubbles keep their own taps.
         positionedContent
-            .padding(PetContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled).edgeInsets)
+            .padding(AiboContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled).edgeInsets)
             .allowsWindowActivationEvents()
             .onChange(of: shouldEmitMusicNotes, initial: true) { _, active in
                 syncMusicNotePulse(active: active)
@@ -81,29 +81,29 @@ struct PetView: View {
     private var positionedContent: some View {
         switch placement {
         case .top:
-            VStack(spacing: petBubbleSpacing) {
+            VStack(spacing: aiboBubbleSpacing) {
                 fadingBubbleStack(nearPetIndex: bubbleItems.count - 1)
-                petImage
+                aiboImage
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         case .bottom:
-            VStack(spacing: petBubbleSpacing) {
-                petImage
+            VStack(spacing: aiboBubbleSpacing) {
+                aiboImage
                 // Oldest nearest pet (arrow); newer grow downward.
                 fadingBubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         case .left:
             HStack(alignment: .center, spacing: 0) {
-                // Layout height = near-pet bubble only; older bubbles grow upward.
+                // Layout height = near-aibo bubble only; older bubbles grow upward.
                 fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
-                petImage
+                aiboImage
             }
             // Bottom-align so upward bubble stack doesn't force empty panel below.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         case .right:
             HStack(alignment: .center, spacing: 0) {
-                petImage
+                aiboImage
                 fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -127,7 +127,7 @@ struct PetView: View {
             .opacity(panelController.isContentPresented ? 1 : 0)
     }
 
-    /// `bubbleItems` are newest-first; arrow sits on the bubble nearest the pet.
+    /// `bubbleItems` are newest-first; arrow sits on the bubble nearest the aibo.
     @ViewBuilder
     private func bubbleStack(nearPetIndex: Int) -> some View {
         bubbleStack(items: bubbleItems, nearPetIndex: nearPetIndex)
@@ -167,7 +167,7 @@ struct PetView: View {
             .simultaneousGesture(
                 TapGesture().onEnded {
                     SettingsNavigator.shared.prepareRemoteWebhook()
-                    PetRuntime.shared.dismissBubble(id: item.id)
+                    AiboRuntime.shared.dismissBubble(id: item.id)
                 }
             )
         } else {
@@ -178,13 +178,13 @@ struct PetView: View {
     private func dismissAction(for item: StatusBubbleItem) -> (() -> Void)? {
         // Warning dismiss is handled beside SettingsLink so we don't double-fire.
         guard item.kind != .warning, item.isDismissible else { return nil }
-        return { PetRuntime.shared.dismissBubble(id: item.id) }
+        return { AiboRuntime.shared.dismissBubble(id: item.id) }
     }
 
-    /// Keeps the near-pet (arrow) bubble vertically centered with the pet;
+    /// Keeps the near-pet (arrow) bubble vertically centered with the aibo;
     /// newer bubbles stack upward without shifting that anchor.
     ///
-    /// Uses `.overlay` (not `ZStack`) so layout height stays the near-pet bubble
+    /// Uses `.overlay` (not `ZStack`) so layout height stays the near-aibo bubble
     /// only; the stack may draw upward outside that frame. A `ZStack` would
     /// expand to the full stack and collapse the panel into a constraint loop.
     @ViewBuilder
@@ -200,7 +200,7 @@ struct PetView: View {
             }
     }
 
-    /// Stable size anchor: near-pet bubble when present, otherwise pet height.
+    /// Stable size anchor: near-aibo bubble when present, otherwise aibo height.
     @ViewBuilder
     private func sideAnchor(nearPetIndex: Int) -> some View {
         if bubbleItems.indices.contains(nearPetIndex) {
@@ -212,7 +212,7 @@ struct PetView: View {
                 glassTint: glassTint(for: bubbleItems[nearPetIndex])
             )
         } else {
-            Color.clear.frame(width: 1, height: petSize)
+            Color.clear.frame(width: 1, height: aiboSize)
         }
     }
 
@@ -236,8 +236,8 @@ struct PetView: View {
         }
     }
 
-    private var petImage: some View {
-        let progress = panelController.petAppearProgress
+    private var aiboImage: some View {
+        let progress = panelController.aiboAppearProgress
         // progress 0: above + vertically squashed; 1: settled (spring may overshoot >1).
         let clamped = max(progress, 0)
         let squash = min(max(0.72 + clamped * 0.28, 0.55), 1.2)
@@ -247,28 +247,28 @@ struct PetView: View {
         return ZStack {
             // Keep layout size while the sprite is removed for Pow vanish.
             Color.clear
-                .frame(width: petSize, height: petSize)
+                .frame(width: aiboSize, height: aiboSize)
                 .allowsHitTesting(false)
 
             if panelController.isContentPresented {
-                PetSpriteView(
+                AiboSpriteView(
                     record: library.selectedRecord,
                     activity: runtime.world.primarySession?.snapshot.activity ?? .idle,
                     spriteState: resolvedSpriteState,
-                    size: petSize
+                    size: aiboSize
                 )
                 .id(library.selectedID)
                 .scaleEffect(x: widen, y: squash, anchor: .bottom)
-                .offset(y: (1 - clamped) * -petSize * 1.35)
+                .offset(y: (1 - clamped) * -aiboSize * 1.35)
                 .contentShape(Rectangle())
                 .contextMenu { AiboAppMenu() }
                 // Insertion must stay `.identity` — Pow `.boing` is a GeometryEffect
-                // that makes NSHostingView zero out PetPanel's width.
+                // that makes NSHostingView zero out AiboPanel's width.
                 .transition(
                     .asymmetric(
                         insertion: .identity,
                         removal: .movingParts.vanish(
-                            PetAppearance.dominantColor(for: library.selectedRecord),
+                            AiboAppearance.dominantColor(for: library.selectedRecord),
                             increasedBrightness: false
                         )
                     )
@@ -276,11 +276,11 @@ struct PetView: View {
             }
 
             ForEach(floatingNotes) { note in
-                FloatingMusicNoteView(note: note, color: noteColor, petSize: petSize)
+                FloatingMusicNoteView(note: note, color: noteColor, aiboSize: aiboSize)
                     .allowsHitTesting(false)
             }
         }
-        .accessibilityLabel(String(localized: "Desktop pet"))
+        .accessibilityLabel(String(localized: "Desktop aibo"))
     }
 
     private func syncMusicNotePulse(active: Bool) {
@@ -300,7 +300,7 @@ struct PetView: View {
 }
 
 #Preview("stack above") {
-    PetView(
+    AiboView(
         bubbleItemsOverride: [
             StatusBubbleItem(
                 id: "1",
@@ -327,7 +327,7 @@ struct PetView: View {
 }
 
 #Preview("left stack") {
-    PetView(
+    AiboView(
         bubbleItemsOverride: [
             StatusBubbleItem(
                 id: "1",

@@ -4,33 +4,33 @@ import Foundation
 
 @MainActor
 @Observable
-final class PetLibraryStore {
-    static let shared = PetLibraryStore()
+final class AiboLibraryStore {
+    static let shared = AiboLibraryStore()
 
-    private(set) var records: [PetLibraryRecord] = [.builtInDefault]
-    private(set) var selectedID: String = PetLibraryDefaults.builtInID
+    private(set) var records: [AiboLibraryRecord] = [.builtInDefault]
+    private(set) var selectedID: String = AiboLibraryDefaults.builtInID
     private(set) var lastErrorMessage: String?
     private(set) var isInstalling = false
 
     private let installer = PetdexInstaller()
 
-    var selectedRecord: PetLibraryRecord {
+    var selectedRecord: AiboLibraryRecord {
         records.first(where: { $0.id == selectedID }) ?? .builtInDefault
     }
 
-    /// Allocated size of `AiboPaths.petsDirectory` (installed pets + `library.json`).
+    /// Allocated size of `AiboPaths.aibosDirectory` (installed aibos + `library.json`).
     func occupiedDiskBytes() -> Int64 {
-        allocatedSize(at: AiboPaths.petsDirectory)
+        allocatedSize(at: AiboPaths.aibosDirectory)
     }
 
-    func occupiedDiskBytes(for record: PetLibraryRecord) -> Int64 {
+    func occupiedDiskBytes(for record: AiboLibraryRecord) -> Int64 {
         switch record.kind {
         case .builtInDefault:
             return 0
         case .petdex, .staticImage:
             guard !record.relativePath.isEmpty else { return 0 }
             return allocatedSize(
-                at: AiboPaths.petsDirectory.appendingPathComponent(record.relativePath)
+                at: AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath)
             )
         }
     }
@@ -65,12 +65,13 @@ final class PetLibraryStore {
     }
 
     private init() {
+        AiboPaths.migrateLegacyLibraryDirectoryIfNeeded()
         reloadFromDisk()
     }
 
     func reloadFromDisk() {
         let file = loadFile()
-        let snap = PetLibraryCodec.snapshot(from: file)
+        let snap = AiboLibraryCodec.snapshot(from: file)
         selectedID = snap.selectedID
         records = snap.records.map { backfillMetadata($0) }
     }
@@ -97,7 +98,7 @@ final class PetLibraryStore {
         } catch let error as PetdexInstallError {
             lastErrorMessage = Self.message(for: error)
         } catch {
-            lastErrorMessage = String(localized: "Failed to install pet")
+            lastErrorMessage = String(localized: "Failed to install aibo")
         }
     }
 
@@ -105,7 +106,7 @@ final class PetLibraryStore {
         lastErrorMessage = nil
         do {
             try FileManager.default.createDirectory(
-                at: AiboPaths.staticPetsDirectory,
+                at: AiboPaths.staticDirectory,
                 withIntermediateDirectories: true
             )
 
@@ -118,18 +119,18 @@ final class PetLibraryStore {
 
             let id = UUID().uuidString.lowercased()
             let fileName = "\(id).\(ext)"
-            let destination = AiboPaths.staticPetsDirectory.appendingPathComponent(fileName)
+            let destination = AiboPaths.staticDirectory.appendingPathComponent(fileName)
             if FileManager.default.fileExists(atPath: destination.path) {
                 try FileManager.default.removeItem(at: destination)
             }
             try FileManager.default.copyItem(at: sourceURL, to: destination)
 
             let name = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let record = PetLibraryRecord(
+            let record = AiboLibraryRecord(
                 id: "static.\(id)",
                 kind: .staticImage,
                 displayName: (name?.isEmpty == false ? name! : sourceURL.deletingPathExtension().lastPathComponent),
-                relativePath: "\(AiboPaths.staticPetsDirectoryName)/\(fileName)",
+                relativePath: "\(AiboPaths.staticDirectoryName)/\(fileName)",
                 installedAt: Date()
             )
             upsert(record)
@@ -152,32 +153,32 @@ final class PetLibraryStore {
         let removeIDs = Set(toRemove.map(\.id))
         records.removeAll { removeIDs.contains($0.id) }
         if removeIDs.contains(selectedID) {
-            selectedID = PetLibraryDefaults.builtInID
+            selectedID = AiboLibraryDefaults.builtInID
         }
         for record in toRemove {
-            let absolute = AiboPaths.petsDirectory.appendingPathComponent(record.relativePath)
+            let absolute = AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath)
             try? FileManager.default.removeItem(at: absolute)
         }
         persist()
         notifyAppearanceChanged()
     }
 
-    /// Absolute file URL for the selected pet's on-disk artwork, if any.
-    func artworkURL(for record: PetLibraryRecord) -> URL? {
+    /// Absolute file URL for the selected aibo's on-disk artwork, if any.
+    func artworkURL(for record: AiboLibraryRecord) -> URL? {
         switch record.kind {
         case .builtInDefault:
             return nil
         case .petdex:
             guard let sprite = record.spriteFileName else { return nil }
-            return AiboPaths.petsDirectory
+            return AiboPaths.aibosDirectory
                 .appendingPathComponent(record.relativePath, isDirectory: true)
                 .appendingPathComponent(sprite)
         case .staticImage:
-            return AiboPaths.petsDirectory.appendingPathComponent(record.relativePath)
+            return AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath)
         }
     }
 
-    private func upsert(_ record: PetLibraryRecord) {
+    private func upsert(_ record: AiboLibraryRecord) {
         if let index = records.firstIndex(where: { $0.id == record.id }) {
             var merged = record
             let existing = records[index]
@@ -189,8 +190,8 @@ final class PetLibraryStore {
         }
     }
 
-    /// Fills missing install metadata for pets saved before those fields existed.
-    private func backfillMetadata(_ record: PetLibraryRecord) -> PetLibraryRecord {
+    /// Fills missing install metadata for aibos saved before those fields existed.
+    private func backfillMetadata(_ record: AiboLibraryRecord) -> AiboLibraryRecord {
         guard record.kind != .builtInDefault else { return record }
         var updated = record
         if updated.installedAt == nil {
@@ -202,58 +203,58 @@ final class PetLibraryStore {
         return updated
     }
 
-    private func fileCreationDate(for record: PetLibraryRecord) -> Date? {
+    private func fileCreationDate(for record: AiboLibraryRecord) -> Date? {
         guard !record.relativePath.isEmpty else { return nil }
-        let url = AiboPaths.petsDirectory.appendingPathComponent(record.relativePath)
+        let url = AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath)
         return (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate
     }
 
-    private func loadFile() -> PetLibraryFile {
-        let url = AiboPaths.petLibraryURL
+    private func loadFile() -> AiboLibraryFile {
+        let url = AiboPaths.libraryURL
         guard let data = try? Data(contentsOf: url),
-              let file = try? PetLibraryCodec.decode(data)
+              let file = try? AiboLibraryCodec.decode(data)
         else {
-            return PetLibraryFile()
+            return AiboLibraryFile()
         }
         return file
     }
 
     private func persist() {
         let userRecords = records.filter { $0.kind != .builtInDefault }
-        let file = PetLibraryFile(selectedID: selectedID, records: userRecords)
+        let file = AiboLibraryFile(selectedID: selectedID, records: userRecords)
         do {
             try FileManager.default.createDirectory(
-                at: AiboPaths.petsDirectory,
+                at: AiboPaths.aibosDirectory,
                 withIntermediateDirectories: true
             )
-            let data = try PetLibraryCodec.encode(file)
-            try data.write(to: AiboPaths.petLibraryURL, options: .atomic)
+            let data = try AiboLibraryCodec.encode(file)
+            try data.write(to: AiboPaths.libraryURL, options: .atomic)
             lastErrorMessage = nil
         } catch {
-            lastErrorMessage = String(localized: "Failed to save pet library")
+            lastErrorMessage = String(localized: "Failed to save aibo library")
         }
     }
 
     private func notifyAppearanceChanged() {
-        PetSpriteCache.shared.invalidate(except: selectedID)
-        PetPanelController.shared.updateHitTestImage()
-        PetPanelController.shared.refreshContent()
+        AiboSpriteCache.shared.invalidate(except: selectedID)
+        AiboPanelController.shared.updateHitTestImage()
+        AiboPanelController.shared.refreshContent()
     }
 
     private static func message(for error: PetdexInstallError) -> String {
         switch error {
         case .invalidSlug:
-            return String(localized: "Enter a Petdex slug or pet page URL")
+            return String(localized: "Enter a Petdex slug or page URL")
         case .notFound(let slug):
-            return String(localized: "Pet “\(slug)” was not found on Petdex")
+            return String(localized: "“\(slug)” was not found on Petdex")
         case .api:
             return String(localized: "Petdex API error")
         case .badURL, .downloadFailed:
-            return String(localized: "Failed to download pet assets")
+            return String(localized: "Failed to download aibo assets")
         case .invalidSpritesheet:
             return String(localized: "Unsupported image file")
         case .ioFailed:
-            return String(localized: "Failed to save pet files")
+            return String(localized: "Failed to save aibo files")
         }
     }
 }

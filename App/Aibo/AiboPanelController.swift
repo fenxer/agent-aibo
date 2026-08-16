@@ -3,21 +3,21 @@ import SwiftUI
 
 @MainActor
 @Observable
-final class PetPanelController {
-    static let shared = PetPanelController()
+final class AiboPanelController {
+    static let shared = AiboPanelController()
 
     private(set) var isVisible = false
-    /// When false, the pet sprite vanishes (Pow); panel `orderOut` follows after the effect.
+    /// When false, the aibo sprite vanishes (Pow); panel `orderOut` follows after the effect.
     private(set) var isContentPresented = true
     /// 0 = above / squashed, 1 = settled. Explicit show motion (not Pow boing).
-    private(set) var petAppearProgress: CGFloat = 1
+    private(set) var aiboAppearProgress: CGFloat = 1
 
-    private var panel: PetPanel?
-    private var rootView: PetPanelRootView?
-    private var hostingView: PassThroughHostingView<PetView>?
+    private var panel: AiboPanel?
+    private var rootView: AiboPanelRootView?
+    private var hostingView: PassThroughHostingView<AiboView>?
     #if DEBUG
     private var hitRegionDebugOverlay: HitRegionDebugOverlay?
-    /// Development → Hit Regions: paint panel / padding / petHitRect / opaque drag mask.
+    /// Development → Hit Regions: paint panel / padding / aiboHitRect / opaque drag mask.
     var showHitRegionDebug = false {
         didSet { refreshHitRegionDebugOverlay() }
     }
@@ -26,22 +26,22 @@ final class PetPanelController {
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
     private let fullscreenMonitor = FullscreenSpaceMonitor()
-    /// True while hide-when-fullscreen is suppressing the panel (not user Hide Pet).
+    /// True while hide-when-fullscreen is suppressing the panel (not user Hide Aibo).
     private var isSuppressedForFullscreen = false
     private var hasPlacedInitially = false
     private var hideTask: Task<Void, Never>?
-    /// Last layout we sized/positioned for — used to keep the pet fixed on screen.
+    /// Last layout we sized/positioned for — used to keep the aibo fixed on screen.
     private var laidOutBubbleCount = 0
     private var laidOutPlacement: BubblePlacement = .top
-    private var laidOutPetSize: CGFloat = 96
+    private var laidOutAiboSize: CGFloat = 96
 
-    private let basePetSize: CGFloat = 96
+    private let baseAiboSize: CGFloat = 96
     private let screenPadding: CGFloat = 24
     private let bubbleMaxWidth: CGFloat = 320
     private let bubbleEstimatedHeight: CGFloat = 88
     private let bubbleStackSpacing: CGFloat = 4
-    /// Matches `PetView.petBubbleSpacing` (pet ↔ bubble stack gap).
-    private let petBubbleSpacing: CGFloat = 6
+    /// Matches `AiboView.aiboBubbleSpacing` (aibo ↔ bubble stack gap).
+    private let aiboBubbleSpacing: CGFloat = 6
     private let bubbleContentPadding: CGFloat = 12
     private let bubbleHeaderLineHeight: CGFloat = 15
     private let bubbleSectionSpacing: CGFloat = 12
@@ -50,8 +50,8 @@ final class PetPanelController {
     private let bubbleArrowSlack: CGFloat = 6
     private let bubbleRowSpacing: CGFloat = 8
 
-    private var contentInsets: PetContentInsets {
-        PetContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled)
+    private var contentInsets: AiboContentInsets {
+        AiboContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled)
     }
 
     private init() {
@@ -83,16 +83,16 @@ final class PetPanelController {
         }
 
         // First launch: already presented. After hide: re-insert with identity, then
-        // spring petAppearProgress (Pow `.boing` GeometryEffect collapses this panel).
+        // spring aiboAppearProgress (Pow `.boing` GeometryEffect collapses this panel).
         let shouldBoing = !isContentPresented
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             if shouldBoing {
-                petAppearProgress = 0
+                aiboAppearProgress = 0
                 isContentPresented = true
             } else {
-                petAppearProgress = 1
+                aiboAppearProgress = 1
                 isContentPresented = true
             }
         }
@@ -104,7 +104,7 @@ final class PetPanelController {
         syncFullscreenPolicy()
 
         // Keep the panel ordered in. When hide-when-fullscreen is on we use
-        // moveToActiveSpace (not canJoinAllSpaces) so the pet leaves with its
+        // moveToActiveSpace (not canJoinAllSpaces) so the aibo leaves with its
         // desktop during the fullscreen zoom instead of floating over it.
         panel.orderFrontRegardless()
         applyFullscreenVisibility()
@@ -113,8 +113,8 @@ final class PetPanelController {
             hideTask = Task { @MainActor in
                 await Task.yield()
                 guard !Task.isCancelled else { return }
-                withAnimation(PetAppearance.boingAnimation) {
-                    petAppearProgress = 1
+                withAnimation(AiboAppearance.boingAnimation) {
+                    aiboAppearProgress = 1
                 }
                 hideTask = nil
             }
@@ -134,18 +134,18 @@ final class PetPanelController {
 
             freezePanelSize()
             // Do not setFrame / resize here. Vanish must run against a stable panel size.
-            withAnimation(PetAppearance.vanishAnimation) {
+            withAnimation(AiboAppearance.vanishAnimation) {
                 isContentPresented = false
             }
 
-            try? await Task.sleep(for: PetAppearance.vanishDuration + .milliseconds(50))
+            try? await Task.sleep(for: AiboAppearance.vanishDuration + .milliseconds(50))
             guard !Task.isCancelled else { return }
             panel?.orderOut(nil)
             stopClickThroughMonitoring()
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                petAppearProgress = 0
+                aiboAppearProgress = 0
             }
             // Keep isContentPresented == false so the next show can animate in.
             hideTask = nil
@@ -163,7 +163,7 @@ final class PetPanelController {
     /// Start/stop fullscreen detection (presentationOptions `.fullScreen` + Spaces type 4).
     ///
     /// When enabled:
-    /// - Use `.moveToActiveSpace` (not `.canJoinAllSpaces`) so the pet does not float over
+    /// - Use `.moveToActiveSpace` (not `.canJoinAllSpaces`) so the aibo does not float over
     ///   the green-button fullscreen zoom animation; it leaves with its desktop Space.
     /// - No `.fullScreenAuxiliary`.
     /// - Same-Space fullscreen (e.g. some HTML5) still uses alpha suppress.
@@ -191,7 +191,7 @@ final class PetPanelController {
         isVisible && isContentPresented && !isSuppressedForFullscreen
     }
 
-    private func applyFullscreenCollectionBehavior(to panel: PetPanel) {
+    private func applyFullscreenCollectionBehavior(to panel: AiboPanel) {
         if AppSettings.shared.hideWhenFullscreen {
             // One Space at a time. Reaffirm orderFront on desktop Space switches.
             panel.collectionBehavior = [.moveToActiveSpace, .stationary]
@@ -209,7 +209,7 @@ final class PetPanelController {
         }
     }
 
-    /// Pull the pet onto the active desktop Space after a Space switch.
+    /// Pull the aibo onto the active desktop Space after a Space switch.
     private func reaffirmPetVisibilityIfNeeded() {
         guard AppSettings.shared.hideWhenFullscreen else { return }
         guard isVisible, isContentPresented, !isSuppressedForFullscreen, let panel else { return }
@@ -256,7 +256,7 @@ final class PetPanelController {
     /// Keep content min==max at the managed frame so SwiftUI can't shrink the panel to 0.
     private func freezePanelSize() {
         guard let panel else { return }
-        let minSide = petBlockMinimum(petSize: currentPetSize)
+        let minSide = aiboBlockMinimum(aiboSize: currentAiboSize)
         var frame = panel.frame
         if frame.width < minSide || frame.height < minSide {
             frame.size.width = max(frame.width, minSide)
@@ -282,7 +282,7 @@ final class PetPanelController {
 
     func refreshContent() {
         guard panel != nil else { return }
-        let bubbleCount = PetRuntime.shared.bubbleItems.count
+        let bubbleCount = AiboRuntime.shared.bubbleItems.count
         // Grow: defer one turn so we aren't inside SwiftUI/AppKit layout.
         // Shrink: wait for Pow poof (0.4s) so the cloud isn't clipped.
         if bubbleCount < laidOutBubbleCount {
@@ -293,10 +293,10 @@ final class PetPanelController {
     }
 
     func updateHitTestImage() {
-        let image = PetSpriteCache.shared.previewImage(for: PetLibraryStore.shared.selectedRecord)
-            ?? NSImage(named: "DefaultPet")
+        let image = AiboSpriteCache.shared.previewImage(for: AiboLibraryStore.shared.selectedRecord)
+            ?? NSImage(named: "DefaultAibo")
         hostingView?.updateHitTestImage(image)
-        PetAppearance.invalidateDominantColorCache()
+        AiboAppearance.invalidateDominantColorCache()
         #if DEBUG
         refreshHitRegionDebugOverlay()
         #endif
@@ -333,41 +333,41 @@ final class PetPanelController {
     private func applyGeometryPreservingPetCenter() {
         guard let panel else { return }
 
-        let items = PetRuntime.shared.bubbleItems
+        let items = AiboRuntime.shared.bubbleItems
         let placement = AppSettings.shared.bubblePlacement
-        let petSize = currentPetSize
+        let aiboSize = currentAiboSize
         let bubbleCount = items.count
 
         let oldFrame = panel.frame
-        let oldPetCenter = petCenter(
+        let oldAiboCenter = aiboCenter(
             in: oldFrame.size,
-            petSize: laidOutPetSize,
+            aiboSize: laidOutAiboSize,
             placement: laidOutPlacement,
             bubbleCount: laidOutBubbleCount
         )
-        let petOnScreen = CGPoint(
-            x: oldFrame.origin.x + oldPetCenter.x,
-            y: oldFrame.origin.y + oldPetCenter.y
+        let aiboOnScreen = CGPoint(
+            x: oldFrame.origin.x + oldAiboCenter.x,
+            y: oldFrame.origin.y + oldAiboCenter.y
         )
 
-        let newSize = panelSize(items: items, petSize: petSize, placement: placement)
+        let newSize = panelSize(items: items, aiboSize: aiboSize, placement: placement)
         // Never allow a zero frame — SwiftUI + NSPanel constraint loops crash
         // with "more Update Constraints in Window passes than there are views".
         let safeSize = NSSize(
-            width: max(newSize.width, petBlockMinimum(petSize: petSize)),
-            height: max(newSize.height, petBlockMinimum(petSize: petSize))
+            width: max(newSize.width, aiboBlockMinimum(aiboSize: aiboSize)),
+            height: max(newSize.height, aiboBlockMinimum(aiboSize: aiboSize))
         )
-        let newPetCenter = petCenter(
+        let newAiboCenter = aiboCenter(
             in: safeSize,
-            petSize: petSize,
+            aiboSize: aiboSize,
             placement: placement,
             bubbleCount: bubbleCount
         )
 
         var newFrame = oldFrame
         newFrame.size = safeSize
-        newFrame.origin.x = petOnScreen.x - newPetCenter.x
-        newFrame.origin.y = petOnScreen.y - newPetCenter.y
+        newFrame.origin.x = aiboOnScreen.x - newAiboCenter.x
+        newFrame.origin.y = aiboOnScreen.y - newAiboCenter.y
 
         // `display: false` avoids forcing layoutSubtreeIfNeeded inside an active layout pass.
         panel.setFrame(newFrame, display: false)
@@ -375,43 +375,43 @@ final class PetPanelController {
         pinContentSize(safeSize)
         laidOutBubbleCount = bubbleCount
         laidOutPlacement = placement
-        laidOutPetSize = petSize
+        laidOutAiboSize = aiboSize
         updatePetHitRect(
             panelSize: safeSize,
-            petSize: petSize,
+            aiboSize: aiboSize,
             placement: placement,
             bubbleCount: bubbleCount
         )
     }
 
-    private func petBlockMinimum(petSize: CGFloat) -> CGFloat {
+    private func aiboBlockMinimum(aiboSize: CGFloat) -> CGFloat {
         let insets = contentInsets
-        return max(petSize + max(insets.horizontal, insets.vertical), 1)
+        return max(aiboSize + max(insets.horizontal, insets.vertical), 1)
     }
 
-    private var currentPetSize: CGFloat {
-        basePetSize * CGFloat(AppSettings.shared.petScalePercent / 100)
+    private var currentAiboSize: CGFloat {
+        baseAiboSize * CGFloat(AppSettings.shared.aiboScalePercent / 100)
     }
 
-    private func makePanel() -> PetPanel {
+    private func makePanel() -> AiboPanel {
         let placement = AppSettings.shared.bubblePlacement
-        let items = PetRuntime.shared.bubbleItems
-        let petSize = currentPetSize
-        let initialSize = panelSize(items: items, petSize: petSize, placement: placement)
+        let items = AiboRuntime.shared.bubbleItems
+        let aiboSize = currentAiboSize
+        let initialSize = panelSize(items: items, aiboSize: aiboSize, placement: placement)
         let safeInitial = NSSize(
-            width: max(initialSize.width, petBlockMinimum(petSize: petSize)),
-            height: max(initialSize.height, petBlockMinimum(petSize: petSize))
+            width: max(initialSize.width, aiboBlockMinimum(aiboSize: aiboSize)),
+            height: max(initialSize.height, aiboBlockMinimum(aiboSize: aiboSize))
         )
-        let panel = PetPanel(contentRect: NSRect(origin: .zero, size: safeInitial))
+        let panel = AiboPanel(contentRect: NSRect(origin: .zero, size: safeInitial))
 
-        // Hosting view must NOT be the window contentView — see PetPanelRootView.
-        let rootView = PetPanelRootView(frame: NSRect(origin: .zero, size: safeInitial))
+        // Hosting view must NOT be the window contentView — see AiboPanelRootView.
+        let rootView = AiboPanelRootView(frame: NSRect(origin: .zero, size: safeInitial))
         rootView.wantsLayer = true
         rootView.layer?.masksToBounds = false
         let hostingView = PassThroughHostingView(
-            rootView: PetView(),
-            hitTestImage: PetSpriteCache.shared.previewImage(for: PetLibraryStore.shared.selectedRecord)
-                ?? NSImage(named: "DefaultPet")
+            rootView: AiboView(),
+            hitTestImage: AiboSpriteCache.shared.previewImage(for: AiboLibraryStore.shared.selectedRecord)
+                ?? NSImage(named: "DefaultAibo")
         )
         hostingView.sizingOptions = []
         hostingView.clipsToBounds = false
@@ -433,10 +433,10 @@ final class PetPanelController {
         pinContentSize(safeInitial)
         laidOutBubbleCount = items.count
         laidOutPlacement = placement
-        laidOutPetSize = petSize
+        laidOutAiboSize = aiboSize
         updatePetHitRect(
             panelSize: safeInitial,
-            petSize: petSize,
+            aiboSize: aiboSize,
             placement: placement,
             bubbleCount: items.count
         )
@@ -446,15 +446,15 @@ final class PetPanelController {
 
     private func panelSize(
         items: [StatusBubbleItem],
-        petSize: CGFloat,
+        aiboSize: CGFloat,
         placement: BubblePlacement
     ) -> NSSize {
         let insets = contentInsets
-        let petBlockWidth = petSize + insets.horizontal
-        let petBlockHeight = petSize + insets.vertical
+        let aiboBlockWidth = aiboSize + insets.horizontal
+        let aiboBlockHeight = aiboSize + insets.vertical
         let bubbleCount = items.count
         guard bubbleCount > 0 else {
-            return NSSize(width: max(petBlockWidth, 1), height: max(petBlockHeight, 1))
+            return NSSize(width: max(aiboBlockWidth, 1), height: max(aiboBlockHeight, 1))
         }
 
         let heights = items.map(estimatedBubbleHeight(for:))
@@ -465,8 +465,8 @@ final class PetPanelController {
         switch placement {
         case .top, .bottom:
             return NSSize(
-                width: max(petBlockWidth, bubbleMaxWidth + insets.horizontal),
-                height: max(petBlockHeight + stackHeight + 20, 1)
+                width: max(aiboBlockWidth, bubbleMaxWidth + insets.horizontal),
+                height: max(aiboBlockHeight + stackHeight + 20, 1)
             )
         case .left, .right:
             // Near-pet bubble centered with pet; older bubbles grow upward.
@@ -477,9 +477,9 @@ final class PetPanelController {
             let stackAbove =
                 aboveHeights.reduce(0, +)
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
-            let rowHeight = max(petSize, nearHeight)
+            let rowHeight = max(aiboSize, nearHeight)
             return NSSize(
-                width: max(petBlockWidth + bubbleMaxWidth + 20, 1),
+                width: max(aiboBlockWidth + bubbleMaxWidth + 20, 1),
                 height: max(insets.vertical + rowHeight + stackAbove, 1)
             )
         }
@@ -514,22 +514,22 @@ final class PetPanelController {
 
     private func updatePetHitRect(
         panelSize: NSSize,
-        petSize: CGFloat,
+        aiboSize: CGFloat,
         placement: BubblePlacement,
         bubbleCount: Int
     ) {
-        let origin = petOrigin(
+        let origin = aiboOrigin(
             in: panelSize,
-            petSize: petSize,
+            aiboSize: aiboSize,
             placement: placement,
             bubbleCount: bubbleCount
         )
-        hostingView?.petHitRect = CGRect(origin: origin, size: CGSize(width: petSize, height: petSize))
+        hostingView?.aiboHitRect = CGRect(origin: origin, size: CGSize(width: aiboSize, height: aiboSize))
         hostingView?.bubbleHitRects = bubbleHitRects(
             panelSize: panelSize,
-            petSize: petSize,
+            aiboSize: aiboSize,
             placement: placement,
-            items: PetRuntime.shared.bubbleItems
+            items: AiboRuntime.shared.bubbleItems
         )
         #if DEBUG
         refreshHitRegionDebugOverlay()
@@ -540,15 +540,15 @@ final class PetPanelController {
     /// Bottom-left union rects for bubble stacks so empty panel chrome can click through.
     private func bubbleHitRects(
         panelSize: NSSize,
-        petSize: CGFloat,
+        aiboSize: CGFloat,
         placement: BubblePlacement,
         items: [StatusBubbleItem]
     ) -> [CGRect] {
         guard !items.isEmpty else { return [] }
         let insets = contentInsets
-        let origin = petOrigin(
+        let origin = aiboOrigin(
             in: panelSize,
-            petSize: petSize,
+            aiboSize: aiboSize,
             placement: placement,
             bubbleCount: items.count
         )
@@ -562,23 +562,23 @@ final class PetPanelController {
         case .top:
             let width = min(bubbleMaxWidth, contentWidth)
             let x = insets.leading + (contentWidth - width) / 2
-            let y = origin.y + petSize + petBubbleSpacing
+            let y = origin.y + aiboSize + aiboBubbleSpacing
             return [CGRect(x: x, y: y, width: width, height: stackHeight)]
         case .bottom:
             let width = min(bubbleMaxWidth, contentWidth)
             let x = insets.leading + (contentWidth - width) / 2
-            let y = origin.y - petBubbleSpacing - stackHeight
+            let y = origin.y - aiboBubbleSpacing - stackHeight
             return [CGRect(x: x, y: y, width: width, height: stackHeight)]
         case .right:
-            let x = origin.x + petSize
+            let x = origin.x + aiboSize
             let width = min(bubbleMaxWidth, max(0, panelSize.width - x - insets.trailing))
             let nearHeight = heights.last ?? bubbleEstimatedHeight
             let aboveHeights = heights.dropLast()
             let stackAbove =
                 aboveHeights.reduce(0, +)
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
-            let petCenterY = origin.y + petSize / 2
-            let nearBottom = petCenterY - nearHeight / 2
+            let aiboCenterY = origin.y + aiboSize / 2
+            let nearBottom = aiboCenterY - nearHeight / 2
             return [CGRect(x: x, y: nearBottom, width: width, height: nearHeight + stackAbove)]
         case .left:
             let width = min(bubbleMaxWidth, max(0, origin.x - insets.leading))
@@ -588,8 +588,8 @@ final class PetPanelController {
             let stackAbove =
                 aboveHeights.reduce(0, +)
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
-            let petCenterY = origin.y + petSize / 2
-            let nearBottom = petCenterY - nearHeight / 2
+            let aiboCenterY = origin.y + aiboSize / 2
+            let nearBottom = aiboCenterY - nearHeight / 2
             return [CGRect(x: x, y: nearBottom, width: width, height: nearHeight + stackAbove)]
         }
     }
@@ -598,12 +598,12 @@ final class PetPanelController {
     private func refreshHitRegionDebugOverlay() {
         guard let overlay = hitRegionDebugOverlay, let hostingView else { return }
         overlay.contentInsets = contentInsets
-        overlay.petHitRect = hostingView.petHitRect
+        overlay.aiboHitRect = hostingView.aiboHitRect
         overlay.bubbleHitRects = hostingView.bubbleHitRects
-        if hostingView.petHitRect.isNull == false {
-            overlay.opaquePetImage = hostingView.opaquePetDebugImage(size: hostingView.petHitRect.size)
+        if hostingView.aiboHitRect.isNull == false {
+            overlay.opaqueAiboImage = hostingView.opaqueAiboDebugImage(size: hostingView.aiboHitRect.size)
         } else {
-            overlay.opaquePetImage = nil
+            overlay.opaqueAiboImage = nil
         }
         overlay.isOverlayEnabled = showHitRegionDebug
         overlay.needsDisplay = true
@@ -611,24 +611,24 @@ final class PetPanelController {
     #endif
 
     /// Pet image center inside the panel (AppKit coords, origin bottom-left).
-    private func petCenter(
+    private func aiboCenter(
         in panelSize: NSSize,
-        petSize: CGFloat,
+        aiboSize: CGFloat,
         placement: BubblePlacement,
         bubbleCount: Int
     ) -> CGPoint {
-        let origin = petOrigin(
+        let origin = aiboOrigin(
             in: panelSize,
-            petSize: petSize,
+            aiboSize: aiboSize,
             placement: placement,
             bubbleCount: bubbleCount
         )
-        return CGPoint(x: origin.x + petSize / 2, y: origin.y + petSize / 2)
+        return CGPoint(x: origin.x + aiboSize / 2, y: origin.y + aiboSize / 2)
     }
 
-    private func petOrigin(
+    private func aiboOrigin(
         in panelSize: NSSize,
-        petSize: CGFloat,
+        aiboSize: CGFloat,
         placement: BubblePlacement,
         bubbleCount: Int
     ) -> CGPoint {
@@ -638,17 +638,17 @@ final class PetPanelController {
             switch placement {
             case .top:
                 return CGPoint(
-                    x: insets.leading + (contentWidth - petSize) / 2,
+                    x: insets.leading + (contentWidth - aiboSize) / 2,
                     y: insets.bottom
                 )
             case .bottom:
                 return CGPoint(
-                    x: insets.leading + (contentWidth - petSize) / 2,
-                    y: panelSize.height - insets.top - petSize
+                    x: insets.leading + (contentWidth - aiboSize) / 2,
+                    y: panelSize.height - insets.top - aiboSize
                 )
             case .left:
                 return CGPoint(
-                    x: panelSize.width - insets.trailing - petSize,
+                    x: panelSize.width - insets.trailing - aiboSize,
                     y: insets.bottom
                 )
             case .right:
@@ -662,23 +662,23 @@ final class PetPanelController {
         case .top:
             // SwiftUI: bubble stack above, pet below → pet near AppKit bottom.
             return CGPoint(
-                x: insets.leading + (contentWidth - petSize) / 2,
+                x: insets.leading + (contentWidth - aiboSize) / 2,
                 y: insets.bottom
             )
         case .bottom:
             // Pet above → near AppKit top.
             return CGPoint(
-                x: insets.leading + (contentWidth - petSize) / 2,
-                y: panelSize.height - insets.top - petSize
+                x: insets.leading + (contentWidth - aiboSize) / 2,
+                y: panelSize.height - insets.top - aiboSize
             )
         case .left, .right:
             // Bottom-aligned row: pet shares a vertical center with the near bubble.
-            let items = PetRuntime.shared.bubbleItems
+            let items = AiboRuntime.shared.bubbleItems
             let nearHeight = items.last.map(estimatedBubbleHeight(for:)) ?? bubbleEstimatedHeight
-            let rowHeight = max(petSize, nearHeight)
-            let y = insets.bottom + (rowHeight - petSize) / 2
+            let rowHeight = max(aiboSize, nearHeight)
+            let y = insets.bottom + (rowHeight - aiboSize) / 2
             if placement == .left {
-                return CGPoint(x: panelSize.width - insets.trailing - petSize, y: y)
+                return CGPoint(x: panelSize.width - insets.trailing - aiboSize, y: y)
             }
             return CGPoint(x: insets.leading, y: y)
         }
@@ -754,9 +754,9 @@ final class PetPanelController {
 
     private func handleScreenParametersChanged() {
         let settings = AppSettings.shared
-        if settings.restoreLastPetPosition,
-           let x = settings.savedPetCenterXPercent,
-           let y = settings.savedPetCenterYPercent
+        if settings.restoreLastAiboPosition,
+           let x = settings.savedAiboCenterXPercent,
+           let y = settings.savedAiboCenterYPercent
         {
             placeAtRelativePosition(xPercent: x, yPercent: y)
         }
@@ -765,9 +765,9 @@ final class PetPanelController {
 
     private func placeInitially() {
         let settings = AppSettings.shared
-        if settings.restoreLastPetPosition,
-           let x = settings.savedPetCenterXPercent,
-           let y = settings.savedPetCenterYPercent
+        if settings.restoreLastAiboPosition,
+           let x = settings.savedAiboCenterXPercent,
+           let y = settings.savedAiboCenterYPercent
         {
             placeAtRelativePosition(xPercent: x, yPercent: y)
             clampToVisibleScreen()
@@ -787,7 +787,7 @@ final class PetPanelController {
         panel.setFrame(frame, display: false)
     }
 
-    /// Place so the pet center lands at `(xPercent, yPercent)` of the screen visible frame.
+    /// Place so the aibo center lands at `(xPercent, yPercent)` of the screen visible frame.
     private func placeAtRelativePosition(xPercent: Double, yPercent: Double) {
         guard let panel else { return }
         let screen = panel.screen ?? NSScreen.main
@@ -796,25 +796,25 @@ final class PetPanelController {
         let visible = screen.visibleFrame
         guard visible.width > 0, visible.height > 0 else { return }
 
-        let petOnScreen = CGPoint(
+        let aiboOnScreen = CGPoint(
             x: visible.minX + CGFloat(xPercent) * visible.width,
             y: visible.minY + CGFloat(yPercent) * visible.height
         )
-        let centerInPanel = petCenter(
+        let centerInPanel = aiboCenter(
             in: panel.frame.size,
-            petSize: laidOutPetSize,
+            aiboSize: laidOutAiboSize,
             placement: laidOutPlacement,
             bubbleCount: laidOutBubbleCount
         )
 
         var frame = panel.frame
-        frame.origin.x = petOnScreen.x - centerInPanel.x
-        frame.origin.y = petOnScreen.y - centerInPanel.y
+        frame.origin.x = aiboOnScreen.x - centerInPanel.x
+        frame.origin.y = aiboOnScreen.y - centerInPanel.y
         panel.setFrame(frame, display: false)
     }
 
     /// Keep the *pet* inside the padded visible frame. Stacked bubbles may
-    /// extend off-screen — clamping the whole panel would shove the pet up/down.
+    /// extend off-screen — clamping the whole panel would shove the aibo up/down.
     private func clampToVisibleScreen() {
         guard let panel else { return }
         let screen = panel.screen ?? NSScreen.main
@@ -825,13 +825,13 @@ final class PetPanelController {
         frame.size.width = max(frame.size.width, 1)
         frame.size.height = max(frame.size.height, 1)
 
-        let centerInPanel = petCenter(
+        let centerInPanel = aiboCenter(
             in: frame.size,
-            petSize: laidOutPetSize,
+            aiboSize: laidOutAiboSize,
             placement: laidOutPlacement,
             bubbleCount: laidOutBubbleCount
         )
-        var petOnScreen = CGPoint(
+        var aiboOnScreen = CGPoint(
             x: frame.origin.x + centerInPanel.x,
             y: frame.origin.y + centerInPanel.y
         )
@@ -844,19 +844,19 @@ final class PetPanelController {
         let minY = visible.minY + padY
         let maxY = visible.maxY - padY
 
-        if petOnScreen.x < minX {
-            petOnScreen.x = minX
-        } else if petOnScreen.x > maxX {
-            petOnScreen.x = maxX
+        if aiboOnScreen.x < minX {
+            aiboOnScreen.x = minX
+        } else if aiboOnScreen.x > maxX {
+            aiboOnScreen.x = maxX
         }
-        if petOnScreen.y < minY {
-            petOnScreen.y = minY
-        } else if petOnScreen.y > maxY {
-            petOnScreen.y = maxY
+        if aiboOnScreen.y < minY {
+            aiboOnScreen.y = minY
+        } else if aiboOnScreen.y > maxY {
+            aiboOnScreen.y = maxY
         }
 
-        frame.origin.x = petOnScreen.x - centerInPanel.x
-        frame.origin.y = petOnScreen.y - centerInPanel.y
+        frame.origin.x = aiboOnScreen.x - centerInPanel.x
+        frame.origin.y = aiboOnScreen.y - centerInPanel.y
 
         panel.setFrame(frame, display: false)
         applyContentFrame(frame.size)
@@ -873,18 +873,18 @@ final class PetPanelController {
         let visible = screen.visibleFrame
         guard visible.width > 0, visible.height > 0 else { return }
 
-        let centerInPanel = petCenter(
+        let centerInPanel = aiboCenter(
             in: panel.frame.size,
-            petSize: laidOutPetSize,
+            aiboSize: laidOutAiboSize,
             placement: laidOutPlacement,
             bubbleCount: laidOutBubbleCount
         )
-        let petOnScreen = CGPoint(
+        let aiboOnScreen = CGPoint(
             x: panel.frame.origin.x + centerInPanel.x,
             y: panel.frame.origin.y + centerInPanel.y
         )
-        let xPercent = Double((petOnScreen.x - visible.minX) / visible.width)
-        let yPercent = Double((petOnScreen.y - visible.minY) / visible.height)
-        AppSettings.shared.savePetCenterRelativePosition(xPercent: xPercent, yPercent: yPercent)
+        let xPercent = Double((aiboOnScreen.x - visible.minX) / visible.width)
+        let yPercent = Double((aiboOnScreen.y - visible.minY) / visible.height)
+        AppSettings.shared.saveAiboCenterRelativePosition(xPercent: xPercent, yPercent: yPercent)
     }
 }

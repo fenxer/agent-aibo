@@ -1,6 +1,6 @@
 import Foundation
 
-/// Downloads one pet via `/api/install-pet/{slug}` into `AiboPaths.petdexPetsDirectory`.
+/// Downloads one aibo via `/api/install-pet/{slug}` into `AiboPaths.petdexDirectory`.
 public struct PetdexInstaller: Sendable {
     public typealias DataFetcher = @Sendable (URL, [String: String]) async throws -> Data
 
@@ -10,14 +10,14 @@ public struct PetdexInstaller: Sendable {
         self.fetch = fetch
     }
 
-    public func install(slugOrURL: String) async throws -> PetLibraryRecord {
+    public func install(slugOrURL: String) async throws -> AiboLibraryRecord {
         guard let slug = PetdexSlugParser.parse(slugOrURL) else {
             throw PetdexInstallError.invalidSlug
         }
         return try await install(slug: slug)
     }
 
-    public func install(slug: String) async throws -> PetLibraryRecord {
+    public func install(slug: String) async throws -> AiboLibraryRecord {
         guard PetdexSlugParser.isValidSlug(slug) else {
             throw PetdexInstallError.invalidSlug
         }
@@ -45,7 +45,7 @@ public struct PetdexInstaller: Sendable {
         let petJSON = try? PetdexInstallAPI.decodePetJSON(petJSONData)
         let record = PetdexInstallAPI.makeRecord(installable: pet, petJSON: petJSON)
 
-        let destination = AiboPaths.petdexPetDirectory(slug: pet.slug)
+        let destination = AiboPaths.petdexAiboDirectory(slug: pet.slug)
         try materialize(
             destination: destination,
             petJSONData: petJSONData,

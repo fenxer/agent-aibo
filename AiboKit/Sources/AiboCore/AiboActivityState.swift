@@ -6,7 +6,7 @@ public enum AgentKind: String, Sendable, Codable, CaseIterable {
     case deepseek
 }
 
-public enum PetActivityState: Equatable, Sendable, Codable {
+public enum AiboActivityState: Equatable, Sendable, Codable {
     case idle
     case registered
     case thinking
@@ -29,27 +29,27 @@ public struct SessionKey: Hashable, Sendable, Codable {
 }
 
 public struct SessionSnapshot: Equatable, Sendable, Codable {
-    public var activity: PetActivityState
+    public var activity: AiboActivityState
     public var lastEventAt: Date
     /// When non-nil, the session should fall back to `.idle` at this time
     /// (used after `.done`, `.registered`, `.interrupted`, `.responding`, and `.waiting`).
     public var idleAt: Date?
 
-    public init(activity: PetActivityState, lastEventAt: Date, idleAt: Date? = nil) {
+    public init(activity: AiboActivityState, lastEventAt: Date, idleAt: Date? = nil) {
         self.activity = activity
         self.lastEventAt = lastEventAt
         self.idleAt = idleAt
     }
 }
 
-public struct PetWorldState: Equatable, Sendable, Codable {
+public struct AiboWorldState: Equatable, Sendable, Codable {
     public var sessions: [SessionKey: SessionSnapshot]
 
     public init(sessions: [SessionKey: SessionSnapshot] = [:]) {
         self.sessions = sessions
     }
 
-    /// Primary session for the pet bubble: waiting > active work > done > idle.
+    /// Primary session for the aibo bubble: waiting > active work > done > idle.
     public var primarySession: (key: SessionKey, snapshot: SessionSnapshot)? {
         let ranked = sessions.sorted { lhs, rhs in
             let left = Self.priority(lhs.value.activity)
@@ -60,7 +60,7 @@ public struct PetWorldState: Equatable, Sendable, Codable {
         return ranked.first.map { ($0.key, $0.value) }
     }
 
-    private static func priority(_ state: PetActivityState) -> Int {
+    private static func priority(_ state: AiboActivityState) -> Int {
         switch state {
         case .waiting: 100
         case .usingTool: 80

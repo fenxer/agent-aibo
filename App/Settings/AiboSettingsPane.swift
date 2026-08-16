@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct PetSettingsPane: View {
+struct AiboSettingsPane: View {
     @State private var showsAllPets = false
 
     var body: some View {
@@ -13,7 +13,7 @@ struct PetSettingsPane: View {
                     showsAllPets = false
                 }
             } else {
-                PetSettingsRootView {
+                AiboSettingsRootView {
                     showsAllPets = true
                 }
             }
@@ -21,21 +21,21 @@ struct PetSettingsPane: View {
     }
 }
 
-private struct PetSettingsRootView: View {
+private struct AiboSettingsRootView: View {
     var onShowAllPets: () -> Void
 
     @Bindable private var settings = AppSettings.shared
-    @Bindable private var library = PetLibraryStore.shared
+    @Bindable private var library = AiboLibraryStore.shared
     @State private var petdexInput = ""
     @State private var isImportingImage = false
 
     var body: some View {
         Form {
-            PetPreviewAndSelectionSection(library: library)
+            AiboPreviewAndSelectionSection(library: library)
 
-            PetConfigurationSection(settings: settings)
+            AiboConfigurationSection(settings: settings)
 
-            PetManageSection(
+            AiboManageSection(
                 petdexInput: $petdexInput,
                 isInstalling: library.isInstalling,
                 lastErrorMessage: library.lastErrorMessage,
@@ -49,7 +49,7 @@ private struct PetSettingsRootView: View {
         }
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .settingsDetailChrome(title: String(localized: "Pet"))
+        .settingsDetailChrome(title: String(localized: "Aibo"))
         .fileImporter(
             isPresented: $isImportingImage,
             allowedContentTypes: [.png, .jpeg, .webP, .heic, .tiff, .image],
@@ -84,16 +84,16 @@ private struct PetSettingsRootView: View {
     }
 }
 
-private struct PetPreviewAndSelectionSection: View {
-    var library: PetLibraryStore
+private struct AiboPreviewAndSelectionSection: View {
+    var library: AiboLibraryStore
 
     var body: some View {
         Section {
-            PetPreviewBanner(record: library.selectedRecord)
+            AiboPreviewBanner(record: library.selectedRecord)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color(nsColor: .windowBackgroundColor))
 
-            Picker("Active Pet", selection: selectedPetBinding) {
+            Picker("Active Aibo", selection: selectedAiboBinding) {
                 ForEach(library.records) { record in
                     Text(record.displayName).tag(record.id)
                 }
@@ -101,7 +101,7 @@ private struct PetPreviewAndSelectionSection: View {
         }
     }
 
-    private var selectedPetBinding: Binding<String> {
+    private var selectedAiboBinding: Binding<String> {
         Binding(
             get: { library.selectedID },
             set: { library.select(id: $0) }
@@ -109,14 +109,14 @@ private struct PetPreviewAndSelectionSection: View {
     }
 }
 
-private struct PetPreviewBanner: View {
-    var record: PetLibraryRecord
+private struct AiboPreviewBanner: View {
+    var record: AiboLibraryRecord
 
     var body: some View {
         ZStack {
-            PetNameMarquee(name: record.displayName)
+            AiboNameMarquee(name: record.displayName)
                 .id(record.displayName)
-            PetSpriteView(
+            AiboSpriteView(
                 record: record,
                 activity: .idle,
                 spriteState: .idle,
@@ -132,7 +132,7 @@ private struct PetPreviewBanner: View {
 }
 
 /// Repeating pet-name watermark. Linear `withAnimation` loop — not `TimelineView`.
-private struct PetNameMarquee: View {
+private struct AiboNameMarquee: View {
     var name: String
 
     @State private var offset: CGFloat = 0
@@ -213,24 +213,24 @@ private struct PetNameMarquee: View {
     }
 }
 
-private struct PetConfigurationSection: View {
+private struct AiboConfigurationSection: View {
     @Bindable var settings: AppSettings
 
     var body: some View {
         Section {
-            PetSizeRow(
-                percent: $settings.petScalePercent,
-                percentRange: AppSettings.petScalePercentRange
+            AiboSizeRow(
+                percent: $settings.aiboScalePercent,
+                percentRange: AppSettings.aiboScalePercentRange
             )
 
-            Toggle("Restore Last Position", isOn: $settings.restoreLastPetPosition)
+            Toggle("Restore Last Position", isOn: $settings.restoreLastAiboPosition)
 
             Toggle("Hide When Fullscreen", isOn: $settings.hideWhenFullscreen)
         }
     }
 }
 
-private struct PetSizeRow: View {
+private struct AiboSizeRow: View {
     @Binding var percent: Double
     var percentRange: ClosedRange<Double>
 
@@ -238,7 +238,7 @@ private struct PetSizeRow: View {
     private static let tickPercents: [Double] = [0, 50, 100, 150, 200]
 
     var body: some View {
-        LabeledContent("Pet Size") {
+        LabeledContent("Aibo Size") {
             HStack(spacing: 12) {
                 Slider(value: roundedPercentBinding, in: percentRange) {
                     EmptyView()
@@ -249,9 +249,9 @@ private struct PetSizeRow: View {
                 }
 
                 TextField(
-                    "Pet Size",
+                    "Aibo Size",
                     value: percentIntBinding,
-                    format: PetScalePercentFormat()
+                    format: AiboScalePercentFormat()
                 )
                 .labelsHidden()
                 .textFieldStyle(.roundedBorder)
@@ -277,7 +277,7 @@ private struct PetSizeRow: View {
     }
 }
 
-private struct PetManageSection: View {
+private struct AiboManageSection: View {
     @Binding var petdexInput: String
     var isInstalling: Bool
     var lastErrorMessage: String?
@@ -305,7 +305,7 @@ private struct PetManageSection: View {
                     .foregroundStyle(.red)
             }
         } header: {
-            Text("Manage Pets")
+            Text("Manage Aibos")
         }
         .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
     }
@@ -334,7 +334,7 @@ private struct InstallFromLocalImageRow: View {
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Install from Local Image")
-                Text("Compatible with single images or Codex pet formats.")
+                Text("Compatible with single images or Codex / Petdex sprite formats.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -379,13 +379,13 @@ private struct InstallFromPetdexRow: View {
 private struct AllPetsEntryRow: View {
     var action: () -> Void
 
-    @Bindable private var library = PetLibraryStore.shared
+    @Bindable private var library = AiboLibraryStore.shared
     @State private var occupiedBytes: Int64 = 0
 
     var body: some View {
         Button(action: action) {
             HStack {
-                Text("All Pets")
+                Text("All Aibos")
                     .foregroundStyle(.primary)
                 Spacer()
                 Text("\(occupiedBytes, format: .byteCount(style: .file)) used")
@@ -398,7 +398,7 @@ private struct AllPetsEntryRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint("Shows all installed pets")
+        .accessibilityHint("Shows all installed aibos")
         .task(id: library.records) {
             occupiedBytes = library.occupiedDiskBytes()
         }
@@ -414,7 +414,7 @@ private enum AllPetsSort: Hashable {
 private struct AllPetsSettingsView: View {
     var onBack: () -> Void
 
-    @Bindable private var library = PetLibraryStore.shared
+    @Bindable private var library = AiboLibraryStore.shared
     @State private var sort: AllPetsSort = .addedDate
     @State private var isSelecting = false
     @State private var selectedIDs: Set<String> = []
@@ -442,7 +442,7 @@ private struct AllPetsSettingsView: View {
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .settingsDetailChrome(
-            title: String(localized: "All Pets"),
+            title: String(localized: "All Aibos"),
             canGoBack: true,
             onBack: onBack
         ) {
@@ -499,18 +499,18 @@ private struct AllPetsSettingsView: View {
 
     private var deleteDialogTitle: String {
         pendingDeleteIDs.count > 1
-            ? String(localized: "Delete Pets?")
-            : String(localized: "Delete Pet?")
+            ? String(localized: "Delete Aibos?")
+            : String(localized: "Delete Aibo?")
     }
 
-    private var displayedRecords: [PetLibraryRecord] {
+    private var displayedRecords: [AiboLibraryRecord] {
         switch sort {
         case .addedDate:
-            PetLibraryOrdering.installedAtNewestFirst(library.records)
+            AiboLibraryOrdering.installedAtNewestFirst(library.records)
         case .name:
-            PetLibraryOrdering.byDisplayName(library.records)
+            AiboLibraryOrdering.byDisplayName(library.records)
         case .size:
-            PetLibraryOrdering.bySizeLargestFirst(library.records, bytesForID: sizeByID)
+            AiboLibraryOrdering.bySizeLargestFirst(library.records, bytesForID: sizeByID)
         }
     }
 
@@ -520,10 +520,10 @@ private struct AllPetsSettingsView: View {
         {
             return String(localized: "Are you sure you want to delete “\(name)”?")
         }
-        return String(localized: "Are you sure you want to delete \(pendingDeleteIDs.count) pets?")
+        return String(localized: "Are you sure you want to delete \(pendingDeleteIDs.count) aibos?")
     }
 
-    private func handleTap(_ record: PetLibraryRecord) {
+    private func handleTap(_ record: AiboLibraryRecord) {
         if isSelecting {
             guard record.isRemovable else { return }
             if selectedIDs.contains(record.id) {
@@ -622,15 +622,15 @@ private struct AllPetsSelectionToolbar: View {
                 .buttonStyle(.plain)
                 .glassEffect(.regular.interactive(), in: .circle)
                 .glassEffectID("select", in: glassNamespace)
-                .help(isSelecting ? "Done" : "Select Pets")
-                .accessibilityLabel(isSelecting ? "Done" : "Select Pets")
+                .help(isSelecting ? "Done" : "Select Aibos")
+                .accessibilityLabel(isSelecting ? "Done" : "Select Aibos")
             }
         }
     }
 }
 
 private struct AllPetsRow: View {
-    var record: PetLibraryRecord
+    var record: AiboLibraryRecord
     var occupiedBytes: Int64
     var isSelecting: Bool
     var isSelected: Bool
@@ -647,7 +647,7 @@ private struct AllPetsRow: View {
                             .imageScale(.medium)
                     }
 
-                    PetSpriteView(
+                    AiboSpriteView(
                         record: record,
                         activity: .idle,
                         spriteState: .idle,
@@ -682,7 +682,7 @@ private struct AllPetsRow: View {
 }
 
 private struct AllPetsSubtitle: View {
-    var record: PetLibraryRecord
+    var record: AiboLibraryRecord
     var occupiedBytes: Int64
 
     var body: some View {
@@ -741,15 +741,15 @@ private struct AllPetsSubtitle: View {
     }
 }
 
-private struct PetScalePercentFormat: ParseableFormatStyle {
-    var parseStrategy = PetScalePercentParseStrategy()
+private struct AiboScalePercentFormat: ParseableFormatStyle {
+    var parseStrategy = AiboScalePercentParseStrategy()
 
     func format(_ value: Int) -> String {
         "\(value)%"
     }
 }
 
-private struct PetScalePercentParseStrategy: ParseStrategy {
+private struct AiboScalePercentParseStrategy: ParseStrategy {
     func parse(_ value: String) throws -> Int {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         let numberPart = trimmed.hasSuffix("%") ? String(trimmed.dropLast()) : trimmed

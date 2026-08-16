@@ -122,7 +122,7 @@ private struct WebhookSetupLinkRow: View {
 }
 
 private struct WebhookListenerSection: View {
-    @State private var runtime = PetRuntime.shared
+    @State private var runtime = AiboRuntime.shared
     @Bindable private var settings = AppSettings.shared
 
     var body: some View {
@@ -180,7 +180,7 @@ private struct WebhookListenerSection: View {
 }
 
 private struct WebhookConnectionSection: View {
-    @State private var runtime = PetRuntime.shared
+    @State private var runtime = AiboRuntime.shared
     @Bindable private var settings = AppSettings.shared
 
     var body: some View {
@@ -276,7 +276,7 @@ private struct ReceiveLogsEntryRow: View {
 private struct ReceiveLogsSettingsView: View {
     var onBack: () -> Void
 
-    @State private var runtime = PetRuntime.shared
+    @State private var runtime = AiboRuntime.shared
     @State private var searchText = ""
     @State private var selectedSource = ""
     @State private var confirmClear = false

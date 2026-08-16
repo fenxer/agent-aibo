@@ -4,16 +4,16 @@ import SwiftUI
 /// Hosts SwiftUI content and only accepts hits on opaque pet pixels / bubbles.
 ///
 /// macOS 27's Swift AppKit overlay no longer exposes `NSWindow.hitTest`, so click-through
-/// lives on the content view. The alpha mask is built once from the pet image.
+/// lives on the content view. The alpha mask is built once from the aibo image.
 ///
-/// `petHitRect` / `bubbleHitRects` use bottom-left coordinates (same as the panel).
+/// `aiboHitRect` / `bubbleHitRects` use bottom-left coordinates (same as the panel).
 /// `NSHostingView` is flipped (origin top-left), so hit-test points are converted first.
 final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     private let opaqueAlphaThreshold: UInt8 = 26 // ~10%
     private var alphaMask: AlphaMask?
 
     /// Pet sprite square in bottom-left content coordinates.
-    var petHitRect: CGRect = .null
+    var aiboHitRect: CGRect = .null
     /// Approximate bubble stack rects in bottom-left content coordinates.
     var bubbleHitRects: [CGRect] = []
 
@@ -27,7 +27,7 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     }
 
     /// Green where pet pixels are considered opaque for drag / hit testing.
-    func opaquePetDebugImage(size: CGSize) -> NSImage? {
+    func opaqueAiboDebugImage(size: CGSize) -> NSImage? {
         alphaMask?.tintedOpaqueImage(
             size: size,
             threshold: opaqueAlphaThreshold,
@@ -56,10 +56,10 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
         guard bounds.contains(point) else { return nil }
         let p = pointInBottomLeft(point)
 
-        if petHitRect.isNull == false, petHitRect.contains(p) {
+        if aiboHitRect.isNull == false, aiboHitRect.contains(p) {
             if let alphaMask {
-                let local = CGPoint(x: p.x - petHitRect.minX, y: p.y - petHitRect.minY)
-                let localBounds = CGRect(origin: .zero, size: petHitRect.size)
+                let local = CGPoint(x: p.x - aiboHitRect.minX, y: p.y - aiboHitRect.minY)
+                let localBounds = CGRect(origin: .zero, size: aiboHitRect.size)
                 guard alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold) else {
                     return nil
                 }
@@ -87,7 +87,7 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
         // (e.g. dismiss `.failed`).
         if isOpaquePetHit(at: point) {
             window?.performDrag(with: event)
-            PetPanelController.shared.persistRelativePositionNow()
+            AiboPanelController.shared.persistRelativePositionNow()
             return
         }
         super.mouseDown(with: event)
@@ -95,10 +95,10 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
     private func isOpaquePetHit(at point: NSPoint) -> Bool {
         let p = pointInBottomLeft(point)
-        guard petHitRect.isNull == false, petHitRect.contains(p) else { return false }
+        guard aiboHitRect.isNull == false, aiboHitRect.contains(p) else { return false }
         guard let alphaMask else { return true }
-        let local = CGPoint(x: p.x - petHitRect.minX, y: p.y - petHitRect.minY)
-        let localBounds = CGRect(origin: .zero, size: petHitRect.size)
+        let local = CGPoint(x: p.x - aiboHitRect.minX, y: p.y - aiboHitRect.minY)
+        let localBounds = CGRect(origin: .zero, size: aiboHitRect.size)
         return alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold)
     }
 

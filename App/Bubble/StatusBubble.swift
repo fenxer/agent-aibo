@@ -5,7 +5,7 @@ import SwiftUI
 struct StatusBubble: View {
     let item: StatusBubbleItem
     let placement: BubblePlacement
-    /// Only the bubble nearest the pet keeps the popover arrow.
+    /// Only the bubble nearest the aibo keeps the popover arrow.
     var showsArrow: Bool = true
     /// When set, a tap activates the source app (local agent bubbles).
     var onActivate: (() -> Void)? = nil
@@ -65,7 +65,7 @@ struct StatusBubble: View {
                 \.backgroundProminence,
                 prefersLightLabel ? .increased : .standard
             )
-            // Cap width; pin content toward the pet so short copy doesn't float
+            // Cap width; pin content toward the aibo so short copy doesn't float
             // in the middle of a bubbleMaxWidth-sized panel slot.
             .frame(maxWidth: 320, alignment: frameAlignment)
             // Don't compress wrapped text when a parent proposes a short height.
@@ -424,7 +424,7 @@ struct StatusBubble: View {
         }
     }
 
-    /// Side closest to the pet — left bubble pins trailing, right pins leading.
+    /// Side closest to the aibo — left bubble pins trailing, right pins leading.
     private var frameAlignment: Alignment {
         switch placement {
         case .left: .trailing

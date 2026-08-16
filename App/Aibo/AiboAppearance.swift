@@ -2,23 +2,23 @@ import AiboCore
 import AppKit
 import SwiftUI
 
-/// Visual constants derived from the pet artwork.
+/// Visual constants derived from the aibo artwork.
 @MainActor
-enum PetAppearance {
+enum AiboAppearance {
     /// Pow `.movingParts.vanish` default timing.
     static let vanishAnimation: Animation = .easeOut(duration: 0.9)
     static let vanishDuration: Duration = .milliseconds(900)
 
     /// Drop-in spring for show. Intentionally not Pow `.boing` — that GeometryEffect
-    /// makes NSHostingView rewrite PetPanel's content size (width→0) and crash.
+    /// makes NSHostingView rewrite AiboPanel's content size (width→0) and crash.
     static let boingAnimation: Animation = .interpolatingSpring(stiffness: 220, damping: 14)
 
     private static var dominantColorCache: [String: Color] = [:]
 
-    /// Dominant opaque color of the current pet artwork (cached per pet id).
-    static func dominantColor(for record: PetLibraryRecord) -> Color {
+    /// Dominant opaque color of the current aibo artwork (cached per aibo id).
+    static func dominantColor(for record: AiboLibraryRecord) -> Color {
         if let cached = dominantColorCache[record.id] { return cached }
-        let image = PetSpriteCache.shared.previewImage(for: record) ?? NSImage(named: "DefaultPet")
+        let image = AiboSpriteCache.shared.previewImage(for: record) ?? NSImage(named: "DefaultAibo")
         let nsColor = image.flatMap(DominantColorSampler.sample) ?? .systemPink
         let color = Color(nsColor: nsColor)
         dominantColorCache[record.id] = color
@@ -30,8 +30,8 @@ enum PetAppearance {
     }
 }
 
-/// Padding around pet content; grows NE when music notes are enabled so rising notes aren't clipped.
-struct PetContentInsets: Equatable, Sendable {
+/// Padding around aibo content; grows NE when music notes are enabled so rising notes aren't clipped.
+struct AiboContentInsets: Equatable, Sendable {
     var top: CGFloat
     var leading: CGFloat
     var bottom: CGFloat

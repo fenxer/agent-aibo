@@ -1,7 +1,7 @@
 import AppKit
 
 /// Borderless, non-activating desktop pet window.
-final class PetPanel: NSPanel {
+final class AiboPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
@@ -51,7 +51,7 @@ final class PetPanel: NSPanel {
 /// `contentMinSize` / `contentMaxSize` from transient SwiftUI metrics (often during
 /// Pow transitions), collapsing the panel to width 0 and crashing with an
 /// Update Constraints loop.
-final class PetPanelRootView: NSView {
+final class AiboPanelRootView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard bounds.contains(point) else { return nil }
         // Don't return `self` for empty areas — that would eat desktop clicks.

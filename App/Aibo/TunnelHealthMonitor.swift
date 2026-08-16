@@ -84,7 +84,7 @@ final class TunnelHealthMonitor {
         switch reason {
         case .pathBecameUnsatisfied:
             cancelProbeWork()
-            PetRuntime.shared.markTunnelOfflineFromLocalPath()
+            AiboRuntime.shared.markTunnelOfflineFromLocalPath()
 
         case .launch, .wake, .pathBecameSatisfied:
             let delay: Duration = switch reason {
@@ -168,7 +168,7 @@ final class TunnelHealthMonitor {
 
             // Local path still down — don't burn HTTP probes.
             if let status = self.lastPathStatus, status != .satisfied {
-                PetRuntime.shared.markTunnelOfflineFromLocalPath()
+                AiboRuntime.shared.markTunnelOfflineFromLocalPath()
                 return
             }
 
@@ -182,17 +182,17 @@ final class TunnelHealthMonitor {
                 guard !Task.isCancelled else { return }
 
                 if let status = self.lastPathStatus, status != .satisfied {
-                    PetRuntime.shared.markTunnelOfflineFromLocalPath()
+                    AiboRuntime.shared.markTunnelOfflineFromLocalPath()
                     return
                 }
 
-                let outcome = await PetRuntime.shared.checkTunnelHealth(clearPolicy: .recovery)
+                let outcome = await AiboRuntime.shared.checkTunnelHealth(clearPolicy: .recovery)
                 guard !Task.isCancelled else { return }
 
                 switch outcome {
                 case .ok:
                     // Confirmed recovery (bubble cleared after 2× OK) — stop early.
-                    if !PetRuntime.shared.tunnelWarningBubbleVisible {
+                    if !AiboRuntime.shared.tunnelWarningBubbleVisible {
                         return
                     }
                 case .skipped:
@@ -204,14 +204,14 @@ final class TunnelHealthMonitor {
         }
     }
 
-    private func scheduleOneShot(delay: Duration, clearPolicy: PetRuntime.TunnelHealthClearPolicy) {
+    private func scheduleOneShot(delay: Duration, clearPolicy: AiboRuntime.TunnelHealthClearPolicy) {
         cancelProbeWork()
         oneShotTask = Task { [weak self] in
             if delay > .zero {
                 try? await Task.sleep(for: delay)
             }
             guard self != nil, !Task.isCancelled else { return }
-            _ = await PetRuntime.shared.checkTunnelHealth(clearPolicy: clearPolicy)
+            _ = await AiboRuntime.shared.checkTunnelHealth(clearPolicy: clearPolicy)
         }
     }
 }

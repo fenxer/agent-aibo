@@ -4,8 +4,8 @@ import ImageIO
 
 /// Decodes and caches Petdex spritesheets / static images for the desktop pet.
 @MainActor
-final class PetSpriteCache {
-    static let shared = PetSpriteCache()
+final class AiboSpriteCache {
+    static let shared = AiboSpriteCache()
 
     private var sheets: [String: CachedSheet] = [:]
     private var staticImages: [String: NSImage] = [:]
@@ -29,10 +29,10 @@ final class PetSpriteCache {
         }
     }
 
-    func previewImage(for record: PetLibraryRecord) -> NSImage? {
+    func previewImage(for record: AiboLibraryRecord) -> NSImage? {
         switch record.kind {
         case .builtInDefault:
-            return NSImage(named: "DefaultPet")
+            return NSImage(named: "DefaultAibo")
         case .staticImage:
             return staticImage(for: record)
         case .petdex:
@@ -41,7 +41,7 @@ final class PetSpriteCache {
     }
 
     func frame(
-        for record: PetLibraryRecord,
+        for record: AiboLibraryRecord,
         state: PetdexSpriteState,
         frameIndex: Int
     ) -> NSImage? {
@@ -57,25 +57,25 @@ final class PetSpriteCache {
     /// One loop of `state`, ordered, for `CAKeyframeAnimation`. Empty when the
     /// record has no usable atlas — callers fall back to `previewImage(for:)`.
     func layerFrames(
-        for record: PetLibraryRecord,
+        for record: AiboLibraryRecord,
         state: PetdexSpriteState
     ) -> [CGImage] {
         guard record.kind == .petdex, let sheet = sheet(for: record) else { return [] }
         return sheet.layerFrames[state] ?? sheet.layerFrames[.idle] ?? []
     }
 
-    private func staticImage(for record: PetLibraryRecord) -> NSImage? {
+    private func staticImage(for record: AiboLibraryRecord) -> NSImage? {
         if let cached = staticImages[record.id] { return cached }
-        guard let url = PetLibraryStore.shared.artworkURL(for: record),
+        guard let url = AiboLibraryStore.shared.artworkURL(for: record),
               let image = NSImage(contentsOf: url)
         else { return nil }
         staticImages[record.id] = image
         return image
     }
 
-    private func sheet(for record: PetLibraryRecord) -> CachedSheet? {
+    private func sheet(for record: AiboLibraryRecord) -> CachedSheet? {
         if let cached = sheets[record.id] { return cached }
-        guard let url = PetLibraryStore.shared.artworkURL(for: record),
+        guard let url = AiboLibraryStore.shared.artworkURL(for: record),
               let decoded = loadCGImage(url: url),
               let atlas = detachedBitmap(decoded)
         else { return nil }

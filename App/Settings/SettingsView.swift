@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 
 private enum SettingsPane: String, CaseIterable, Identifiable {
-    case pet
+    case aibo
     case agentHook
     case webhook
     case general
@@ -16,7 +16,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .pet: String(localized: "Pet")
+        case .aibo: String(localized: "Aibo")
         case .agentHook: String(localized: "Agent Hook")
         case .webhook: String(localized: "Webhook")
         case .general: String(localized: "General")
@@ -34,7 +34,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 
     var icon: Icon {
         switch self {
-        case .pet: .asset("HeartMenu")
+        case .aibo: .asset("HeartMenu")
         case .agentHook: .system("poweroutlet.type.b.fill")
         case .webhook: .system("globe")
         case .general: .system("gearshape.fill")
@@ -47,7 +47,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 
     var iconColor: Color {
         switch self {
-        case .pet: .red
+        case .aibo: .red
         case .agentHook: .blue
         case .webhook: .blue
         case .general: .indigo
@@ -60,7 +60,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
 
     var iconSize: CGFloat {
         switch self {
-        case .pet: 18
+        case .aibo: 18
         case .agentHook: 20
         case .webhook: 18
         case .general: 18
@@ -89,7 +89,7 @@ private struct SettingsSidebar: View {
     var body: some View {
         List(selection: $selection) {
             Section {
-                ForEach([SettingsPane.pet, .agentHook, .webhook]) { pane in
+                ForEach([SettingsPane.aibo, .agentHook, .webhook]) { pane in
                     SettingsSidebarRow(pane: pane)
                 }
             }
@@ -172,7 +172,7 @@ private struct SettingsSidebarIcon: View {
 }
 
 struct SettingsView: View {
-    @State private var selection: SettingsPane? = .pet
+    @State private var selection: SettingsPane? = .aibo
     @Bindable private var navigator = SettingsNavigator.shared
 
     var body: some View {
@@ -205,9 +205,9 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var detailRoot: some View {
-        switch selection ?? .pet {
-        case .pet:
-            PetSettingsPane()
+        switch selection ?? .aibo {
+        case .aibo:
+            AiboSettingsPane()
         case .agentHook:
             AgentHookSettingsPane()
         case .general:

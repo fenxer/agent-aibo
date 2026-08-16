@@ -1,14 +1,14 @@
 #if DEBUG
 import AppKit
 
-/// Semi-transparent fills for PetPanel hit-testing regions (Development toggle).
+/// Semi-transparent fills for AiboPanel hit-testing regions (Development toggle).
 /// Never participates in hit testing itself.
 final class HitRegionDebugOverlay: NSView {
-    var petHitRect: CGRect = .null {
+    var aiboHitRect: CGRect = .null {
         didSet { needsDisplay = true }
     }
 
-    var contentInsets: PetContentInsets = .current(musicNotesEnabled: false) {
+    var contentInsets: AiboContentInsets = .current(musicNotesEnabled: false) {
         didSet { needsDisplay = true }
     }
 
@@ -18,7 +18,7 @@ final class HitRegionDebugOverlay: NSView {
     }
 
     /// Green where alpha mask is opaque (actual drag target); clear elsewhere in pet square.
-    var opaquePetImage: NSImage? {
+    var opaqueAiboImage: NSImage? {
         didSet { needsDisplay = true }
     }
 
@@ -53,7 +53,7 @@ final class HitRegionDebugOverlay: NSView {
         panel.fill()
 
         let insets = contentInsets
-        let base = PetContentInsets.base
+        let base = AiboContentInsets.base
         let musicTop = max(0, insets.top - base)
         let musicTrailing = max(0, insets.trailing - base)
 
@@ -103,18 +103,18 @@ final class HitRegionDebugOverlay: NSView {
             ).fill()
         }
 
-        // petHitRect square (alpha-tested region).
-        if petHitRect.isNull == false, petHitRect.width > 0, petHitRect.height > 0 {
+        // aiboHitRect square (alpha-tested region).
+        if aiboHitRect.isNull == false, aiboHitRect.width > 0, aiboHitRect.height > 0 {
             NSColor.systemBlue.withAlphaComponent(0.22).setFill()
-            petHitRect.fill()
+            aiboHitRect.fill()
             NSColor.systemBlue.withAlphaComponent(0.85).setStroke()
-            let path = NSBezierPath(rect: petHitRect.insetBy(dx: 0.5, dy: 0.5))
+            let path = NSBezierPath(rect: aiboHitRect.insetBy(dx: 0.5, dy: 0.5))
             path.lineWidth = 1
             path.stroke()
 
-            if let opaquePetImage {
-                opaquePetImage.draw(
-                    in: petHitRect,
+            if let opaqueAiboImage {
+                opaqueAiboImage.draw(
+                    in: aiboHitRect,
                     from: .zero,
                     operation: .sourceOver,
                     fraction: 1
@@ -140,7 +140,7 @@ final class HitRegionDebugOverlay: NSView {
             ("panel", .systemPurple),
             ("base pad", .systemOrange),
             ("music overflow", .systemYellow),
-            ("petHitRect", .systemBlue),
+            ("aiboHitRect", .systemBlue),
             ("opaque = drag", .systemGreen),
             ("bubble hit", .systemCyan),
         ]

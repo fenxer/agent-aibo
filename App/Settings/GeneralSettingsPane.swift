@@ -3,7 +3,7 @@ import SwiftUI
 
 struct GeneralSettingsPane: View {
     @Bindable private var settings = AppSettings.shared
-    @Bindable private var library = PetLibraryStore.shared
+    @Bindable private var library = AiboLibraryStore.shared
 
     var body: some View {
         Form {
@@ -28,7 +28,7 @@ struct GeneralSettingsPane: View {
 private struct GeneralPreviewSection: View {
     var themeMode: AppThemeMode
     var placement: BubblePlacement
-    var record: PetLibraryRecord
+    var record: AiboLibraryRecord
 
     var body: some View {
         Section {
@@ -46,7 +46,7 @@ private struct GeneralPreviewSection: View {
 private struct GeneralPreview: View {
     var themeMode: AppThemeMode
     var placement: BubblePlacement
-    var record: PetLibraryRecord
+    var record: AiboLibraryRecord
 
     @Environment(\.colorScheme) private var systemColorScheme
     @Bindable private var settings = AppSettings.shared
@@ -54,7 +54,7 @@ private struct GeneralPreview: View {
     @State private var burstTask: Task<Void, Never>?
     @State private var colorBurstTask: Task<Void, Never>?
 
-    private let petSize: CGFloat = 80
+    private let aiboSize: CGFloat = 80
     private let spacing: CGFloat = 6
 
     var body: some View {
@@ -136,17 +136,17 @@ private struct GeneralPreview: View {
 
     private var previewPet: some View {
         ZStack {
-            PetSpriteView(
+            AiboSpriteView(
                 record: record,
                 activity: .idle,
                 spriteState: .idle,
-                size: petSize
+                size: aiboSize
             )
             ForEach(floatingNotes) { note in
                 FloatingMusicNoteView(
                     note: note,
                     color: settings.resolvedMusicNotesColor(for: record),
-                    petSize: petSize
+                    aiboSize: aiboSize
                 )
                 .allowsHitTesting(false)
             }

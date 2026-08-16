@@ -56,7 +56,7 @@ enum MusicNoteMotion {
 struct FloatingMusicNoteView: View {
     let note: FloatingMusicNote
     let color: Color
-    let petSize: CGFloat
+    let aiboSize: CGFloat
     @State private var progress: CGFloat = 0
 
     var body: some View {
@@ -64,8 +64,8 @@ struct FloatingMusicNoteView: View {
             .font(.system(size: note.fontSize, weight: .semibold))
             .foregroundStyle(color.opacity(0.85 + Double(1 - progress) * 0.15))
             .offset(
-                x: petSize * 0.28 + note.xJitter + note.sway * progress,
-                y: -petSize * 0.15 - progress * (petSize * note.riseDistanceFactor)
+                x: aiboSize * 0.28 + note.xJitter + note.sway * progress,
+                y: -aiboSize * 0.15 - progress * (aiboSize * note.riseDistanceFactor)
             )
             .opacity(Double(1 - progress))
             .scaleEffect(0.92 + 0.12 * (1 - progress))

@@ -22,7 +22,7 @@ struct AgentHookSettingsPane: View {
 private struct AgentHookSettingsRootView: View {
     var onOpenAgent: (AgentKind) -> Void
 
-    @State private var runtime = PetRuntime.shared
+    @State private var runtime = AiboRuntime.shared
 
     private var installedAgents: [AgentKind] {
         AgentKind.allCases.filter { runtime.isHookInstalled(for: $0) }

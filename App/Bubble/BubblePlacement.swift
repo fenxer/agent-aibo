@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Where the status bubble sits relative to the pet image.
+/// Where the status bubble sits relative to the aibo image.
 enum BubblePlacement: String, CaseIterable, Identifiable, Sendable, Hashable {
     case top
     case bottom
@@ -18,7 +18,7 @@ enum BubblePlacement: String, CaseIterable, Identifiable, Sendable, Hashable {
         }
     }
 
-    /// Edge of the bubble that should show the popover arrow (toward the pet).
+    /// Edge of the bubble that should show the popover arrow (toward the aibo).
     var arrowEdge: Edge {
         switch self {
         case .top: .bottom

@@ -1,10 +1,10 @@
 import AppKit
 import SwiftUI
 
-/// Shared command list for the menu bar extra and the pet context menu.
+/// Shared command list for the menu bar extra and the aibo context menu.
 struct AiboAppMenu: View {
-    @State private var petPanelController = PetPanelController.shared
-    @State private var runtime = PetRuntime.shared
+    @State private var aiboPanelController = AiboPanelController.shared
+    @State private var runtime = AiboRuntime.shared
     @State private var settings = AppSettings.shared
 
     private var showsWebhookConnectivity: Bool {
@@ -13,12 +13,12 @@ struct AiboAppMenu: View {
 
     var body: some View {
         Button {
-            petPanelController.toggle()
+            aiboPanelController.toggle()
         } label: {
             Text(
-                petPanelController.isVisible
-                    ? String(localized: "Hide Pet")
-                    : String(localized: "Show Pet")
+                aiboPanelController.isVisible
+                    ? String(localized: "Hide Aibo")
+                    : String(localized: "Show Aibo")
             )
         }
 

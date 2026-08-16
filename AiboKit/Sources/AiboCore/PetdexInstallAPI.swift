@@ -94,14 +94,14 @@ public enum PetdexInstallAPI {
     public static func makeRecord(
         installable: PetdexInstallablePet,
         petJSON: PetdexPetJSON?
-    ) -> PetLibraryRecord {
+    ) -> AiboLibraryRecord {
         let ext = installable.spriteExt.lowercased()
         let spriteName = "spritesheet.\(ext.isEmpty ? "webp" : ext)"
-        return PetLibraryRecord(
+        return AiboLibraryRecord(
             id: "petdex.\(installable.slug)",
             kind: .petdex,
             displayName: petJSON?.displayName ?? installable.displayName,
-            relativePath: "\(AiboPaths.petdexPetsDirectoryName)/\(installable.slug)",
+            relativePath: "\(AiboPaths.petdexDirectoryName)/\(installable.slug)",
             slug: installable.slug,
             spriteFileName: spriteName,
             spriteVersionNumber: petJSON?.spriteVersionNumber,

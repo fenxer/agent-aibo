@@ -1,11 +1,11 @@
 import Foundation
 
 public enum StateTransition: Equatable, Sendable {
-    case apply(PetActivityState)
+    case apply(AiboActivityState)
     case removeSession
 }
 
-public enum PetEvent: Equatable, Sendable {
+public enum AiboEvent: Equatable, Sendable {
     case agent(session: SessionKey, transition: StateTransition, at: Date)
     /// Force idle when a session has been silent longer than `timeout`.
     case watchdog(at: Date, timeout: TimeInterval)
@@ -13,7 +13,7 @@ public enum PetEvent: Equatable, Sendable {
     case idleDeadline(at: Date)
 }
 
-public enum PetStateMachine {
+public enum AiboStateMachine {
     /// Hold time before `.done` / `.registered` / `.interrupted` falls back to `.idle`.
     public static let doneIdleDelay: TimeInterval = 3
     /// Hold time after `.responding` when Cursor never sends `stop` / `sessionEnd`.
@@ -37,7 +37,7 @@ public enum PetStateMachine {
     public static let defaultWatchdogTimeout: TimeInterval = 120
 
     /// Auto-clear delay for statuses that linger then fall back to `.idle`.
-    public static func idleFallbackDelay(for activity: PetActivityState) -> TimeInterval? {
+    public static func idleFallbackDelay(for activity: AiboActivityState) -> TimeInterval? {
         switch activity {
         case .done, .registered, .interrupted: doneIdleDelay
         case .responding: respondingIdleDelay
@@ -47,11 +47,11 @@ public enum PetStateMachine {
     }
 
     /// Statuses that briefly linger on the bubble, then clear themselves.
-    public static func schedulesIdleFallback(_ activity: PetActivityState) -> Bool {
+    public static func schedulesIdleFallback(_ activity: AiboActivityState) -> Bool {
         idleFallbackDelay(for: activity) != nil
     }
 
-    public static func reduce(_ state: PetWorldState, event: PetEvent) -> PetWorldState {
+    public static func reduce(_ state: AiboWorldState, event: AiboEvent) -> AiboWorldState {
         var next = state
         switch event {
         case let .agent(session, transition, at):
@@ -65,7 +65,7 @@ public enum PetStateMachine {
     }
 
     private static func applyAgent(
-        to state: inout PetWorldState,
+        to state: inout AiboWorldState,
         session: SessionKey,
         transition: StateTransition,
         at: Date
@@ -84,7 +84,7 @@ public enum PetStateMachine {
     }
 
     private static func applyWatchdog(
-        to state: inout PetWorldState,
+        to state: inout AiboWorldState,
         at: Date,
         timeout: TimeInterval
     ) {
@@ -100,7 +100,7 @@ public enum PetStateMachine {
         }
     }
 
-    private static func applyIdleDeadlines(to state: inout PetWorldState, at: Date) {
+    private static func applyIdleDeadlines(to state: inout AiboWorldState, at: Date) {
         for (key, snapshot) in state.sessions {
             guard let idleAt = snapshot.idleAt, at >= idleAt else { continue }
             state.sessions[key] = SessionSnapshot(
@@ -114,12 +114,12 @@ public enum PetStateMachine {
 
 /// Cursor-only UI hint when `.usingTool` stays silent (no approval hook available).
 public enum CursorUsingToolStallHint {
-    public static var delay: TimeInterval { PetStateMachine.cursorUsingToolStallDelay }
+    public static var delay: TimeInterval { AiboStateMachine.cursorUsingToolStallDelay }
 
     /// Whether the bubble should show the stall CTA / “got stuck” copy.
     public static func isDue(
         agent: AgentKind,
-        activity: PetActivityState,
+        activity: AiboActivityState,
         lastEventAt: Date,
         now: Date = Date()
     ) -> Bool {
@@ -134,11 +134,11 @@ public enum CursorUsingToolStallHint {
 /// Codex Auto-review and real user prompts share `PermissionRequest` → `.waiting`;
 /// a short delay avoids flashing the attention CTA while the reviewer may still act.
 public enum WaitingApprovalEscalationHint {
-    public static var delay: TimeInterval { PetStateMachine.waitingApprovalEscalationDelay }
+    public static var delay: TimeInterval { AiboStateMachine.waitingApprovalEscalationDelay }
 
     /// Whether the bubble should show the attention CTA / “got stuck?” copy.
     public static func isDue(
-        activity: PetActivityState,
+        activity: AiboActivityState,
         lastEventAt: Date,
         now: Date = Date()
     ) -> Bool {

@@ -25,7 +25,7 @@ struct DevelopmentSettingsPane: View {
     @State private var webhookStatus: String?
     @State private var ingestStatus: String?
     @State private var confirmClearIngest = false
-    @State private var runtime = PetRuntime.shared
+    @State private var runtime = AiboRuntime.shared
 
     private var canShow: Bool {
         if isAwaitingApproval { return true }
@@ -208,7 +208,7 @@ struct DevelopmentSettingsPane: View {
             )
             Text(
                 String(
-                    localized: "Purple = panel · Orange = base pad · Yellow = music overflow · Blue = petHitRect · Green = opaque drag · Cyan = bubble hit."
+                    localized: "Purple = panel · Orange = base pad · Yellow = music overflow · Blue = aiboHitRect · Green = opaque drag · Cyan = bubble hit."
                 )
             )
             .font(.caption)
@@ -220,8 +220,8 @@ struct DevelopmentSettingsPane: View {
 
     private var hitRegionDebugBinding: Binding<Bool> {
         Binding(
-            get: { PetPanelController.shared.showHitRegionDebug },
-            set: { PetPanelController.shared.showHitRegionDebug = $0 }
+            get: { AiboPanelController.shared.showHitRegionDebug },
+            set: { AiboPanelController.shared.showHitRegionDebug = $0 }
         )
     }
 

@@ -4,7 +4,7 @@ import Foundation
 public enum StatusCopy {
     /// Full sentence used by non-bubble callers (e.g. LLM helpers).
     public static func message(
-        for activity: PetActivityState,
+        for activity: AiboActivityState,
         agent: AgentKind
     ) -> String? {
         guard let phrase = statusPhrase(for: activity) else { return nil }
@@ -12,7 +12,7 @@ public enum StatusCopy {
     }
 
     /// Status text shown beside the agent capsule (no agent name prefix).
-    public static func statusPhrase(for activity: PetActivityState) -> String? {
+    public static func statusPhrase(for activity: AiboActivityState) -> String? {
         switch activity {
         case .idle:
             return nil

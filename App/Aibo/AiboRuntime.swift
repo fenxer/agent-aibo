@@ -5,10 +5,10 @@ import SwiftUI
 
 @MainActor
 @Observable
-final class PetRuntime {
-    static let shared = PetRuntime()
+final class AiboRuntime {
+    static let shared = AiboRuntime()
 
-    private(set) var world = PetWorldState()
+    private(set) var world = AiboWorldState()
     /// Active status bubbles, newest first. Empty when idle.
     private(set) var bubbleItems: [StatusBubbleItem] = []
     private(set) var cursorHooksInstalled = false
@@ -390,7 +390,7 @@ final class PetRuntime {
         if tunnelWarningBubble != item {
             tunnelWarningBubble = item
             refreshBubbleItems()
-            PetPanelController.shared.refreshContent()
+            AiboPanelController.shared.refreshContent()
         }
     }
 
@@ -401,7 +401,7 @@ final class PetRuntime {
         guard tunnelWarningBubble != nil else { return }
         tunnelWarningBubble = nil
         refreshBubbleItems()
-        PetPanelController.shared.refreshContent()
+        AiboPanelController.shared.refreshContent()
     }
 
     private static func probePublicWebhookURL() async -> TunnelHealthStatus {
@@ -454,7 +454,7 @@ final class PetRuntime {
             recordReceive(delivery)
         }
         refreshBubbleItems()
-        PetPanelController.shared.refreshContent()
+        AiboPanelController.shared.refreshContent()
         switch dismissMode {
         case .onClick:
             cancelWebhookExpiry(for: item.id)
@@ -521,7 +521,7 @@ final class PetRuntime {
         )
         tunnelHealthStatus = .down
         refreshBubbleItems()
-        PetPanelController.shared.refreshContent()
+        AiboPanelController.shared.refreshContent()
     }
     #endif
 
@@ -711,7 +711,7 @@ final class PetRuntime {
         )
         debugBubbleItems.append(item)
         refreshBubbleItems()
-        PetPanelController.shared.refreshContent()
+        AiboPanelController.shared.refreshContent()
     }
 
     func clearDebugBubble() {
@@ -719,7 +719,7 @@ final class PetRuntime {
         cancelDeferredTunnelWarning()
         clearTunnelWarningBubble(resetDetectionClock: true)
         refreshBubbleItems()
-        PetPanelController.shared.refreshContent()
+        AiboPanelController.shared.refreshContent()
     }
 
     private static func debugAgentKind(from agentName: String) -> AgentKind {
@@ -932,7 +932,7 @@ final class PetRuntime {
             #endif
             scheduleWatchdog()
             if case let .apply(activity) = parsed.transition,
-               PetStateMachine.schedulesIdleFallback(activity)
+               AiboStateMachine.schedulesIdleFallback(activity)
             {
                 scheduleIdleDeadline()
             }
@@ -969,12 +969,12 @@ final class PetRuntime {
         sessionDisplayMeta[session] = meta
     }
 
-    private func apply(_ event: PetEvent) {
-        world = PetStateMachine.reduce(world, event: event)
+    private func apply(_ event: AiboEvent) {
+        world = AiboStateMachine.reduce(world, event: event)
         syncCursorUsingToolStallTimers()
         syncWaitingApprovalEscalationTimers()
         refreshBubbleItems()
-        PetPanelController.shared.refreshContent()
+        AiboPanelController.shared.refreshContent()
     }
 
     private func refreshBubbleItems() {
@@ -1064,7 +1064,7 @@ final class PetRuntime {
 
     /// Terminal statuses keep static copy — no loading-dot cycle.
     /// `.waiting` starts as “is reviewing” (ellipsis on); escalated CTA turns it off.
-    private static func animatesEllipsis(for activity: PetActivityState) -> Bool {
+    private static func animatesEllipsis(for activity: AiboActivityState) -> Bool {
         switch activity {
         case .done, .interrupted: false
         default: true
@@ -1094,7 +1094,7 @@ final class PetRuntime {
         webhookBubbles.removeAll { $0.id == id }
         guard webhookBubbles.count != before else { return }
         refreshBubbleItems()
-        PetPanelController.shared.refreshContent()
+        AiboPanelController.shared.refreshContent()
     }
 
     private func scheduleIdleDeadline() {
@@ -1140,7 +1140,7 @@ final class PetRuntime {
                     else { return }
                     self.cursorUsingToolStallTasks[key] = nil
                     self.refreshBubbleItems()
-                    PetPanelController.shared.refreshContent()
+                    AiboPanelController.shared.refreshContent()
                 }
             }
         }
@@ -1177,7 +1177,7 @@ final class PetRuntime {
                     else { return }
                     self.waitingApprovalEscalationTasks[key] = nil
                     self.refreshBubbleItems()
-                    PetPanelController.shared.refreshContent()
+                    AiboPanelController.shared.refreshContent()
                 }
             }
         }
@@ -1194,7 +1194,7 @@ final class PetRuntime {
     private func scheduleWatchdog() {
         watchdogTask?.cancel()
         watchdogTask = Task { [weak self] in
-            let timeout = PetStateMachine.defaultWatchdogTimeout
+            let timeout = AiboStateMachine.defaultWatchdogTimeout
             try? await Task.sleep(for: .seconds(timeout))
             guard !Task.isCancelled else { return }
             await MainActor.run {

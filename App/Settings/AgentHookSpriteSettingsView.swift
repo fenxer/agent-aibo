@@ -9,7 +9,7 @@ struct AgentHookSpriteSettingsView: View {
 
     @State private var hoveredHook: String?
     @State private var hoveredSprite: PetdexSpriteState?
-    @State private var isPetPreviewStuck = false
+    @State private var isAiboPreviewStuck = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -18,14 +18,14 @@ struct AgentHookSpriteSettingsView: View {
 
                 AgentHookBubbleSection(agent: agent)
 
-                AgentHookPetActionsPreviewSection(
+                AgentHookAiboActionsPreviewSection(
                     agent: agent,
                     hoveredHook: hoveredHook,
                     hoveredSprite: hoveredSprite,
-                    isStuck: $isPetPreviewStuck
+                    isStuck: $isAiboPreviewStuck
                 )
 
-                AgentHookPetActionsSection(
+                AgentHookAiboActionsSection(
                     agent: agent,
                     hoveredHook: $hoveredHook,
                     hoveredSprite: $hoveredSprite
@@ -33,7 +33,7 @@ struct AgentHookSpriteSettingsView: View {
             }
             .formStyle(.grouped)
 
-            if isPetPreviewStuck {
+            if isAiboPreviewStuck {
                 AgentHookSpritePreviewHost(
                     agent: agent,
                     hoveredHook: hoveredHook,
@@ -51,7 +51,7 @@ struct AgentHookSpriteSettingsView: View {
                 )
             }
         }
-        .animation(.easeInOut(duration: 0.22), value: isPetPreviewStuck)
+        .animation(.easeInOut(duration: 0.22), value: isAiboPreviewStuck)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .settingsDetailChrome(title: StatusCopy.displayName(agent), canGoBack: true, onBack: onBack)
     }
@@ -60,7 +60,7 @@ struct AgentHookSpriteSettingsView: View {
 private struct AgentHookAdvancedHeaderSection: View {
     let agent: AgentKind
 
-    @State private var runtime = PetRuntime.shared
+    @State private var runtime = AiboRuntime.shared
 
     var body: some View {
         Section {
@@ -336,7 +336,7 @@ private struct AgentHookPreviewPickerStyle: ViewModifier {
     }
 }
 
-private struct AgentHookPetActionsPreviewSection: View {
+private struct AgentHookAiboActionsPreviewSection: View {
     let agent: AgentKind
     var hoveredHook: String?
     var hoveredSprite: PetdexSpriteState?
@@ -362,12 +362,12 @@ private struct AgentHookPetActionsPreviewSection: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
         } header: {
-            Text(String(localized: "Pet Actions"))
+            Text(String(localized: "Aibo Actions"))
         }
     }
 }
 
-private struct AgentHookPetActionsSection: View {
+private struct AgentHookAiboActionsSection: View {
     let agent: AgentKind
     @Binding var hoveredHook: String?
     @Binding var hoveredSprite: PetdexSpriteState?
@@ -395,7 +395,7 @@ private struct AgentHookPetActionsSection: View {
                 }
             }
         } footer: {
-            Text(String(localized: "Choose which Petdex animation plays when each hook fires. Applies when a Petdex pet is selected. Hover a row to preview it."))
+            Text(String(localized: "Choose which Petdex animation plays when each hook fires. Applies when a Petdex aibo is selected. Hover a row to preview it."))
         }
         .labeledContentStyle(AgentHookCenteredLabeledContentStyle())
     }
@@ -475,7 +475,7 @@ private struct AgentHookSpritePreviewHost: View {
     var hoveredSprite: PetdexSpriteState?
 
     @Bindable private var hookSprites = HookSpriteSettings.shared
-    private var library = PetLibraryStore.shared
+    private var library = AiboLibraryStore.shared
 
     private var hooks: [String] {
         HookSpriteMapping.configurableHooks(for: agent)
@@ -491,7 +491,7 @@ private struct AgentHookSpritePreviewHost: View {
         return hookSprites.sprite(for: agent, hookEventName: previewHook)
     }
 
-    private var previewRecord: PetLibraryRecord? {
+    private var previewRecord: AiboLibraryRecord? {
         let selected = library.selectedRecord
         if selected.kind == .petdex { return selected }
         return library.records.first(where: { $0.kind == .petdex })
@@ -507,7 +507,7 @@ private struct AgentHookSpritePreviewHost: View {
 }
 
 private struct AgentHookSpritePreviewBand: View {
-    var record: PetLibraryRecord?
+    var record: AiboLibraryRecord?
     var state: PetdexSpriteState
     var localizedName: String
 
@@ -520,11 +520,11 @@ private struct AgentHookSpritePreviewBand: View {
                 } else {
                     ContentUnavailableView {
                         Label(
-                            String(localized: "No Petdex Pet"),
+                            String(localized: "No Petdex Aibo"),
                             systemImage: "pawprint"
                         )
                     } description: {
-                        Text(String(localized: "Install or select a Petdex pet in Pet to preview animations."))
+                        Text(String(localized: "Install or select a Petdex aibo in Aibo to preview animations."))
                     }
                     .frame(minHeight: 120)
                 }
@@ -555,14 +555,14 @@ private func localizedSpriteName(_ state: PetdexSpriteState) -> String {
 
 /// Loops one Petdex atlas row for settings preview (always animates, including Idle).
 private struct PetdexSpritePreview: View {
-    var record: PetLibraryRecord
+    var record: AiboLibraryRecord
     var state: PetdexSpriteState
     var size: CGFloat
 
     var body: some View {
         TimelineView(.animation(minimumInterval: frameInterval)) { timeline in
             let index = frameIndex(at: timeline.date)
-            if let image = PetSpriteCache.shared.frame(for: record, state: state, frameIndex: index) {
+            if let image = AiboSpriteCache.shared.frame(for: record, state: state, frameIndex: index) {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.none)
@@ -717,7 +717,7 @@ private final class AgentHookRowHoverTarget: NSView {
     }
 }
 
-/// Pins the Pet Actions preview when the in-flow band leaves through the top of the Form clip.
+/// Pins the Aibo Actions preview when the in-flow band leaves through the top of the Form clip.
 private struct AgentHookViewportTopExitMonitor: NSViewRepresentable {
     var onExited: (Bool) -> Void
 

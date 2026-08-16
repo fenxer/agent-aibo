@@ -70,7 +70,7 @@ final class HookSpriteSettings {
         }
     }
 
-    func resolve(agent: AgentKind, hookEventName: String?, activity: PetActivityState) -> PetdexSpriteState {
+    func resolve(agent: AgentKind, hookEventName: String?, activity: AiboActivityState) -> PetdexSpriteState {
         HookSpriteMapping.resolve(
             agent: agent,
             hookEventName: hookEventName,

@@ -38,11 +38,11 @@ import Testing
     #expect(record.installedAt != nil)
 }
 
-@Test func petLibrarySnapshotIncludesBuiltInAndFixesSelection() throws {
-    let file = PetLibraryFile(
+@Test func aiboLibrarySnapshotIncludesBuiltInAndFixesSelection() throws {
+    let file = AiboLibraryFile(
         selectedID: "missing",
         records: [
-            PetLibraryRecord(
+            AiboLibraryRecord(
                 id: "petdex.boba",
                 kind: .petdex,
                 displayName: "Boba",
@@ -52,21 +52,21 @@ import Testing
             ),
         ]
     )
-    let snap = PetLibraryCodec.snapshot(from: file)
-    #expect(snap.selectedID == PetLibraryDefaults.builtInID)
-    #expect(snap.records.first?.id == PetLibraryDefaults.builtInID)
+    let snap = AiboLibraryCodec.snapshot(from: file)
+    #expect(snap.selectedID == AiboLibraryDefaults.builtInID)
+    #expect(snap.records.first?.id == AiboLibraryDefaults.builtInID)
     #expect(snap.records.contains(where: { $0.id == "petdex.boba" }))
 
-    let roundTrip = try PetLibraryCodec.decode(PetLibraryCodec.encode(file))
+    let roundTrip = try AiboLibraryCodec.decode(AiboLibraryCodec.encode(file))
     #expect(roundTrip.records.count == 1)
 }
 
-@Test func petLibraryCodecPreservesInstallMetadata() throws {
+@Test func aiboLibraryCodecPreservesInstallMetadata() throws {
     let installedAt = Date(timeIntervalSince1970: 1_704_067_200)
-    let file = PetLibraryFile(
+    let file = AiboLibraryFile(
         selectedID: "petdex.boba",
         records: [
-            PetLibraryRecord(
+            AiboLibraryRecord(
                 id: "petdex.boba",
                 kind: .petdex,
                 displayName: "Boba",
@@ -78,12 +78,12 @@ import Testing
             ),
         ]
     )
-    let roundTrip = try PetLibraryCodec.decode(PetLibraryCodec.encode(file))
+    let roundTrip = try AiboLibraryCodec.decode(AiboLibraryCodec.encode(file))
     #expect(roundTrip.records[0].installedAt == installedAt)
     #expect(roundTrip.records[0].installSource == "https://petdex.dev/pets/boba")
 }
 
-@Test func petLibraryCodecDecodesRecordsWithoutInstallMetadata() throws {
+@Test func aiboLibraryCodecDecodesRecordsWithoutInstallMetadata() throws {
     let json = """
     {
       "selectedID" : "builtin.default",
@@ -99,55 +99,55 @@ import Testing
       ]
     }
     """
-    let file = try PetLibraryCodec.decode(Data(json.utf8))
+    let file = try AiboLibraryCodec.decode(Data(json.utf8))
     #expect(file.records[0].installedAt == nil)
     #expect(file.records[0].installSource == nil)
 }
 
-@Test func petLibraryOrderingPutsNewestInstallFirst() {
-    let older = PetLibraryRecord(
+@Test func aiboLibraryOrderingPutsNewestInstallFirst() {
+    let older = AiboLibraryRecord(
         id: "static.old",
         kind: .staticImage,
         displayName: "Old",
         relativePath: "static/old.png",
         installedAt: Date(timeIntervalSince1970: 100)
     )
-    let newer = PetLibraryRecord(
+    let newer = AiboLibraryRecord(
         id: "static.new",
         kind: .staticImage,
         displayName: "New",
         relativePath: "static/new.png",
         installedAt: Date(timeIntervalSince1970: 200)
     )
-    let sorted = PetLibraryOrdering.installedAtNewestFirst([older, .builtInDefault, newer])
-    #expect(sorted.map(\.id) == ["static.new", "static.old", PetLibraryDefaults.builtInID])
+    let sorted = AiboLibraryOrdering.installedAtNewestFirst([older, .builtInDefault, newer])
+    #expect(sorted.map(\.id) == ["static.new", "static.old", AiboLibraryDefaults.builtInID])
 }
 
-@Test func petLibraryOrderingSortsByNameAndSize() {
-    let boba = PetLibraryRecord(
+@Test func aiboLibraryOrderingSortsByNameAndSize() {
+    let boba = AiboLibraryRecord(
         id: "petdex.boba",
         kind: .petdex,
         displayName: "Boba",
         relativePath: "petdex/boba"
     )
-    let apple = PetLibraryRecord(
+    let apple = AiboLibraryRecord(
         id: "static.apple",
         kind: .staticImage,
         displayName: "Apple",
         relativePath: "static/apple.png"
     )
-    let byName = PetLibraryOrdering.byDisplayName([boba, apple, .builtInDefault])
+    let byName = AiboLibraryOrdering.byDisplayName([boba, apple, .builtInDefault])
     #expect(byName.map(\.displayName) == ["Apple", "Boba", "Default"])
 
-    let bySize = PetLibraryOrdering.bySizeLargestFirst(
+    let bySize = AiboLibraryOrdering.bySizeLargestFirst(
         [apple, boba, .builtInDefault],
         bytesForID: [
             apple.id: 10,
             boba.id: 50,
-            PetLibraryDefaults.builtInID: 0,
+            AiboLibraryDefaults.builtInID: 0,
         ]
     )
-    #expect(bySize.map(\.id) == [boba.id, apple.id, PetLibraryDefaults.builtInID])
+    #expect(bySize.map(\.id) == [boba.id, apple.id, AiboLibraryDefaults.builtInID])
 }
 
 @Test func petdexSpriteLayoutDetectsV1AndV2() {
@@ -231,11 +231,48 @@ import Testing
     #expect(record.slug == slug)
     #expect(record.id == "petdex.\(slug)")
 
-    let dir = AiboPaths.petdexPetDirectory(slug: slug)
+    let dir = AiboPaths.petdexAiboDirectory(slug: slug)
     #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("pet.json").path))
     #expect(
         FileManager.default.fileExists(atPath: dir.appendingPathComponent("spritesheet.webp").path)
     )
 
     try? FileManager.default.removeItem(at: dir)
+}
+
+@Test func migrateLegacyLibraryDirectoryMovesPetsToAibos() throws {
+    let fileManager = FileManager.default
+    let support = fileManager.temporaryDirectory
+        .appendingPathComponent("aibo-migrate-\(UUID().uuidString)", isDirectory: true)
+    let legacy = support.appendingPathComponent(AiboPaths.legacyPetsDirectoryName, isDirectory: true)
+    let destination = support.appendingPathComponent(AiboPaths.aibosDirectoryName, isDirectory: true)
+    try fileManager.createDirectory(at: legacy, withIntermediateDirectories: true)
+    try Data("ok".utf8).write(to: legacy.appendingPathComponent("library.json"))
+
+    AiboPaths.migrateLegacyLibraryDirectory(in: support, fileManager: fileManager)
+
+    #expect(fileManager.fileExists(atPath: destination.appendingPathComponent("library.json").path))
+    #expect(fileManager.fileExists(atPath: legacy.path) == false)
+
+    try? fileManager.removeItem(at: support)
+}
+
+@Test func migrateLegacyLibraryDirectoryLeavesExistingAibosAlone() throws {
+    let fileManager = FileManager.default
+    let support = fileManager.temporaryDirectory
+        .appendingPathComponent("aibo-migrate-\(UUID().uuidString)", isDirectory: true)
+    let legacy = support.appendingPathComponent(AiboPaths.legacyPetsDirectoryName, isDirectory: true)
+    let destination = support.appendingPathComponent(AiboPaths.aibosDirectoryName, isDirectory: true)
+    try fileManager.createDirectory(at: legacy, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+    try Data("old".utf8).write(to: legacy.appendingPathComponent("library.json"))
+    try Data("new".utf8).write(to: destination.appendingPathComponent("library.json"))
+
+    AiboPaths.migrateLegacyLibraryDirectory(in: support, fileManager: fileManager)
+
+    let kept = try String(contentsOf: destination.appendingPathComponent("library.json"), encoding: .utf8)
+    #expect(kept == "new")
+    #expect(fileManager.fileExists(atPath: legacy.path))
+
+    try? fileManager.removeItem(at: support)
 }
