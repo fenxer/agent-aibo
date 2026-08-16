@@ -381,6 +381,7 @@ private struct ReceiveLogsSettingsView: View {
                             width: ReceiveLogsToolbarMetrics.controlHeight,
                             height: ReceiveLogsToolbarMetrics.controlHeight
                         )
+                        .contentShape(Circle())
                 }
                 .menuStyle(.button)
                 .buttonStyle(.plain)
