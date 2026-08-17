@@ -97,6 +97,87 @@ import Testing
     #expect(stock.map(\.id) == ["petdex.boba"])
 }
 
+@Test func aiboLibrarySnapshotHidesBuiltInWhenFlagSet() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.displayName = "Home"
+    let boba = AiboLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+    let file = AiboLibraryFile(
+        selectedID: AiboLibraryDefaults.builtInID,
+        records: [builtIn, boba],
+        builtInHidden: true
+    )
+    let snap = AiboLibraryCodec.snapshot(from: file)
+    #expect(snap.records.map(\.id) == ["petdex.boba"])
+    #expect(snap.builtInHidden == true)
+    #expect(snap.selectedID == "petdex.boba")
+}
+
+@Test func aiboLibrarySnapshotRestoresBuiltInWhenHiddenLibraryWouldBeEmpty() {
+    let file = AiboLibraryFile(
+        selectedID: "missing",
+        records: [],
+        builtInHidden: true
+    )
+    let snap = AiboLibraryCodec.snapshot(from: file)
+    #expect(snap.records.map(\.id) == [AiboLibraryDefaults.builtInID])
+    #expect(snap.builtInHidden == false)
+    #expect(snap.selectedID == AiboLibraryDefaults.builtInID)
+}
+
+@Test func aiboLibraryCodecOmitsBuiltInHiddenWhenFalse() throws {
+    let file = AiboLibraryFile(selectedID: AiboLibraryDefaults.builtInID, records: [])
+    let json = String(decoding: try AiboLibraryCodec.encode(file), as: UTF8.self)
+    #expect(!json.contains("builtInHidden"))
+
+    let hidden = AiboLibraryFile(
+        selectedID: "petdex.boba",
+        records: [
+            AiboLibraryRecord(
+                id: "petdex.boba",
+                kind: .petdex,
+                displayName: "Boba",
+                relativePath: "petdex/boba"
+            ),
+        ],
+        builtInHidden: true
+    )
+    let roundTrip = try AiboLibraryCodec.decode(AiboLibraryCodec.encode(hidden))
+    #expect(roundTrip.builtInHidden)
+}
+
+@Test func aiboLibraryDeletionKeepsAtLeastOne() {
+    let boba = AiboLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+    let records = [AiboLibraryRecord.builtInDefault, boba]
+
+    #expect(AiboLibraryDeletion.idsToRemove(requested: records.map(\.id), from: records) == nil)
+    #expect(
+        AiboLibraryDeletion.idsToRemove(requested: [boba.id], from: records) == [boba.id]
+    )
+    #expect(
+        AiboLibraryDeletion.idsToRemove(
+            requested: [AiboLibraryDefaults.builtInID],
+            from: records
+        ) == [AiboLibraryDefaults.builtInID]
+    )
+    #expect(
+        AiboLibraryDeletion.idsToRemove(
+            requested: [AiboLibraryDefaults.builtInID],
+            from: [.builtInDefault]
+        ) == nil
+    )
+    #expect(AiboLibraryDeletion.idsToRemove(requested: ["missing"], from: records) == [])
+}
+
 @Test func aiboLibraryCodecPreservesInstallMetadata() throws {
     let installedAt = Date(timeIntervalSince1970: 1_704_067_200)
     let file = AiboLibraryFile(

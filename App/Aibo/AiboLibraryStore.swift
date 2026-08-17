@@ -13,6 +13,8 @@ final class AiboLibraryStore {
     private(set) var isInstalling = false
 
     private let installer = PetdexInstaller()
+    private var builtInHidden = false
+    private var persistedBuiltInDisplayName = AiboLibraryDefaults.builtInDisplayName
 
     var selectedRecord: AiboLibraryRecord {
         records.first(where: { $0.id == selectedID }) ?? .builtInDefault
@@ -76,6 +78,11 @@ final class AiboLibraryStore {
         let snap = AiboLibraryCodec.snapshot(from: file)
         selectedID = snap.selectedID
         records = snap.records.map { backfillMetadata($0) }
+        builtInHidden = snap.builtInHidden
+        persistedBuiltInDisplayName = savedBuiltInDisplayName(in: file) ?? snap.records
+            .first(where: { $0.id == AiboLibraryDefaults.builtInID })?
+            .displayName
+            ?? AiboLibraryDefaults.builtInDisplayName
     }
 
     func select(id: String) {
@@ -92,6 +99,9 @@ final class AiboLibraryStore {
         else { return }
         guard records[index].displayName != name else { return }
         records[index].displayName = name
+        if id == AiboLibraryDefaults.builtInID {
+            persistedBuiltInDisplayName = name
+        }
         persist()
     }
 
@@ -189,20 +199,45 @@ final class AiboLibraryStore {
     }
 
     func remove(ids: some Sequence<String>) {
-        let idSet = Set(ids)
-        let toRemove = records.filter { idSet.contains($0.id) && $0.isRemovable }
-        guard !toRemove.isEmpty else { return }
-        let removeIDs = Set(toRemove.map(\.id))
-        records.removeAll { removeIDs.contains($0.id) }
-        if removeIDs.contains(selectedID) {
-            selectedID = AiboLibraryDefaults.builtInID
+        guard let toRemoveIDs = AiboLibraryDeletion.idsToRemove(requested: ids, from: records),
+              !toRemoveIDs.isEmpty
+        else { return }
+        let removeIDs = Set(toRemoveIDs)
+        let toRemove = records.filter { removeIDs.contains($0.id) }
+        if let builtIn = toRemove.first(where: { $0.id == AiboLibraryDefaults.builtInID }) {
+            persistedBuiltInDisplayName = builtIn.displayName
+            builtInHidden = true
         }
-        for record in toRemove {
+        records.removeAll { removeIDs.contains($0.id) }
+        if !records.contains(where: { $0.id == selectedID }) {
+            selectedID = records.first?.id ?? AiboLibraryDefaults.builtInID
+        }
+        for record in toRemove where record.removesOnDiskFiles {
             let absolute = AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath)
             try? FileManager.default.removeItem(at: absolute)
         }
         persist()
         notifyAppearanceChanged()
+    }
+
+    /// Opens this aibo's folder in Finder (`aibos/` for Default).
+    func revealInFinder(_ record: AiboLibraryRecord) {
+        let folder = folderURL(for: record)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(folder)
+    }
+
+    private func folderURL(for record: AiboLibraryRecord) -> URL {
+        switch record.kind {
+        case .builtInDefault:
+            return AiboPaths.aibosDirectory
+        case .petdex:
+            return AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath, isDirectory: true)
+        case .staticImage:
+            return AiboPaths.aibosDirectory
+                .appendingPathComponent(record.relativePath)
+                .deletingLastPathComponent()
+        }
     }
 
     /// Absolute file URL for the selected aibo's on-disk artwork, if any.
@@ -272,9 +307,26 @@ final class AiboLibraryStore {
         return file
     }
 
+    private func savedBuiltInDisplayName(in file: AiboLibraryFile) -> String? {
+        guard let saved = file.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }) else {
+            return nil
+        }
+        return AiboLibraryNaming.normalizedDisplayName(saved.displayName)
+    }
+
     private func persist() {
-        let userRecords = AiboLibraryCodec.persistableRecords(from: records)
-        let file = AiboLibraryFile(selectedID: selectedID, records: userRecords)
+        var source = records
+        if builtInHidden, !source.contains(where: { $0.id == AiboLibraryDefaults.builtInID }) {
+            var builtIn = AiboLibraryRecord.builtInDefault
+            builtIn.displayName = persistedBuiltInDisplayName
+            source.insert(builtIn, at: 0)
+        }
+        let userRecords = AiboLibraryCodec.persistableRecords(from: source)
+        let file = AiboLibraryFile(
+            selectedID: selectedID,
+            records: userRecords,
+            builtInHidden: builtInHidden
+        )
         do {
             try FileManager.default.createDirectory(
                 at: AiboPaths.aibosDirectory,

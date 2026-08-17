@@ -11,6 +11,8 @@ struct AiboSpriteView: View {
     /// Desktop only: idle V2 pets look at the pointer via `AiboPanelController`.
     var followsPointer: Bool = false
     var pixelLayout: AiboSpritePixelLayout = .fit
+    /// Settings action preview loops Idle too; the desktop pet keeps Idle still.
+    var alwaysAnimates: Bool = false
 
     @Environment(\.displayScale) private var displayScale
 
@@ -123,7 +125,7 @@ struct AiboSpriteView: View {
     /// Idle stays on a still frame — no animation at all (PLANS §7).
     /// Drag shares that idle slot with pointer-look; hook sprites keep `activity != .idle`.
     private func shouldAnimate(_ state: PetdexSpriteState) -> Bool {
-        state != .idle
+        alwaysAnimates || state != .idle
     }
 
     private func frameInterval(for state: PetdexSpriteState) -> TimeInterval {

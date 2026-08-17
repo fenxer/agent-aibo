@@ -59,19 +59,49 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
         )
     }
 
-    public var isRemovable: Bool {
+    /// Built-in Default has no on-disk files; hiding it only drops it from the list.
+    public var removesOnDiskFiles: Bool {
         kind != .builtInDefault
     }
 }
 
-/// On-disk `library.json` shape. Does not include the built-in default.
+/// On-disk `library.json` shape. Does not include the built-in default unless renamed.
 public struct AiboLibraryFile: Codable, Sendable, Equatable {
     public var selectedID: String
     public var records: [AiboLibraryRecord]
+    /// When true, Default is omitted from the library as long as another aibo remains.
+    public var builtInHidden: Bool
 
-    public init(selectedID: String = AiboLibraryDefaults.builtInID, records: [AiboLibraryRecord] = []) {
+    enum CodingKeys: String, CodingKey {
+        case selectedID
+        case records
+        case builtInHidden
+    }
+
+    public init(
+        selectedID: String = AiboLibraryDefaults.builtInID,
+        records: [AiboLibraryRecord] = [],
+        builtInHidden: Bool = false
+    ) {
         self.selectedID = selectedID
         self.records = records
+        self.builtInHidden = builtInHidden
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        selectedID = try container.decode(String.self, forKey: .selectedID)
+        records = try container.decode([AiboLibraryRecord].self, forKey: .records)
+        builtInHidden = try container.decodeIfPresent(Bool.self, forKey: .builtInHidden) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(selectedID, forKey: .selectedID)
+        try container.encode(records, forKey: .records)
+        if builtInHidden {
+            try container.encode(true, forKey: .builtInHidden)
+        }
     }
 }
 
@@ -90,26 +120,36 @@ public enum AiboLibraryCodec {
     }
 
     /// Merges disk file with the built-in default and resolves a valid selection.
-    public static func snapshot(from file: AiboLibraryFile) -> (selectedID: String, records: [AiboLibraryRecord]) {
+    public static func snapshot(
+        from file: AiboLibraryFile
+    ) -> (selectedID: String, records: [AiboLibraryRecord], builtInHidden: Bool) {
         var builtIn = AiboLibraryRecord.builtInDefault
         if let saved = file.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }),
            let name = AiboLibraryNaming.normalizedDisplayName(saved.displayName)
         {
             builtIn.displayName = name
         }
-        var records = [builtIn]
+        var records: [AiboLibraryRecord] = []
+        var hidden = file.builtInHidden
+        if !hidden {
+            records.append(builtIn)
+        }
         for record in file.records where record.kind != .builtInDefault {
             if !records.contains(where: { $0.id == record.id }) {
                 records.append(record)
             }
         }
+        if records.isEmpty {
+            records = [builtIn]
+            hidden = false
+        }
         let selected: String
         if records.contains(where: { $0.id == file.selectedID }) {
             selected = file.selectedID
         } else {
-            selected = AiboLibraryDefaults.builtInID
+            selected = records[0].id
         }
-        return (selected, records)
+        return (selected, records, hidden)
     }
 
     /// Records written to `library.json`. Built-in is included only when renamed.
@@ -132,6 +172,21 @@ public enum AiboLibraryNaming {
     public static func normalizedDisplayName(_ raw: String) -> String? {
         let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? nil : name
+    }
+}
+
+public enum AiboLibraryDeletion {
+    /// IDs that can be removed without emptying the library.
+    /// `nil` means the request would leave zero aibos.
+    public static func idsToRemove(
+        requested: some Sequence<String>,
+        from records: [AiboLibraryRecord]
+    ) -> [String]? {
+        let wanted = Set(requested)
+        let known = records.map(\.id).filter { wanted.contains($0) }
+        guard !known.isEmpty else { return [] }
+        let remaining = records.contains { !wanted.contains($0.id) }
+        return remaining ? known : nil
     }
 }
 

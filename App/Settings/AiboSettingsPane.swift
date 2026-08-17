@@ -29,6 +29,9 @@ private struct AiboSettingsRootView: View {
     @State private var petdexInput = ""
     @State private var isImportingLocal = false
 
+    @State private var isAskingPetdex = false
+    @State private var installErrorMessage: String?
+
     var body: some View {
         Form {
             AiboPreviewAndSelectionSection(library: library)
@@ -37,21 +40,22 @@ private struct AiboSettingsRootView: View {
 
             AiboWindowBehaviorSection(settings: settings)
 
-            AiboManageSection(
-                petdexInput: $petdexInput,
-                isInstalling: library.isInstalling,
-                lastErrorMessage: library.lastErrorMessage,
-                onAddLocal: { isImportingLocal = true },
-                onInstallPetdex: installPetdex
-            )
-
             Section {
                 AllPetsEntryRow(action: onShowAllPets)
             }
         }
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .settingsDetailChrome(title: String(localized: "Aibo"))
+        .settingsDetailChrome(title: String(localized: "Aibo")) {
+            ToolbarItem {
+                NewAiboToolbarMenu(
+                    isInstalling: library.isInstalling,
+                    onInstallLocal: { isImportingLocal = true },
+                    onInstallPetdex: { isAskingPetdex = true }
+                )
+            }
+            .sharedBackgroundVisibility(.hidden)
+        }
         .fileImporter(
             isPresented: $isImportingLocal,
             allowedContentTypes: [.png, .jpeg, .webP, .heic, .tiff, .image, .zip],
@@ -59,13 +63,34 @@ private struct AiboSettingsRootView: View {
         ) { result in
             handleLocalImport(result)
         }
+        .alert(String(localized: "Install from PetDex"), isPresented: $isAskingPetdex) {
+            TextField(String(localized: "PetDex URL or slug"), text: $petdexInput)
+            Button(String(localized: "Install"), action: installPetdex)
+                .disabled(petdexInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button(String(localized: "Cancel"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "Enter PetDex URL or slug to download."))
+        }
+        .alert(
+            String(localized: "Couldn't Install Aibo"),
+            isPresented: Binding(
+                get: { installErrorMessage != nil },
+                set: { if !$0 { installErrorMessage = nil } }
+            )
+        ) {
+            Button(String(localized: "OK"), role: .cancel) {}
+        } message: {
+            Text(installErrorMessage ?? "")
+        }
     }
 
     private func installPetdex() {
         let input = petdexInput
         Task {
             await library.installPetdex(from: input)
-            if library.lastErrorMessage == nil {
+            if let message = library.lastErrorMessage {
+                installErrorMessage = message
+            } else {
                 petdexInput = ""
             }
         }
@@ -81,6 +106,9 @@ private struct AiboSettingsRootView: View {
                     if accessed { url.stopAccessingSecurityScopedResource() }
                 }
                 await library.importLocal(from: url)
+                if let message = library.lastErrorMessage {
+                    installErrorMessage = message
+                }
             }
         case .failure:
             break
@@ -121,6 +149,7 @@ private struct AiboPreviewBanner: View {
     var onRename: (String, String) -> Void
 
     @State private var isRenaming = false
+    @State private var isPreviewing = false
     @State private var draftName = ""
     @State private var renamingID = ""
 
@@ -143,19 +172,33 @@ private struct AiboPreviewBanner: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(record.displayName)
 
-            Button {
-                renamingID = record.id
-                draftName = record.displayName
-                isRenaming = true
-            } label: {
-                Image(systemName: "pencil.line")
-                    .frame(width: 32, height: 32)
-                    .contentShape(Rectangle())
+            HStack(spacing: 0) {
+                Button {
+                    isPreviewing = true
+                } label: {
+                    Image(systemName: "eyes.inverse")
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .help(String(localized: "Preview"))
+                .accessibilityLabel(String(localized: "Preview"))
+
+                Button {
+                    renamingID = record.id
+                    draftName = record.displayName
+                    isRenaming = true
+                } label: {
+                    Image(systemName: "pencil.line")
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .help(String(localized: "Rename"))
+                .accessibilityLabel(String(localized: "Rename"))
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .help(String(localized: "Rename"))
-            .accessibilityLabel(String(localized: "Rename"))
         }
         .frame(minWidth: 0, maxWidth: .infinity)
         .frame(height: 138)
@@ -166,6 +209,10 @@ private struct AiboPreviewBanner: View {
             }
             .disabled(AiboLibraryNaming.normalizedDisplayName(draftName) == nil)
             Button(String(localized: "Cancel"), role: .cancel) {}
+        }
+        .sheet(isPresented: $isPreviewing) {
+            AiboActionPreviewSheet(record: record)
+                .id(record.id)
         }
     }
 }
@@ -261,7 +308,7 @@ private struct AiboConfigurationSection: View {
             Toggle(isOn: $settings.pixelOptimizationEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Pixel Optimization"))
-                    Text(String(localized: "Turn off for non-pixel-art images"))
+                    Text(String(localized: "Note: Turn off for non-pixel-art images"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -363,44 +410,40 @@ private struct AiboSizeRow: View {
     }
 }
 
-private struct AiboManageSection: View {
-    @Binding var petdexInput: String
+private struct NewAiboToolbarMenu: View {
     var isInstalling: Bool
-    var lastErrorMessage: String?
-    var onAddLocal: () -> Void
+    var onInstallLocal: () -> Void
     var onInstallPetdex: () -> Void
 
     var body: some View {
-        Section {
-            InstallFromLocalRow(isInstalling: isInstalling, action: onAddLocal)
-
-            InstallFromPetdexRow(
-                petdexInput: $petdexInput,
-                isInstalling: isInstalling,
-                onInstall: onInstallPetdex
-            )
-
-            if let lastErrorMessage {
-                Text(lastErrorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-        } header: {
-            Text(String(localized: "Manage Aibos"))
+        Menu {
+            Button(String(localized: "Install from Local File"), action: onInstallLocal)
+            Button(String(localized: "Install from PetDex"), action: onInstallPetdex)
+        } label: {
+            Text(String(localized: "New Aibo"))
+                .font(.body)
+                .frame(height: AllPetsToolbarMetrics.controlHeight)
+                .padding(.horizontal, 10)
+                .opacity(isInstalling ? 0 : 1)
+                .overlay {
+                    if isInstalling {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .contentShape(Capsule())
         }
-        .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
-    }
-}
-
-/// Centers the trailing control against a title + subtitle label.
-/// Form `LabeledContent` otherwise aligns to the title baseline (visually top).
-private struct VerticallyCenteredLabeledContentStyle: LabeledContentStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            configuration.label
-            Spacer(minLength: 8)
-            configuration.content
-        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .glassEffect(
+            .regular
+                .tint(Color.accentColor)
+                .interactive(),
+            in: .capsule
+        )
+        .disabled(isInstalling)
+        .help(String(localized: "New Aibo"))
+        .accessibilityLabel(String(localized: "New Aibo"))
     }
 }
 
@@ -412,67 +455,6 @@ private struct VerticallyCenteredSwitchToggleStyle: ToggleStyle {
             Toggle(configuration)
                 .labelsHidden()
                 .toggleStyle(.switch)
-        }
-    }
-}
-
-private struct InstallFromLocalRow: View {
-    var isInstalling: Bool
-    var action: () -> Void
-
-    var body: some View {
-        LabeledContent {
-            Button(String(localized: "Add"), action: action)
-                .disabled(isInstalling)
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(String(localized: "Install from Local File"))
-                Text(String(localized: "Compatible with single images or Codex / Petdex sprite formats."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-}
-
-private struct InstallFromPetdexRow: View {
-    @Binding var petdexInput: String
-    var isInstalling: Bool
-    var onInstall: () -> Void
-
-    var body: some View {
-        LabeledContent {
-            HStack(spacing: 8) {
-                TextField(String(localized: "PetDex URL or slug"), text: $petdexInput)
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 132)
-                    .disabled(isInstalling)
-
-                Button(String(localized: "Install"), action: onInstall)
-                    .fixedSize()
-                    .disabled(
-                        isInstalling
-                            || petdexInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    )
-                    .opacity(isInstalling ? 0 : 1)
-                    .accessibilityHidden(isInstalling)
-                    .overlay {
-                        if isInstalling {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                    }
-            }
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(String(localized: "Install from PetDex"))
-                Text(String(localized: "Enter PetDex URL or slug to download."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 }
@@ -521,6 +503,7 @@ private struct AllPetsSettingsView: View {
     @State private var selectedIDs: Set<String> = []
     @State private var pendingDeleteIDs: [String] = []
     @State private var isConfirmingDelete = false
+    @State private var showsKeepOneAlert = false
     @State private var sizeByID: [String: Int64] = [:]
 
     var body: some View {
@@ -533,9 +516,8 @@ private struct AllPetsSettingsView: View {
                         isSelecting: isSelecting,
                         isSelected: selectedIDs.contains(record.id),
                         onTap: { handleTap(record) },
-                        onDelete: record.isRemovable
-                            ? { confirmDelete(ids: [record.id]) }
-                            : nil
+                        onRevealInFinder: { library.revealInFinder(record) },
+                        onDelete: { confirmDelete(ids: [record.id]) }
                     )
                 }
             }
@@ -589,6 +571,14 @@ private struct AllPetsSettingsView: View {
         } message: {
             Text(deleteDialogMessage)
         }
+        .alert(
+            String(localized: "Keep at Least One Aibo"),
+            isPresented: $showsKeepOneAlert
+        ) {
+            Button(String(localized: "OK"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "You must keep at least one aibo."))
+        }
         .task(id: library.records) {
             var sizes: [String: Int64] = [:]
             for record in library.records {
@@ -626,7 +616,6 @@ private struct AllPetsSettingsView: View {
 
     private func handleTap(_ record: AiboLibraryRecord) {
         if isSelecting {
-            guard record.isRemovable else { return }
             if selectedIDs.contains(record.id) {
                 selectedIDs.remove(record.id)
             } else {
@@ -652,11 +641,12 @@ private struct AllPetsSettingsView: View {
     }
 
     private func confirmDelete(ids: [String]) {
-        let removable = ids.filter { id in
-            library.records.contains { $0.id == id && $0.isRemovable }
+        guard let allowed = AiboLibraryDeletion.idsToRemove(requested: ids, from: library.records) else {
+            showsKeepOneAlert = true
+            return
         }
-        guard !removable.isEmpty else { return }
-        pendingDeleteIDs = removable
+        guard !allowed.isEmpty else { return }
+        pendingDeleteIDs = allowed
         isConfirmingDelete = true
     }
 
@@ -736,13 +726,14 @@ private struct AllPetsRow: View {
     var isSelecting: Bool
     var isSelected: Bool
     var onTap: () -> Void
-    var onDelete: (() -> Void)?
+    var onRevealInFinder: () -> Void
+    var onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Button(action: onTap) {
                 HStack(alignment: .center, spacing: 12) {
-                    if isSelecting, record.isRemovable {
+                    if isSelecting {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
                             .imageScale(.medium)
@@ -769,14 +760,24 @@ private struct AllPetsRow: View {
             }
             .buttonStyle(.plain)
 
-            if !isSelecting, let onDelete {
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
+            if !isSelecting {
+                HStack(spacing: 24) {
+                    Button(action: onRevealInFinder) {
+                        Image(systemName: "folder")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "Show in Finder"))
+                    .accessibilityLabel(String(localized: "Show \(record.displayName) in Finder"))
+
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "Delete"))
+                    .accessibilityLabel(String(localized: "Delete \(record.displayName)"))
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .help(String(localized: "Delete"))
-                .accessibilityLabel(String(localized: "Delete \(record.displayName)"))
             }
         }
     }

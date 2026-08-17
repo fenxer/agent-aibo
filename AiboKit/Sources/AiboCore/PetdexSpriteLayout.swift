@@ -1,7 +1,7 @@
 import Foundation
 
 /// Codex / Petdex atlas layout: 8 columns × 9 (v1) or 11 (v2) rows of 192×208 cells.
-public enum PetdexSpriteState: String, Sendable, CaseIterable, Equatable {
+public enum PetdexSpriteState: String, Sendable, CaseIterable, Equatable, Hashable {
     case idle
     case runningRight = "running-right"
     case runningLeft = "running-left"
