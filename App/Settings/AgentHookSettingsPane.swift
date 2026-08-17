@@ -153,11 +153,14 @@ private struct AgentHookAgentRow: View {
 private struct AgentHookRowIcon: View {
     var assetName: String
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private let side: CGFloat = 28
 
     var body: some View {
+        let isDark = colorScheme == .dark
         RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(.primary)
+            .fill(isDark ? Color.white : Color.black)
             .frame(width: side, height: side)
             .overlay {
                 Image(assetName)
@@ -165,7 +168,7 @@ private struct AgentHookRowIcon: View {
                     .resizable()
                     .scaledToFit()
                     .padding(2)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(isDark ? Color.black : Color.white)
             }
             .accessibilityHidden(true)
     }
