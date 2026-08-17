@@ -720,7 +720,10 @@ private struct AllPetsSubtitle: View {
     @ViewBuilder
     private var dateText: some View {
         if let installedAt = record.installedAt {
-            Text(installedAt, format: .relative(presentation: .named))
+            Text(
+                installedAt,
+                format: .relative(presentation: .numeric, unitsStyle: .abbreviated)
+            )
         } else {
             Text(verbatim: "—")
         }
