@@ -1,3 +1,4 @@
+import AiboCore
 import AppKit
 import SwiftUI
 
@@ -6,21 +7,21 @@ struct AiboAppMenu: View {
     @State private var aiboPanelController = AiboPanelController.shared
     @State private var runtime = AiboRuntime.shared
     @State private var settings = AppSettings.shared
+    @State private var library = AiboLibraryStore.shared
 
     private var showsWebhookConnectivity: Bool {
         settings.webhookEnabled && settings.resolvedPublicWebhookURL != nil
     }
 
     var body: some View {
-        Button {
-            aiboPanelController.toggle()
-        } label: {
-            Text(
-                aiboPanelController.isVisible
-                    ? String(localized: "Hide Aibo")
-                    : String(localized: "Show Aibo")
-            )
+        // One Picker → one submenu. Wrapping this in `Menu` nests a second,
+        // unlabeled submenu (empty pill) before the aibo list.
+        Picker(String(localized: "Change Aibo"), selection: selectedAiboBinding) {
+            ForEach(library.records) { record in
+                Text(record.displayName).tag(record.id)
+            }
         }
+        .pickerStyle(.menu)
 
         if let lastErrorMessage = runtime.lastErrorMessage {
             Divider()
@@ -28,12 +29,11 @@ struct AiboAppMenu: View {
                 .foregroundStyle(.secondary)
         }
 
+        Divider()
+
         if showsWebhookConnectivity {
-            Divider()
             webhookConnectivityItem
         }
-
-        Divider()
 
         // Must be SettingsLink — `openSettings()` / `showSettingsWindow:` log
         // "Please use SettingsLink…" and often no-op on current SDKs.
@@ -44,10 +44,27 @@ struct AiboAppMenu: View {
 
         Divider()
 
-        Button(String(localized: "Quit aibo")) {
+        Button {
+            aiboPanelController.toggle()
+        } label: {
+            Text(
+                aiboPanelController.isVisible
+                    ? String(localized: "Hide Aibo")
+                    : String(localized: "Show Aibo")
+            )
+        }
+
+        Button(String(localized: "Quit Aibo")) {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q", modifiers: .command)
+    }
+
+    private var selectedAiboBinding: Binding<String> {
+        Binding(
+            get: { library.selectedID },
+            set: { library.select(id: $0) }
+        )
     }
 
     /// Opens Settings via `SettingsLink`. Deep link is armed in
