@@ -39,6 +39,7 @@ final class AppSettings {
         static let codexCapsuleColor = "settings.agentCapsuleColor.codex"
         static let deepseekCapsuleColor = "settings.agentCapsuleColor.deepseek"
         static let aiboScalePercent = "settings.aiboScalePercent"
+        static let pixelOptimizationEnabled = "settings.pixelOptimizationEnabled"
         static let restoreLastAiboPosition = "settings.restoreLastAiboPosition"
         static let hideWhenFullscreen = "settings.hideWhenFullscreen"
         static let aiboPositionXPercent = "settings.aiboPositionXPercent"
@@ -60,6 +61,8 @@ final class AppSettings {
     /// Aibo image size as a percentage of the base 96pt sprite. Range 0…200; default 100.
     static let defaultAiboScalePercent: Double = 100
     static let aiboScalePercentRange: ClosedRange<Double> = 0...200
+    /// Discrete sizes while Pixel Optimization is on (integer-scale display).
+    static let pixelOptimizationScalePercents: [Double] = [50, 100, 150, 200]
     static let defaultWebhookAutoDismissSeconds = 12
     static let webhookAutoDismissSecondsRange = 1...600
 
@@ -89,13 +92,38 @@ final class AppSettings {
     /// Aibo sprite scale relative to the default size (`100` = 96×96 pt).
     var aiboScalePercent: Double {
         didSet {
-            let clamped = Self.clampAiboScalePercent(aiboScalePercent)
-            if clamped != aiboScalePercent {
-                aiboScalePercent = clamped
+            let adjusted = Self.normalizedAiboScalePercent(
+                aiboScalePercent,
+                pixelOptimizationEnabled: pixelOptimizationEnabled
+            )
+            if adjusted != aiboScalePercent {
+                aiboScalePercent = adjusted
                 return
             }
             guard oldValue != aiboScalePercent else { return }
             UserDefaults.standard.set(aiboScalePercent, forKey: Keys.aiboScalePercent)
+            AiboPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Integer-scale pixel-art display plus grid recovery. Default off.
+    var pixelOptimizationEnabled: Bool = false {
+        didSet {
+            guard oldValue != pixelOptimizationEnabled else { return }
+            UserDefaults.standard.set(pixelOptimizationEnabled, forKey: Keys.pixelOptimizationEnabled)
+            if pixelOptimizationEnabled {
+                let steps = AiboSpriteDisplay.pixelOptimizationPercents(
+                    for: AiboLibraryStore.shared.selectedRecord,
+                    backingScale: NSScreen.main?.backingScaleFactor ?? 2
+                )
+                aiboScalePercent = Self.snapAiboScalePercentToPixelSteps(
+                    aiboScalePercent,
+                    steps: steps
+                )
+            }
+            AiboSpriteCache.shared.invalidate()
+            AiboAppearance.invalidateDominantColorCache()
+            AiboPanelController.shared.updateHitTestImage()
             AiboPanelController.shared.refreshContent()
         }
     }
@@ -382,6 +410,8 @@ final class AppSettings {
             aiboScalePercent = Self.defaultAiboScalePercent
         }
 
+        pixelOptimizationEnabled = UserDefaults.standard.bool(forKey: Keys.pixelOptimizationEnabled)
+
         if UserDefaults.standard.object(forKey: Keys.restoreLastAiboPosition) != nil {
             restoreLastAiboPosition = UserDefaults.standard.bool(forKey: Keys.restoreLastAiboPosition)
         } else {
@@ -582,6 +612,28 @@ final class AppSettings {
 
     private static func clampAiboScalePercent(_ value: Double) -> Double {
         min(max(value, aiboScalePercentRange.lowerBound), aiboScalePercentRange.upperBound)
+    }
+
+    private static func normalizedAiboScalePercent(
+        _ value: Double,
+        pixelOptimizationEnabled: Bool
+    ) -> Double {
+        let clamped = clampAiboScalePercent(value)
+        guard pixelOptimizationEnabled else { return clamped }
+        return snapAiboScalePercentToPixelSteps(clamped)
+    }
+
+    static func snapAiboScalePercentToPixelSteps(
+        _ value: Double,
+        steps: [Double] = pixelOptimizationScalePercents
+    ) -> Double {
+        let resolved = steps.isEmpty ? pixelOptimizationScalePercents : steps
+        return resolved.min { lhs, rhs in
+            let left = abs(lhs - value)
+            let right = abs(rhs - value)
+            if left != right { return left < right }
+            return lhs > rhs
+        } ?? defaultAiboScalePercent
     }
 
     private static func clampSettingsWindowHeight(_ value: CGFloat) -> CGFloat {

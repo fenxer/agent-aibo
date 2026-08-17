@@ -10,6 +10,9 @@ struct AiboSpriteView: View {
     var size: CGFloat
     /// Desktop only: idle V2 pets look at the pointer via `AiboPanelController`.
     var followsPointer: Bool = false
+    var pixelLayout: AiboSpritePixelLayout = .fit
+
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         Group {
@@ -20,7 +23,34 @@ struct AiboSpriteView: View {
                 petdexAiboImage
             }
         }
-        .frame(width: size, height: size)
+        .frame(width: spriteSize.width, height: spriteSize.height)
+        .frame(width: layoutSize.width, height: layoutSize.height)
+    }
+
+    private var usesPixelOptimization: Bool {
+        AppSettings.shared.pixelOptimizationEnabled && record.kind != .builtInDefault
+    }
+
+    private var spriteSize: CGSize {
+        AiboSpriteDisplay.size(
+            for: record,
+            nominal: size,
+            backingScale: displayScale,
+            layout: pixelLayout
+        )
+    }
+
+    private var layoutSize: CGSize {
+        switch pixelLayout {
+        case .fit:
+            CGSize(width: size, height: size)
+        case .fillWidth:
+            spriteSize
+        }
+    }
+
+    private var imageInterpolation: Image.Interpolation {
+        usesPixelOptimization ? .none : .high
     }
 
     @ViewBuilder
@@ -28,15 +58,15 @@ struct AiboSpriteView: View {
         if let image = AiboSpriteCache.shared.previewImage(for: record) {
             Image(nsImage: image)
                 .resizable()
-                .interpolation(.high)
+                .interpolation(imageInterpolation)
                 .scaledToFit()
-                .frame(width: size, height: size)
+                .frame(width: spriteSize.width, height: spriteSize.height)
         } else {
             Image("DefaultAibo")
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
-                .frame(width: size, height: size)
+                .frame(width: spriteSize.width, height: spriteSize.height)
         }
     }
 
@@ -58,13 +88,15 @@ struct AiboSpriteView: View {
                     recordID: record.id,
                     state: state,
                     animates: animates,
-                    lookIndex: lookFrame == nil ? nil : look?.index
+                    lookIndex: lookFrame == nil ? nil : look?.index,
+                    pixelOptimization: usesPixelOptimization
                 ),
                 frames: frames,
                 frameDuration: frameInterval(for: state),
-                size: size
+                size: spriteSize,
+                pixelOptimization: usesPixelOptimization
             )
-            .frame(width: size, height: size)
+            .frame(width: spriteSize.width, height: spriteSize.height)
         }
     }
 
@@ -84,7 +116,7 @@ struct AiboSpriteView: View {
                 .resizable()
                 .interpolation(.none)
                 .scaledToFit()
-                .frame(width: size, height: size)
+                .frame(width: spriteSize.width, height: spriteSize.height)
         }
     }
 
@@ -115,19 +147,26 @@ private struct AiboSpriteLayer: NSViewRepresentable {
         var state: PetdexSpriteState
         var animates: Bool
         var lookIndex: Int?
+        var pixelOptimization: Bool
     }
 
     var key: Key
     var frames: [CGImage]
     var frameDuration: TimeInterval
-    var size: CGFloat
+    var size: CGSize
+    var pixelOptimization: Bool
 
     func makeNSView(context: Context) -> SpriteView {
         SpriteView()
     }
 
     func updateNSView(_ view: SpriteView, context: Context) {
-        view.apply(key: key, frames: frames, frameDuration: frameDuration)
+        view.apply(
+            key: key,
+            frames: frames,
+            frameDuration: frameDuration,
+            pixelOptimization: pixelOptimization
+        )
     }
 
     func sizeThatFits(
@@ -135,7 +174,7 @@ private struct AiboSpriteLayer: NSViewRepresentable {
         nsView: SpriteView,
         context: Context
     ) -> CGSize? {
-        CGSize(width: size, height: size)
+        size
     }
 
     final class SpriteView: NSView {
@@ -147,7 +186,6 @@ private struct AiboSpriteLayer: NSViewRepresentable {
             wantsLayer = true
             layerContentsRedrawPolicy = .never
             guard let layer else { return }
-            // Matches the SwiftUI rendering this replaced: scaledToFit + .none.
             layer.contentsGravity = .resizeAspect
             layer.magnificationFilter = .nearest
             layer.minificationFilter = .nearest
@@ -169,11 +207,17 @@ private struct AiboSpriteLayer: NSViewRepresentable {
             layer?.contentsScale = window?.backingScaleFactor ?? 1
         }
 
-        func apply(key: Key, frames: [CGImage], frameDuration: TimeInterval) {
-            guard key != appliedKey,
-                  let layer,
-                  let first = frames.first
-            else { return }
+        func apply(
+            key: Key,
+            frames: [CGImage],
+            frameDuration: TimeInterval,
+            pixelOptimization: Bool
+        ) {
+            guard let layer, let first = frames.first else { return }
+            layer.contentsGravity = pixelOptimization ? .resize : .resizeAspect
+            layer.magnificationFilter = .nearest
+            layer.minificationFilter = .nearest
+            guard key != appliedKey else { return }
             appliedKey = key
 
             layer.removeAnimation(forKey: Self.animationKey)

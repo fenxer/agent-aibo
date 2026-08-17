@@ -18,6 +18,8 @@ struct AiboView: View {
     private var hookSprites = HookSpriteSettings.shared
     private var musicMonitor = MusicPlaybackMonitor.shared
 
+    @Environment(\.displayScale) private var displayScale
+
     private let stackSpacing: CGFloat = 4
     private let aiboBubbleSpacing: CGFloat = 6
     private let baseAiboSize: CGFloat = 96
@@ -37,8 +39,20 @@ struct AiboView: View {
         placementOverride ?? AppSettings.shared.bubblePlacement
     }
 
-    private var aiboSize: CGFloat {
+    private var aiboNominalSize: CGFloat {
         aiboSizeOverride ?? baseAiboSize * CGFloat(AppSettings.shared.aiboScalePercent / 100)
+    }
+
+    private var aiboLayoutSize: CGSize {
+        AiboSpriteDisplay.desktopSize(
+            for: library.selectedRecord,
+            nominal: aiboNominalSize,
+            backingScale: displayScale
+        )
+    }
+
+    private var aiboSize: CGFloat {
+        max(aiboLayoutSize.width, aiboLayoutSize.height)
     }
 
     private func glassStyle(for item: StatusBubbleItem) -> BubbleGlassStyle {
@@ -215,7 +229,7 @@ struct AiboView: View {
                 glassTint: glassTint(for: bubbleItems[nearPetIndex])
             )
         } else {
-            Color.clear.frame(width: 1, height: aiboSize)
+            Color.clear.frame(width: 1, height: aiboLayoutSize.height)
         }
     }
 
@@ -250,7 +264,7 @@ struct AiboView: View {
         return ZStack {
             // Keep layout size while the sprite is removed for Pow vanish.
             Color.clear
-                .frame(width: aiboSize, height: aiboSize)
+                .frame(width: aiboLayoutSize.width, height: aiboLayoutSize.height)
                 .allowsHitTesting(false)
 
             if panelController.isContentPresented {
@@ -258,12 +272,13 @@ struct AiboView: View {
                     record: library.selectedRecord,
                     activity: runtime.world.primarySession?.snapshot.activity ?? .idle,
                     spriteState: resolvedSpriteState,
-                    size: aiboSize,
-                    followsPointer: panelController.dragActionSprite == nil
+                    size: aiboNominalSize,
+                    followsPointer: panelController.dragActionSprite == nil,
+                    pixelLayout: .fillWidth
                 )
-                .id(library.selectedID)
+                .id("\(library.selectedID)-\(AppSettings.shared.pixelOptimizationEnabled)")
                 .scaleEffect(x: widen, y: squash, anchor: .bottom)
-                .offset(y: (1 - clamped) * -aiboSize * 1.35)
+                .offset(y: (1 - clamped) * -aiboLayoutSize.height * 1.35)
                 .contentShape(Rectangle())
                 .contextMenu { AiboAppMenu() }
                 // Insertion must stay `.identity` — Pow `.boing` is a GeometryEffect

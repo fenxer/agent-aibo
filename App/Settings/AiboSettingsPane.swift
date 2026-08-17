@@ -33,7 +33,9 @@ private struct AiboSettingsRootView: View {
         Form {
             AiboPreviewAndSelectionSection(library: library)
 
-            AiboConfigurationSection(settings: settings)
+            AiboConfigurationSection(settings: settings, record: library.selectedRecord)
+
+            AiboWindowBehaviorSection(settings: settings)
 
             AiboManageSection(
                 petdexInput: $petdexInput,
@@ -131,8 +133,10 @@ private struct AiboPreviewBanner: View {
                     record: record,
                     activity: .idle,
                     spriteState: .idle,
-                    size: 96
+                    size: 96,
+                    pixelLayout: .fillWidth
                 )
+                .id("\(record.id)-\(AppSettings.shared.pixelOptimizationEnabled)")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
@@ -250,14 +254,35 @@ private struct AiboNameMarquee: View {
 
 private struct AiboConfigurationSection: View {
     @Bindable var settings: AppSettings
+    var record: AiboLibraryRecord
 
     var body: some View {
         Section {
+            Toggle(isOn: $settings.pixelOptimizationEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Pixel Optimization"))
+                    Text(String(localized: "Turn off for non-pixel-art images"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(VerticallyCenteredSwitchToggleStyle())
+
             AiboSizeRow(
                 percent: $settings.aiboScalePercent,
-                percentRange: AppSettings.aiboScalePercentRange
+                percentRange: AppSettings.aiboScalePercentRange,
+                usesPixelSteps: settings.pixelOptimizationEnabled,
+                record: record
             )
+        }
+    }
+}
 
+private struct AiboWindowBehaviorSection: View {
+    @Bindable var settings: AppSettings
+
+    var body: some View {
+        Section {
             Toggle("Restore Last Position", isOn: $settings.restoreLastAiboPosition)
 
             Toggle("Hide When Fullscreen", isOn: $settings.hideWhenFullscreen)
@@ -268,33 +293,59 @@ private struct AiboConfigurationSection: View {
 private struct AiboSizeRow: View {
     @Binding var percent: Double
     var percentRange: ClosedRange<Double>
+    var usesPixelSteps: Bool
+    var record: AiboLibraryRecord
+
+    @Environment(\.displayScale) private var displayScale
 
     /// Tick marks only — do not use `step:` (that paints a mark at every increment).
     private static let tickPercents: [Double] = [0, 50, 100, 150, 200]
 
+    private var pixelSteps: [Double] {
+        AiboSpriteDisplay.pixelOptimizationPercents(for: record, backingScale: displayScale)
+    }
+
     var body: some View {
         LabeledContent("Aibo Size") {
-            HStack(spacing: 12) {
-                Slider(value: roundedPercentBinding, in: percentRange) {
-                    EmptyView()
-                } ticks: {
-                    SliderTickContentForEach(Self.tickPercents, id: \.self) { value in
-                        SliderTick(value)
+            if usesPixelSteps {
+                Picker("Aibo Size", selection: pixelStepBinding) {
+                    ForEach(pixelSteps, id: \.self) { step in
+                        Text(verbatim: "\(Int(step))%").tag(step)
                     }
                 }
-
-                TextField(
-                    "Aibo Size",
-                    value: percentIntBinding,
-                    format: AiboScalePercentFormat()
-                )
+                .pickerStyle(.radioGroup)
+                .horizontalRadioGroupLayout()
                 .labelsHidden()
-                .textFieldStyle(.roundedBorder)
-                .multilineTextAlignment(.trailing)
-                .monospacedDigit()
-                .frame(width: 64)
+            } else {
+                HStack(spacing: 12) {
+                    Slider(value: roundedPercentBinding, in: percentRange) {
+                        EmptyView()
+                    } ticks: {
+                        SliderTickContentForEach(Self.tickPercents, id: \.self) { value in
+                            SliderTick(value)
+                        }
+                    }
+
+                    TextField(
+                        "Aibo Size",
+                        value: percentIntBinding,
+                        format: AiboScalePercentFormat()
+                    )
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 64)
+                }
             }
         }
+    }
+
+    private var pixelStepBinding: Binding<Double> {
+        Binding(
+            get: { AppSettings.snapAiboScalePercentToPixelSteps(percent, steps: pixelSteps) },
+            set: { percent = $0 }
+        )
     }
 
     private var roundedPercentBinding: Binding<Double> {
@@ -349,6 +400,18 @@ private struct VerticallyCenteredLabeledContentStyle: LabeledContentStyle {
             configuration.label
             Spacer(minLength: 8)
             configuration.content
+        }
+    }
+}
+
+private struct VerticallyCenteredSwitchToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            configuration.label
+            Spacer(minLength: 8)
+            Toggle(configuration)
+                .labelsHidden()
+                .toggleStyle(.switch)
         }
     }
 }

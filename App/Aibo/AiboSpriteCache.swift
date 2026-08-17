@@ -18,6 +18,13 @@ final class AiboSpriteCache {
         var preview: NSImage
         var framesByState: [PetdexSpriteState: [CGImage]] = [:]
         var lookByIndex: [Int: CGImage] = [:]
+        var gridRestore: GridRestore = .pending
+    }
+
+    private enum GridRestore: Equatable {
+        case pending
+        case skipped
+        case texel(Int)
     }
 
     private init() {}
@@ -48,6 +55,16 @@ final class AiboSpriteCache {
         }
     }
 
+    /// Pixel size of the artwork that will be drawn (after optional grid restore).
+    func sourcePixelSize(for record: AiboLibraryRecord) -> (width: Int, height: Int)? {
+        guard record.kind != .builtInDefault,
+              let image = previewImage(for: record),
+              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              cgImage.width > 0, cgImage.height > 0
+        else { return nil }
+        return (cgImage.width, cgImage.height)
+    }
+
     func frame(
         for record: AiboLibraryRecord,
         state: PetdexSpriteState,
@@ -76,8 +93,10 @@ final class AiboSpriteCache {
         if let cached = pet.framesByState[state], !cached.isEmpty {
             return cached
         }
-        let loaded = loadStateFrames(state, pet: pet)
-        let frames = loaded.isEmpty ? loadStateFrames(.idle, pet: pet) : loaded
+        let loaded = restoreFrames(loadStateFrames(state, pet: pet), pet: &pet)
+        let frames = loaded.isEmpty
+            ? restoreFrames(loadStateFrames(.idle, pet: pet), pet: &pet)
+            : loaded
         guard !frames.isEmpty else { return [] }
         pet.framesByState[state] = frames
         if loaded.isEmpty, state != .idle {
@@ -104,7 +123,8 @@ final class AiboSpriteCache {
             }
             return cached
         }
-        guard let frame = loadLookFrame(index, pet: pet) else { return nil }
+        guard let raw = loadLookFrame(index, pet: pet) else { return nil }
+        let frame = restoreFrames([raw], pet: &pet).first ?? raw
         pet.lookByIndex = [index: frame]
         pets[record.id] = pet
         return frame
@@ -113,8 +133,18 @@ final class AiboSpriteCache {
     private func staticImage(for record: AiboLibraryRecord) -> NSImage? {
         if let cached = staticImages[record.id] { return cached }
         guard let url = AiboLibraryStore.shared.artworkURL(for: record),
-              let image = NSImage(contentsOf: url)
+              var image = NSImage(contentsOf: url)
         else { return nil }
+        if AppSettings.shared.pixelOptimizationEnabled,
+           let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        {
+            let restored = PixelArtGridRestorer.restore(cgImage) ?? cgImage
+            let refined = refinePixelArt(restored)
+            image = NSImage(
+                cgImage: refined,
+                size: NSSize(width: refined.width, height: refined.height)
+            )
+        }
         staticImages[record.id] = image
         return image
     }
@@ -144,24 +174,23 @@ final class AiboSpriteCache {
         directory: URL,
         manifest: AiboSpritePackManifest
     ) -> CachedPet {
-        let idleFrames = loadClipFrames(manifest: manifest, directory: directory, state: .idle)
-        let previewSource = idleFrames.first
-        let preview: NSImage
-        if let previewSource {
-            preview = NSImage(
-                cgImage: previewSource,
-                size: NSSize(width: previewSource.width, height: previewSource.height)
-            )
-        } else {
-            preview = NSImage(size: .zero)
-        }
         var cached = CachedPet(
             directory: directory,
             manifest: manifest,
             atlasURL: nil,
             lookSupported: manifest.look.count == PetdexLookDirection.count,
-            preview: preview
+            preview: NSImage(size: .zero)
         )
+        let idleFrames = restoreFrames(
+            loadClipFrames(manifest: manifest, directory: directory, state: .idle),
+            pet: &cached
+        )
+        if let previewSource = idleFrames.first {
+            cached.preview = NSImage(
+                cgImage: previewSource,
+                size: NSSize(width: previewSource.width, height: previewSource.height)
+            )
+        }
         if !idleFrames.isEmpty {
             cached.framesByState[.idle] = idleFrames
         }
@@ -201,17 +230,20 @@ final class AiboSpriteCache {
             )
         }
 
-        let preview = NSImage(
-            cgImage: idle,
-            size: NSSize(width: idle.width, height: idle.height)
-        )
-        return CachedPet(
+        var cached = CachedPet(
             directory: directory,
             manifest: nil,
             atlasURL: atlasURL,
             lookSupported: layout.supportsLookDirections,
-            preview: preview
+            preview: NSImage(size: .zero)
         )
+        let restoredIdle = restoreFrames([idle], pet: &cached)
+        let previewSource = restoredIdle.first ?? idle
+        cached.preview = NSImage(
+            cgImage: previewSource,
+            size: NSSize(width: previewSource.width, height: previewSource.height)
+        )
+        return cached
     }
 
     private func loadStateFrames(_ state: PetdexSpriteState, pet: CachedPet) -> [CGImage] {
@@ -285,6 +317,34 @@ final class AiboSpriteCache {
             frames.append(frame)
         }
         return frames
+    }
+
+    private func restoreFrames(_ frames: [CGImage], pet: inout CachedPet) -> [CGImage] {
+        guard AppSettings.shared.pixelOptimizationEnabled, !frames.isEmpty else { return frames }
+        switch pet.gridRestore {
+        case .pending:
+            if let first = frames.first,
+               let texel = PixelArtGridRestorer.detectTexelSize(in: first)
+            {
+                pet.gridRestore = .texel(texel)
+            } else {
+                pet.gridRestore = .skipped
+            }
+        case .skipped, .texel:
+            break
+        }
+        let recovered: [CGImage]
+        if case .texel(let texel) = pet.gridRestore {
+            recovered = frames.map { PixelArtGridRestorer.downsample($0, texelSize: texel) ?? $0 }
+        } else {
+            recovered = frames
+        }
+        return recovered.map(refinePixelArt)
+    }
+
+    private func refinePixelArt(_ image: CGImage) -> CGImage {
+        let cleaned = PixelArtEdgeCleanup.clean(image) ?? image
+        return PixelArtOutlineSpecks.remove(cleaned) ?? cleaned
     }
 
     private func evictUnusedStates(in pet: inout CachedPet, keeping: Set<PetdexSpriteState>) {
