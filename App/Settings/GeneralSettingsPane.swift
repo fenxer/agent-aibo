@@ -287,7 +287,7 @@ private struct GeneralMusicSection: View {
             Toggle(isOn: $settings.musicNotesEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Music Notes"))
-                    Text(String(localized: "When app play music / video, notes float up"))
+                    Text(String(localized: "Float notes while playing music or video"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

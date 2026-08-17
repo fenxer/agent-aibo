@@ -101,7 +101,7 @@ private struct AgentHookIntroRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(localized: "Agent Hook"))
                     .font(.body.weight(.semibold))
-                Text(String(localized: "Receive local agent hook message"))
+                Text(String(localized: "Receive local agent hook events"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

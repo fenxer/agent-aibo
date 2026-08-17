@@ -532,7 +532,7 @@ final class AiboRuntime {
             receiveLogTotalCount = 0
             lastErrorMessage = nil
         } catch {
-            lastErrorMessage = String(localized: "Failed to clear receive log")
+            lastErrorMessage = String(localized: "Failed to clear received log")
         }
     }
 
@@ -540,7 +540,7 @@ final class AiboRuntime {
         do {
             return try ReceiveLogStore.exportJSON()
         } catch {
-            lastErrorMessage = String(localized: "Failed to export receive log")
+            lastErrorMessage = String(localized: "Failed to export received log")
             return nil
         }
     }
@@ -560,7 +560,7 @@ final class AiboRuntime {
             }
             receiveLogTotalCount = (try? ReceiveLogStore.count()) ?? receiveLogEntries.count
         } catch {
-            lastErrorMessage = String(localized: "Failed to write receive log")
+            lastErrorMessage = String(localized: "Failed to write received log")
         }
     }
 
@@ -732,7 +732,7 @@ final class AiboRuntime {
     /// Posts a signed webhook to the local listener (requires webhook enabled).
     func postTestWebhook(body: Data) async -> String? {
         guard AppSettings.shared.webhookEnabled else {
-            return String(localized: "Enable the webhook listener in Webhook first.")
+            return String(localized: "Enable the webhook listener in Webhook settings first.")
         }
         let secret = AppSettings.shared.webhookSecret
         let urlString = AppSettings.shared.webhookURLString

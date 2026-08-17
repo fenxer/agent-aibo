@@ -105,7 +105,7 @@ private struct AgentHookAdvancedHeaderSection: View {
     private var agentFooter: String {
         switch agent {
         case .cursor:
-            String(localized: "Cursor has no approval / waiting-for-you hook event yet.")
+            String(localized: "Cursor does not support approval or prompt-waiting hook events yet.")
         case .codex:
             String(localized: "Codex PermissionRequest starts as “is reviewing”, then escalates to “got stuck?” after a few seconds.")
         case .deepseek:

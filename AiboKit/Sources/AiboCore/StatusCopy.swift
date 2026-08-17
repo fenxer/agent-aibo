@@ -99,13 +99,13 @@ public enum StatusCopy {
         case .cursor:
             switch hookEventName {
             case "sessionStart":
-                return "Starts a new conversation" // 发起新对话
+                return "Start a new conversation" // 发起新对话
             case "sessionEnd":
                 return "Conversation ended" // 对话结束
             case "beforeSubmitPrompt":
-                return "Submitted a prompt and started thinking" // 提交了提示词，开始思考
+                return "Submitted prompt and started thinking" // 提交了提示词，开始思考
             case "preToolUse":
-                return "About to use a tool. e.g. is using Shell" // 即将调用工具。比如 is using Shell
+                return "About to use a tool (e.g. is using Shell)" // 即将调用工具。比如 is using Shell
             case "postToolUse":
                 return "Tool finished; still thinking" // 工具跑完，继续思考
             case "postToolUseFailure":
@@ -113,36 +113,36 @@ public enum StatusCopy {
             case "beforeShellExecution":
                 return "About to run a terminal command" // 即将执行终端命令
             case "afterAgentResponse":
-                return "Writing a reply" // 正在写出回复
+                return "Writing reply" // 正在写出回复
             case "subagentStart":
                 return "Subagent started" // 子任务开始
             case "subagentStop":
                 return "Subagent ended" // 子任务结束
             case "stop":
-                return "This turn ended" // 本轮对话结束
+                return "Turn ended" // 本轮对话结束
             default:
                 return nil
             }
         case .codex, .deepseek:
             switch hookEventName {
             case "SessionStart":
-                return "Starts a new conversation" // 发起新对话
+                return "Start a new conversation" // 发起新对话
             case "SessionEnd":
                 return "Conversation ended" // 对话结束
             case "UserPromptSubmit":
-                return "Submitted a prompt and started thinking. e.g. is planning in plan mode" // 提交了提示词，开始思考。比如计划模式时是 is planning
+                return "Submitted prompt and started thinking (e.g. is planning in plan mode)" // 提交了提示词，开始思考。比如计划模式时是 is planning
             case "PreToolUse":
-                return "About to use a tool. e.g. is using Bash" // 即将调用工具。比如 is using Bash
+                return "About to use a tool (e.g. is using Bash)" // 即将调用工具。比如 is using Bash
             case "PostToolUse":
                 return "Tool finished; still thinking" // 工具跑完，继续思考
             case "PermissionRequest":
-                return "Waiting for approval or auto-review. e.g. is reviewing, then got stuck?" // 等待审批或自动审查。比如 is reviewing，沉默几秒后变成 got stuck?
+                return "Waiting for approval or auto-review (e.g. is reviewing, then got stuck?)" // 等待审批或自动审查。比如 is reviewing，沉默几秒后变成 got stuck?
             case "SubagentStart":
                 return "Subagent started" // 子任务开始
             case "SubagentStop":
                 return "Subagent ended" // 子任务结束
             case "Stop":
-                return "This turn ended" // 本轮对话结束
+                return "Turn ended" // 本轮对话结束
             default:
                 return nil
             }

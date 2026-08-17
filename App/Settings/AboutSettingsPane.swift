@@ -54,7 +54,7 @@ private struct AboutUpdatesSection: View {
                 // Unpublished local builds have no update feed yet.
                 Button(String(localized: "Check")) {}
             } label: {
-                Text(String(localized: "Aibo Update"))
+                Text(String(localized: "Software Update"))
             }
         } header: {
             Text(String(localized: "Updates"))
@@ -78,7 +78,7 @@ private struct VerticallyCenteredLabeledContentStyle: LabeledContentStyle {
 private struct AboutLinksSection: View {
     var body: some View {
         Section {
-            AboutLinkRow(title: String(localized: "Doc"), url: nil)
+            AboutLinkRow(title: String(localized: "Documentation"), url: nil)
             AboutLinkRow(title: "GitHub", url: AboutLinks.github)
             AboutLinkRow(title: "X", url: AboutLinks.x)
         } header: {

@@ -100,7 +100,7 @@ private struct AiboPreviewAndSelectionSection: View {
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color(nsColor: .windowBackgroundColor))
 
-            Picker("Active Aibo", selection: selectedAiboBinding) {
+            Picker(String(localized: "Active Aibo"), selection: selectedAiboBinding) {
                 ForEach(library.records) { record in
                     Text(record.displayName).tag(record.id)
                 }
@@ -154,18 +154,18 @@ private struct AiboPreviewBanner: View {
             }
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
-            .help("Rename")
-            .accessibilityLabel("Rename")
+            .help(String(localized: "Rename"))
+            .accessibilityLabel(String(localized: "Rename"))
         }
         .frame(minWidth: 0, maxWidth: .infinity)
         .frame(height: 138)
-        .alert("Rename Aibo", isPresented: $isRenaming) {
-            TextField("Name", text: $draftName)
-            Button("Rename") {
+        .alert(String(localized: "Rename Aibo"), isPresented: $isRenaming) {
+            TextField(String(localized: "Name"), text: $draftName)
+            Button(String(localized: "Rename")) {
                 onRename(renamingID, draftName)
             }
             .disabled(AiboLibraryNaming.normalizedDisplayName(draftName) == nil)
-            Button("Cancel", role: .cancel) {}
+            Button(String(localized: "Cancel"), role: .cancel) {}
         }
     }
 }
@@ -283,9 +283,9 @@ private struct AiboWindowBehaviorSection: View {
 
     var body: some View {
         Section {
-            Toggle("Restore Last Position", isOn: $settings.restoreLastAiboPosition)
+            Toggle(String(localized: "Restore Last Position"), isOn: $settings.restoreLastAiboPosition)
 
-            Toggle("Hide When Fullscreen", isOn: $settings.hideWhenFullscreen)
+            Toggle(String(localized: "Hide When Fullscreen"), isOn: $settings.hideWhenFullscreen)
         }
     }
 }
@@ -306,9 +306,9 @@ private struct AiboSizeRow: View {
     }
 
     var body: some View {
-        LabeledContent("Aibo Size") {
+        LabeledContent(String(localized: "Aibo Size")) {
             if usesPixelSteps {
-                Picker("Aibo Size", selection: pixelStepBinding) {
+                Picker(String(localized: "Aibo Size"), selection: pixelStepBinding) {
                     ForEach(pixelSteps, id: \.self) { step in
                         Text(verbatim: "\(Int(step))%").tag(step)
                     }
@@ -327,7 +327,7 @@ private struct AiboSizeRow: View {
                     }
 
                     TextField(
-                        "Aibo Size",
+                        String(localized: "Aibo Size"),
                         value: percentIntBinding,
                         format: AiboScalePercentFormat()
                     )
@@ -386,7 +386,7 @@ private struct AiboManageSection: View {
                     .foregroundStyle(.red)
             }
         } header: {
-            Text("Manage Aibos")
+            Text(String(localized: "Manage Aibos"))
         }
         .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
     }
@@ -422,12 +422,12 @@ private struct InstallFromLocalRow: View {
 
     var body: some View {
         LabeledContent {
-            Button("Add", action: action)
+            Button(String(localized: "Add"), action: action)
                 .disabled(isInstalling)
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Install from Local")
-                Text("Compatible with single images or Codex / Petdex sprite formats.")
+                Text(String(localized: "Install from Local File"))
+                Text(String(localized: "Compatible with single images or Codex / Petdex sprite formats."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -444,13 +444,13 @@ private struct InstallFromPetdexRow: View {
     var body: some View {
         LabeledContent {
             HStack(spacing: 8) {
-                TextField("PetDex URL or slug", text: $petdexInput)
+                TextField(String(localized: "PetDex URL or slug"), text: $petdexInput)
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 132)
                     .disabled(isInstalling)
 
-                Button("Install", action: onInstall)
+                Button(String(localized: "Install"), action: onInstall)
                     .fixedSize()
                     .disabled(
                         isInstalling
@@ -467,8 +467,8 @@ private struct InstallFromPetdexRow: View {
             }
         } label: {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Install from PetDex")
-                Text("Enter PetDex URL or slug to download.")
+                Text(String(localized: "Install from PetDex"))
+                Text(String(localized: "Enter PetDex URL or slug to download."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -486,7 +486,7 @@ private struct AllPetsEntryRow: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                Text("All Aibos")
+                Text(String(localized: "All Aibos"))
                     .foregroundStyle(.primary)
                 Spacer()
                 Text("\(occupiedBytes, format: .byteCount(style: .file)) used")
@@ -499,7 +499,7 @@ private struct AllPetsEntryRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint("Shows all installed aibos")
+        .accessibilityHint(String(localized: "Shows all installed aibos"))
         .task(id: library.records) {
             occupiedBytes = library.occupiedDiskBytes()
         }
@@ -549,21 +549,21 @@ private struct AllPetsSettingsView: View {
         ) {
             ToolbarItem {
                 Picker(selection: $sort) {
-                    Text("Added Date").tag(AllPetsSort.addedDate)
+                    Text(String(localized: "Date Added")).tag(AllPetsSort.addedDate)
                         .padding(.horizontal, 8)
-                    Text("Name").tag(AllPetsSort.name)
+                    Text(String(localized: "Name")).tag(AllPetsSort.name)
                         .padding(.horizontal, 8)
-                    Text("Size").tag(AllPetsSort.size)
+                    Text(String(localized: "Size")).tag(AllPetsSort.size)
                         .padding(.horizontal, 8)
                 } label: {
-                    Text("Sort")
+                    Text(String(localized: "Sort"))
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .font(.body)
                 .frame(height: AllPetsToolbarMetrics.controlHeight)
                 .glassEffect(.regular.interactive(), in: .capsule)
-                .help("Sort")
+                .help(String(localized: "Sort"))
             }
             .sharedBackgroundVisibility(.hidden)
 
@@ -582,8 +582,8 @@ private struct AllPetsSettingsView: View {
             isPresented: $isConfirmingDelete,
             titleVisibility: .visible
         ) {
-            Button("Delete", role: .destructive, action: performPendingDelete)
-            Button("Cancel", role: .cancel) {
+            Button(String(localized: "Delete"), role: .destructive, action: performPendingDelete)
+            Button(String(localized: "Cancel"), role: .cancel) {
                 pendingDeleteIDs = []
             }
         } message: {
@@ -693,7 +693,7 @@ private struct AllPetsSelectionToolbar: View {
             HStack(spacing: 8) {
                 if isSelecting {
                     Button(role: .destructive, action: onDelete) {
-                        Text("Delete")
+                        Text(String(localized: "Delete"))
                             .font(.body)
                             .frame(height: AllPetsToolbarMetrics.controlHeight)
                             .padding(.horizontal, 10)
@@ -723,8 +723,8 @@ private struct AllPetsSelectionToolbar: View {
                 .buttonStyle(.plain)
                 .glassEffect(.regular.interactive(), in: .circle)
                 .glassEffectID("select", in: glassNamespace)
-                .help(isSelecting ? "Done" : "Select Aibos")
-                .accessibilityLabel(isSelecting ? "Done" : "Select Aibos")
+                .help(isSelecting ? String(localized: "Done") : String(localized: "Select Aibos"))
+                .accessibilityLabel(isSelecting ? String(localized: "Done") : String(localized: "Select Aibos"))
             }
         }
     }
@@ -775,8 +775,8 @@ private struct AllPetsRow: View {
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
-                .help("Delete")
-                .accessibilityLabel("Delete \(record.displayName)")
+                .help(String(localized: "Delete"))
+                .accessibilityLabel(String(localized: "Delete \(record.displayName)"))
             }
         }
     }

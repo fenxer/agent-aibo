@@ -53,7 +53,7 @@ import Testing
 @Test func statusCopyHookSettingDescriptionsExplainTheEvent() {
     #expect(
         StatusCopy.hookSettingDescription(agent: .cursor, hookEventName: "sessionStart")
-            == "Starts a new conversation"
+            == "Start a new conversation"
     )
     #expect(
         StatusCopy.hookSettingDescription(agent: .cursor, hookEventName: "sessionEnd")
@@ -61,18 +61,18 @@ import Testing
     )
     #expect(
         StatusCopy.hookSettingDescription(agent: .cursor, hookEventName: "stop")
-            == "This turn ended"
+            == "Turn ended"
     )
     #expect(
         StatusCopy.hookSettingDescription(agent: .cursor, hookEventName: "preToolUse")
-            == "About to use a tool. e.g. is using Shell"
+            == "About to use a tool (e.g. is using Shell)"
     )
     #expect(
         StatusCopy.hookSettingDescription(agent: .codex, hookEventName: "PermissionRequest")
-            == "Waiting for approval or auto-review. e.g. is reviewing, then got stuck?"
+            == "Waiting for approval or auto-review (e.g. is reviewing, then got stuck?)"
     )
     #expect(
         StatusCopy.hookSettingDescription(agent: .deepseek, hookEventName: "UserPromptSubmit")
-            == "Submitted a prompt and started thinking. e.g. is planning in plan mode"
+            == "Submitted prompt and started thinking (e.g. is planning in plan mode)"
     )
 }

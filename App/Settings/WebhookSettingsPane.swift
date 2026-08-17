@@ -66,7 +66,7 @@ private struct WebhookHeaderSection: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Webhook"))
                         .font(.body.weight(.semibold))
-                    Text(String(localized: "Listen on localhost to receive webhook message"))
+                    Text(String(localized: "Listen on localhost to receive incoming webhooks"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -108,7 +108,7 @@ private struct WebhookSetupLinkRow: View {
     var body: some View {
         Button {} label: {
             HStack {
-                Text(String(localized: "How to setup"))
+                Text(String(localized: "Setup Guide"))
                     .foregroundStyle(.primary)
                 Spacer()
                 Image(systemName: "arrow.up.right")
@@ -260,7 +260,7 @@ private struct ReceiveLogsEntryRow: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(String(localized: "Receive Logs"))
+                Text(String(localized: "Received Logs"))
                     .foregroundStyle(.primary)
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -286,7 +286,7 @@ private struct ReceiveLogsSettingsView: View {
         Group {
             if runtime.receiveLogEntries.isEmpty {
                 ContentUnavailableView(
-                    String(localized: "Receive Logs"),
+                    String(localized: "Received Logs"),
                     systemImage: "tray",
                     description: Text(
                         String(
@@ -332,7 +332,7 @@ private struct ReceiveLogsSettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .settingsDetailChrome(
-            title: String(localized: "Receive Logs"),
+            title: String(localized: "Received Logs"),
             canGoBack: true,
             onBack: onBack
         ) {
@@ -361,7 +361,7 @@ private struct ReceiveLogsSettingsView: View {
                     }
                     .disabled(runtime.receiveLogEntries.isEmpty)
 
-                    Button(String(localized: "Clean"), role: .destructive) {
+                    Button(String(localized: "Clear"), role: .destructive) {
                         confirmClear = true
                     }
                     .disabled(runtime.receiveLogEntries.isEmpty)
@@ -387,11 +387,11 @@ private struct ReceiveLogsSettingsView: View {
             }
         }
         .confirmationDialog(
-            String(localized: "Clear all receive records?"),
+            String(localized: "Clear all received logs?"),
             isPresented: $confirmClear,
             titleVisibility: .visible
         ) {
-            Button(String(localized: "Clean"), role: .destructive) {
+            Button(String(localized: "Clear"), role: .destructive) {
                 runtime.clearReceiveLog()
             }
             Button(String(localized: "Cancel"), role: .cancel) {}
@@ -418,7 +418,7 @@ private struct ReceiveLogsSettingsView: View {
     private func exportLog() {
         exportError = nil
         guard let data = runtime.exportReceiveLog() else {
-            exportError = String(localized: "Failed to export receive log")
+            exportError = String(localized: "Failed to export received log")
             return
         }
         let panel = NSSavePanel()
@@ -444,7 +444,7 @@ private struct ReceiveLogsFilterBar: View {
 
     var body: some View {
         HStack {
-            Text(String(localized: "Show up to \(ReceiveLogStore.uiDisplayLimit) items"))
+            Text(String(localized: "Showing up to \(ReceiveLogStore.uiDisplayLimit) items"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .textCase(nil)
@@ -461,7 +461,7 @@ private struct ReceiveLogsSourceMenu: View {
 
     var body: some View {
         Menu {
-            Button(String(localized: "All Source")) {
+            Button(String(localized: "All Sources")) {
                 selectedSource = ""
             }
             ForEach(sources, id: \.self) { source in
@@ -471,7 +471,7 @@ private struct ReceiveLogsSourceMenu: View {
             }
         } label: {
             HStack(spacing: 3) {
-                Text(selectedSource.isEmpty ? String(localized: "All Source") : selectedSource)
+                Text(selectedSource.isEmpty ? String(localized: "All Sources") : selectedSource)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.caption2)
             }
