@@ -61,6 +61,42 @@ import Testing
     #expect(roundTrip.records.count == 1)
 }
 
+@Test func aiboLibraryNamingTrimsAndRejectsEmpty() {
+    #expect(AiboLibraryNaming.normalizedDisplayName("  Boba  ") == "Boba")
+    #expect(AiboLibraryNaming.normalizedDisplayName("   ") == nil)
+    #expect(AiboLibraryNaming.normalizedDisplayName("") == nil)
+}
+
+@Test func aiboLibrarySnapshotAppliesRenamedBuiltIn() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.displayName = "Home"
+    let file = AiboLibraryFile(
+        selectedID: AiboLibraryDefaults.builtInID,
+        records: [builtIn]
+    )
+    let snap = AiboLibraryCodec.snapshot(from: file)
+    #expect(snap.records.first?.displayName == "Home")
+    #expect(snap.records.first?.id == AiboLibraryDefaults.builtInID)
+}
+
+@Test func aiboLibraryPersistableRecordsKeepsRenamedBuiltInOnly() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.displayName = "Home"
+    let boba = AiboLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+
+    let renamed = AiboLibraryCodec.persistableRecords(from: [builtIn, boba])
+    #expect(renamed.map(\.id) == [AiboLibraryDefaults.builtInID, "petdex.boba"])
+    #expect(renamed[0].displayName == "Home")
+
+    let stock = AiboLibraryCodec.persistableRecords(from: [.builtInDefault, boba])
+    #expect(stock.map(\.id) == ["petdex.boba"])
+}
+
 @Test func aiboLibraryCodecPreservesInstallMetadata() throws {
     let installedAt = Date(timeIntervalSince1970: 1_704_067_200)
     let file = AiboLibraryFile(

@@ -91,9 +91,12 @@ private struct AiboPreviewAndSelectionSection: View {
 
     var body: some View {
         Section {
-            AiboPreviewBanner(record: library.selectedRecord)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color(nsColor: .windowBackgroundColor))
+            AiboPreviewBanner(
+                record: library.selectedRecord,
+                onRename: { library.rename(id: $0, to: $1) }
+            )
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color(nsColor: .windowBackgroundColor))
 
             Picker("Active Aibo", selection: selectedAiboBinding) {
                 ForEach(library.records) { record in
@@ -113,23 +116,53 @@ private struct AiboPreviewAndSelectionSection: View {
 
 private struct AiboPreviewBanner: View {
     var record: AiboLibraryRecord
+    var onRename: (String, String) -> Void
+
+    @State private var isRenaming = false
+    @State private var draftName = ""
+    @State private var renamingID = ""
 
     var body: some View {
-        ZStack {
-            AiboNameMarquee(name: record.displayName)
-                .id(record.displayName)
-            AiboSpriteView(
-                record: record,
-                activity: .idle,
-                spriteState: .idle,
-                size: 96
-            )
+        ZStack(alignment: .topTrailing) {
+            ZStack {
+                AiboNameMarquee(name: record.displayName)
+                    .id(record.displayName)
+                AiboSpriteView(
+                    record: record,
+                    activity: .idle,
+                    spriteState: .idle,
+                    size: 96
+                )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(record.displayName)
+
+            Button {
+                renamingID = record.id
+                draftName = record.displayName
+                isRenaming = true
+            } label: {
+                Image(systemName: "pencil.line")
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .help("Rename")
+            .accessibilityLabel("Rename")
         }
         .frame(minWidth: 0, maxWidth: .infinity)
         .frame(height: 138)
-        .clipped()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(record.displayName)
+        .alert("Rename Aibo", isPresented: $isRenaming) {
+            TextField("Name", text: $draftName)
+            Button("Rename") {
+                onRename(renamingID, draftName)
+            }
+            .disabled(AiboLibraryNaming.normalizedDisplayName(draftName) == nil)
+            Button("Cancel", role: .cancel) {}
+        }
     }
 }
 

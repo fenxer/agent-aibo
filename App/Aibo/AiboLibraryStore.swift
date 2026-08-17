@@ -83,6 +83,15 @@ final class AiboLibraryStore {
         notifyAppearanceChanged()
     }
 
+    func rename(id: String, to rawName: String) {
+        guard let name = AiboLibraryNaming.normalizedDisplayName(rawName),
+              let index = records.firstIndex(where: { $0.id == id })
+        else { return }
+        guard records[index].displayName != name else { return }
+        records[index].displayName = name
+        persist()
+    }
+
     func installPetdex(from slugOrURL: String) async {
         guard !isInstalling else { return }
         isInstalling = true
@@ -248,7 +257,7 @@ final class AiboLibraryStore {
     }
 
     private func persist() {
-        let userRecords = records.filter { $0.kind != .builtInDefault }
+        let userRecords = AiboLibraryCodec.persistableRecords(from: records)
         let file = AiboLibraryFile(selectedID: selectedID, records: userRecords)
         do {
             try FileManager.default.createDirectory(

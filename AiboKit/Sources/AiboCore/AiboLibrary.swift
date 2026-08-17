@@ -91,7 +91,13 @@ public enum AiboLibraryCodec {
 
     /// Merges disk file with the built-in default and resolves a valid selection.
     public static func snapshot(from file: AiboLibraryFile) -> (selectedID: String, records: [AiboLibraryRecord]) {
-        var records = [AiboLibraryRecord.builtInDefault]
+        var builtIn = AiboLibraryRecord.builtInDefault
+        if let saved = file.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }),
+           let name = AiboLibraryNaming.normalizedDisplayName(saved.displayName)
+        {
+            builtIn.displayName = name
+        }
+        var records = [builtIn]
         for record in file.records where record.kind != .builtInDefault {
             if !records.contains(where: { $0.id == record.id }) {
                 records.append(record)
@@ -104,6 +110,28 @@ public enum AiboLibraryCodec {
             selected = AiboLibraryDefaults.builtInID
         }
         return (selected, records)
+    }
+
+    /// Records written to `library.json`. Built-in is included only when renamed.
+    public static func persistableRecords(from records: [AiboLibraryRecord]) -> [AiboLibraryRecord] {
+        var persisted = records.filter { $0.kind != .builtInDefault }
+        if let builtIn = records.first(where: { $0.id == AiboLibraryDefaults.builtInID }),
+           let name = AiboLibraryNaming.normalizedDisplayName(builtIn.displayName),
+           name != AiboLibraryDefaults.builtInDisplayName
+        {
+            var saved = AiboLibraryRecord.builtInDefault
+            saved.displayName = name
+            persisted.insert(saved, at: 0)
+        }
+        return persisted
+    }
+}
+
+public enum AiboLibraryNaming {
+    /// Trimmed display name, or `nil` if empty after trimming.
+    public static func normalizedDisplayName(_ raw: String) -> String? {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
     }
 }
 
