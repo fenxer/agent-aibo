@@ -67,6 +67,8 @@ final class AiboLibraryStore {
     private init() {
         AiboPaths.migrateLegacyLibraryDirectoryIfNeeded()
         reloadFromDisk()
+        let selected = selectedRecord
+        Task { await convertPetdexClipsIfNeeded(selected) }
     }
 
     func reloadFromDisk() {
@@ -81,6 +83,7 @@ final class AiboLibraryStore {
         selectedID = id
         persist()
         notifyAppearanceChanged()
+        Task { await convertPetdexClipsIfNeeded(selectedRecord) }
     }
 
     func rename(id: String, to rawName: String) {
@@ -104,6 +107,7 @@ final class AiboLibraryStore {
             selectedID = record.id
             persist()
             notifyAppearanceChanged()
+            await convertPetdexClipsIfNeeded(record)
         } catch let error as PetdexInstallError {
             lastErrorMessage = Self.message(for: error)
         } catch {
@@ -129,6 +133,7 @@ final class AiboLibraryStore {
                 selectedID = record.id
                 persist()
                 notifyAppearanceChanged()
+                await convertPetdexClipsIfNeeded(record)
             } catch let error as LocalAiboImportError {
                 lastErrorMessage = Self.message(for: error)
             } catch {
@@ -206,10 +211,21 @@ final class AiboLibraryStore {
         case .builtInDefault:
             return nil
         case .petdex:
-            guard let sprite = record.spriteFileName else { return nil }
-            return AiboPaths.aibosDirectory
+            let directory = AiboPaths.aibosDirectory
                 .appendingPathComponent(record.relativePath, isDirectory: true)
-                .appendingPathComponent(sprite)
+            if let idle = AiboSpritePack.idlePreviewURL(in: directory) {
+                return idle
+            }
+            if let sprite = record.spriteFileName {
+                let url = directory.appendingPathComponent(sprite)
+                if FileManager.default.fileExists(atPath: url.path) {
+                    return url
+                }
+            }
+            return AiboSpritePack.spritesheetURL(
+                in: directory,
+                preferredFileName: record.spriteFileName
+            )
         case .staticImage:
             return AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath)
         }
@@ -276,6 +292,23 @@ final class AiboLibraryStore {
         AiboSpriteCache.shared.invalidate(except: selectedID)
         AiboPanelController.shared.updateHitTestImage()
         AiboPanelController.shared.refreshContent()
+    }
+
+    /// Slices leftover Petdex atlases for this one aibo. New installs already
+    /// convert in the installer; this covers pets added before clip slicing.
+    private func convertPetdexClipsIfNeeded(_ record: AiboLibraryRecord) async {
+        guard record.kind == .petdex,
+              let directory = AiboSpritePack.directory(for: record)
+        else { return }
+        let outcome = await Task.detached(priority: .utility) {
+            PetdexClipSlicer.convertIfNeeded(in: directory)
+        }.value
+        guard outcome == .converted else { return }
+        AiboSpriteCache.shared.invalidateRecord(record.id)
+        if record.id == selectedID {
+            AiboPanelController.shared.updateHitTestImage()
+            AiboPanelController.shared.refreshContent()
+        }
     }
 
     private static func message(for error: PetdexInstallError) -> String {

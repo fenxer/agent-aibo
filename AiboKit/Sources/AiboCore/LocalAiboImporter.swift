@@ -71,12 +71,14 @@ public enum LocalAiboImporter: Sendable {
         )
 
         do {
+            let destination = AiboPaths.petdexAiboDirectory(slug: slug)
             try PetdexPackStore.writeAtomically(
-                destination: AiboPaths.petdexAiboDirectory(slug: slug),
+                destination: destination,
                 petJSONData: petJSONData,
                 spriteData: spriteData,
                 spriteFileName: spriteFileName
             )
+            PetdexClipSlicer.convertIfNeeded(in: destination)
         } catch {
             throw LocalAiboImportError.ioFailed
         }

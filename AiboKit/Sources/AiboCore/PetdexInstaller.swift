@@ -52,6 +52,7 @@ public struct PetdexInstaller: Sendable {
             spriteData: spriteData,
             spriteFileName: record.spriteFileName ?? "spritesheet.webp"
         )
+        PetdexClipSlicer.convertIfNeeded(in: destination)
         return record
     }
 
