@@ -1,32 +1,47 @@
 # aibo
 
-macOS 原生桌面相棒。aibo 常驻桌面，用气泡播报两类信息：
+![](doc/hero.png)
 
-1. **本机 AI Agent 状态** — Cursor、Codex 等在本机运行时的思考 / 工具调用 / 完成等（经 hooks，模板直出）。
-2. **远程 Webhook 通知** — 如部署完成、CI 结束等；
+English ｜ [简体中文](README_CN.md)
 
-## 要求
+> あいぼう，エージェント走らせるぜ！
 
-- 仅 macOS，SwiftUI + AppKit
-- 最低 macOS 26
+Native macOS desktop companion.
 
-## 构建
+Stays perched on your desktop, broadcasting two types of info via speech bubbles:
+
+1. **Local AI Agent Status**: Real-time thinking, tool calls, and completion events from Cursor, Codex, etc. via hooks.
+2. **Remote Webhook Notifications**: Deployment status, CI results, etc. (requires your own tunnel).
+
+## Features
+
+- Native app without heavy helper processes hogging system resources.
+  - ~~Enjoy authentic SwiftUI stutters~~
+- Supports static single images.
+- Supports PetDex V1/V2 assets.
+- Handy little extras.
+
+## Requirements
+
+macOS 26 or later.
+
+## Contributing
+
+**This project does not accept Pull Requests.**
+
+Feel free to open an [Issue](../../issues) for feedback or ideas, or fork and hack on it in your own repository.
+
+When forking, consider generating an `AGENTS.md` first and develop with your preferred workflow.
+
+## Build
 
 ```bash
-# 核心逻辑测试
+# Core logic tests
 cd AiboKit && swift test
 
-# 构建 app
+# Build app
 xcodebuild -project aibo.xcodeproj -scheme aibo -configuration Debug build
 
-# 构建并启动
+# Build and launch
 ./Scripts/run.sh
 ```
-
-## 贡献
-
-**本项目不接收 Pull Request。**
-
-欢迎提 [Issue](../../issues) 反馈问题或想法，或 fork 后在自己的仓库里修改。
-
-Fork 后动手前，建议先自行生成一份 `AGENTS.md`，再按你自己的流程开发。
