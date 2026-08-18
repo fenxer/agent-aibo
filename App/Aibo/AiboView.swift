@@ -273,7 +273,8 @@ struct AiboView: View {
                     activity: runtime.world.primarySession?.snapshot.activity ?? .idle,
                     spriteState: resolvedSpriteState,
                     size: aiboNominalSize,
-                    followsPointer: panelController.dragActionSprite == nil,
+                    followsPointer: panelController.dragActionSprite == nil
+                        && !AppSettings.shared.disableMouseTracking,
                     pixelLayout: .fillWidth
                 )
                 .id("\(library.selectedID)-\(AppSettings.shared.pixelOptimizationEnabled)")

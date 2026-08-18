@@ -378,6 +378,7 @@ private struct GeneralBubbleSection: View {
 }
 
 private struct GeneralActionSection: View {
+    @Bindable private var settings = AppSettings.shared
     @Bindable private var actions = AiboActionSettings.shared
 
     var body: some View {
@@ -390,6 +391,16 @@ private struct GeneralActionSection: View {
                 }
                 .pickerStyle(.menu)
             }
+
+            Toggle(isOn: $settings.disableMouseTracking) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Disable Mouse Tracking"))
+                    Text(String(localized: "V2 assets only"))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(VerticallyCenteredSwitchToggleStyle())
         } header: {
             Text(String(localized: "Action"))
         } footer: {

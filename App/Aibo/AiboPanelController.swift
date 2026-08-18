@@ -303,6 +303,10 @@ final class AiboPanelController {
         }
     }
 
+    func syncLookDirection() {
+        refreshLookDirection()
+    }
+
     func updateHitTestImage() {
         let image = AiboSpriteCache.shared.previewImage(for: AiboLibraryStore.shared.selectedRecord)
             ?? NSImage(named: "DefaultAibo")
@@ -1079,6 +1083,10 @@ final class AiboPanelController {
     /// Bucketed pointer look. Only assigns when the 22.5° cell changes.
     private func refreshLookDirection() {
         guard !isPetDragging else { return }
+        if AppSettings.shared.disableMouseTracking {
+            if lookDirection != nil { lookDirection = nil }
+            return
+        }
         guard isVisible, isContentPresented, !isSuppressedForFullscreen, let panel else {
             return
         }

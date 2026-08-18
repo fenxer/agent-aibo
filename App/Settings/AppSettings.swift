@@ -42,6 +42,7 @@ final class AppSettings {
         static let pixelOptimizationEnabled = "settings.pixelOptimizationEnabled"
         static let restoreLastAiboPosition = "settings.restoreLastAiboPosition"
         static let hideWhenFullscreen = "settings.hideWhenFullscreen"
+        static let disableMouseTracking = "settings.disableMouseTracking"
         static let aiboPositionXPercent = "settings.aiboPositionXPercent"
         static let aiboPositionYPercent = "settings.aiboPositionYPercent"
         static let musicNotesEnabled = "settings.musicNotesEnabled"
@@ -143,6 +144,15 @@ final class AppSettings {
             guard oldValue != hideWhenFullscreen else { return }
             UserDefaults.standard.set(hideWhenFullscreen, forKey: Keys.hideWhenFullscreen)
             AiboPanelController.shared.syncFullscreenPolicy()
+        }
+    }
+
+    /// When true, V2 idle pets stay on idle instead of looking at the pointer. Default off.
+    var disableMouseTracking: Bool {
+        didSet {
+            guard oldValue != disableMouseTracking else { return }
+            UserDefaults.standard.set(disableMouseTracking, forKey: Keys.disableMouseTracking)
+            AiboPanelController.shared.syncLookDirection()
         }
     }
 
@@ -423,6 +433,8 @@ final class AppSettings {
         } else {
             hideWhenFullscreen = true
         }
+
+        disableMouseTracking = UserDefaults.standard.bool(forKey: Keys.disableMouseTracking)
 
         if UserDefaults.standard.object(forKey: Keys.aiboPositionXPercent) != nil,
            UserDefaults.standard.object(forKey: Keys.aiboPositionYPercent) != nil

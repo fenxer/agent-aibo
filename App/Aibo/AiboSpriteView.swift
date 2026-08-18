@@ -108,6 +108,7 @@ struct AiboSpriteView: View {
     private var resolvedLookDirection: PetdexLookDirection? {
         if let lookDirection { return lookDirection }
         guard followsPointer, activity == .idle, spriteState == .idle else { return nil }
+        guard !AppSettings.shared.disableMouseTracking else { return nil }
         return AiboPanelController.shared.lookDirection
     }
 
