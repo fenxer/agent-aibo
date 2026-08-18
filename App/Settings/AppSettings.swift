@@ -58,11 +58,11 @@ final class AppSettings {
     }
 
     static let defaultWebhookPort: UInt16 = 8787
-    /// Aibo image size as a percentage of the base 96pt sprite. Range 0…200; default 100.
+    /// Aibo image size as a percentage of the base 96pt sprite. Range 0…300; default 100.
     static let defaultAiboScalePercent: Double = 100
-    static let aiboScalePercentRange: ClosedRange<Double> = 0...200
+    static let aiboScalePercentRange: ClosedRange<Double> = 0...300
     /// Discrete sizes while Pixel Optimization is on (integer-scale display).
-    static let pixelOptimizationScalePercents: [Double] = [50, 100, 150, 200]
+    static let pixelOptimizationScalePercents: [Double] = [50, 100, 150, 200, 250, 300]
     static let defaultWebhookAutoDismissSeconds = 12
     static let webhookAutoDismissSecondsRange = 1...600
 

@@ -71,9 +71,9 @@ import Testing
         sourceHeight: 208,
         backingScale: 2,
         baseSize: 96,
-        candidates: [50, 100, 150, 200]
+        candidates: [50, 100, 150, 200, 250, 300]
     )
-    #expect(percents == [50, 100, 200])
+    #expect(percents == [50, 100, 200, 300])
 }
 
 @Test func pixelArtScaleDistinctPercentsKeep150AfterGridRestore() {
@@ -82,9 +82,9 @@ import Testing
         sourceHeight: 104,
         backingScale: 2,
         baseSize: 96,
-        candidates: [50, 100, 150, 200]
+        candidates: [50, 100, 150, 200, 250, 300]
     )
-    #expect(percents == [50, 100, 150, 200])
+    #expect(percents == [50, 100, 150, 200, 250, 300])
 }
 
 @Test func pixelArtScaleFillWidthSnapsHalfScale() {

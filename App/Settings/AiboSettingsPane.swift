@@ -457,7 +457,7 @@ private struct AiboSizeRow: View {
     @Environment(\.displayScale) private var displayScale
 
     /// Tick marks only — do not use `step:` (that paints a mark at every increment).
-    private static let tickPercents: [Double] = [0, 50, 100, 150, 200]
+    private static let tickPercents: [Double] = [0, 50, 100, 150, 200, 250, 300]
 
     private var pixelSteps: [Double] {
         AiboSpriteDisplay.pixelOptimizationPercents(for: record, backingScale: displayScale)

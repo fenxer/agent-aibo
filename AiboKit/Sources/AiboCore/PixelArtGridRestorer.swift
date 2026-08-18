@@ -199,7 +199,7 @@ public enum PixelArtScale: Sendable {
 
     /// Candidate percents that produce distinct `fillWidth` sizes, labeled by
     /// the actual width relative to `baseSize` (so 150% is omitted when it
-    /// snaps to the same pixels as 200%).
+    /// snaps to the same pixels as 200%, and 250% when it matches 300%).
     public static func distinctFillWidthPercents(
         sourceWidth: Int,
         sourceHeight: Int,
