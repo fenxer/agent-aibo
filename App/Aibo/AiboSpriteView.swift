@@ -10,6 +10,8 @@ struct AiboSpriteView: View {
     var size: CGFloat
     /// Desktop only: idle V2 pets look at the pointer via `AiboPanelController`.
     var followsPointer: Bool = false
+    /// Settings Follow Mouse preview: an explicit look cell. Desktop uses `followsPointer`.
+    var lookDirection: PetdexLookDirection? = nil
     var pixelLayout: AiboSpritePixelLayout = .fit
     /// Settings action preview loops Idle too; the desktop pet keeps Idle still.
     var alwaysAnimates: Bool = false
@@ -104,6 +106,7 @@ struct AiboSpriteView: View {
 
     /// Only read the panel property while idle so agent animations don't invalidate.
     private var resolvedLookDirection: PetdexLookDirection? {
+        if let lookDirection { return lookDirection }
         guard followsPointer, activity == .idle, spriteState == .idle else { return nil }
         return AiboPanelController.shared.lookDirection
     }

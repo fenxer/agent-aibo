@@ -529,6 +529,7 @@ private struct NewAiboToolbarMenu: View {
     var body: some View {
         Menu {
             Button(String(localized: "Install from Local File"), action: onInstallLocal)
+            Divider()
             Button(String(localized: "Install from PetDex"), action: onInstallPetdex)
         } label: {
             Text(String(localized: "New Aibo"))
