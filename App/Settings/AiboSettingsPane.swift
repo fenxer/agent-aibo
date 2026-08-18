@@ -173,17 +173,19 @@ private struct AiboPreviewAndSelectionSection: View {
     }
 }
 
+private struct AiboNamePrompt: Identifiable, Equatable {
+    let id: String
+    var name: String
+    var existingDisplayName: String?
+}
+
 private struct AiboPreviewBanner: View {
     var record: AiboLibraryRecord
     var onRename: (String, String) -> AiboRenameOutcome
 
-    @State private var isRenaming = false
     @State private var isPreviewing = false
-    @State private var isNameTaken = false
-    @State private var draftName = ""
-    @State private var renamingID = ""
-    @State private var takenExistingName = ""
-    @State private var takenDraftName = ""
+    @State private var renamePrompt: AiboNamePrompt?
+    @State private var conflictPrompt: AiboNamePrompt?
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -218,9 +220,7 @@ private struct AiboPreviewBanner: View {
                 .accessibilityLabel(String(localized: "Preview"))
 
                 Button {
-                    renamingID = record.id
-                    draftName = record.displayName
-                    isRenaming = true
+                    renamePrompt = AiboNamePrompt(id: record.id, name: record.displayName)
                 } label: {
                     Image(systemName: "pencil.line")
                         .frame(width: 32, height: 32)
@@ -234,24 +234,34 @@ private struct AiboPreviewBanner: View {
         }
         .frame(minWidth: 0, maxWidth: .infinity)
         .frame(height: 138)
-        .alert(String(localized: "Rename Aibo"), isPresented: $isRenaming) {
-            TextField(String(localized: "Name"), text: $draftName)
+        .alert(
+            String(localized: "Rename Aibo"),
+            isPresented: renamePromptPresented,
+            presenting: renamePrompt
+        ) { prompt in
+            TextField(String(localized: "Name"), text: renameNameBinding(for: prompt))
             Button(String(localized: "Rename")) {
-                applyRename(draftName)
+                applyRename(id: prompt.id, name: renamePrompt?.name ?? prompt.name)
             }
-            .disabled(AiboLibraryNaming.normalizedDisplayName(draftName) == nil)
+            .disabled(AiboLibraryNaming.normalizedDisplayName(renamePrompt?.name ?? prompt.name) == nil)
             Button(String(localized: "Cancel"), role: .cancel) {}
         }
-        .alert(String(localized: "Aibo Already Exists"), isPresented: $isNameTaken) {
-            TextField(String(localized: "Name"), text: $takenDraftName)
+        .alert(
+            String(localized: "Aibo Already Exists"),
+            isPresented: conflictPromptPresented,
+            presenting: conflictPrompt
+        ) { prompt in
+            TextField(String(localized: "Name"), text: conflictNameBinding(for: prompt))
             Button(String(localized: "Rename")) {
-                applyRename(takenDraftName)
+                applyRename(id: prompt.id, name: conflictPrompt?.name ?? prompt.name)
             }
-            .disabled(!canApplyTakenName)
+            .disabled(!canConfirmConflictName(prompt))
             Button(String(localized: "Cancel"), role: .cancel) {}
-        } message: {
+        } message: { prompt in
             Text(
-                String(localized: "“\(takenExistingName)” is already in your library. Choose a different name.")
+                String(
+                    localized: "“\(prompt.existingDisplayName ?? "")” is already in your library. Choose a different name."
+                )
             )
         }
         .sheet(isPresented: $isPreviewing) {
@@ -260,25 +270,59 @@ private struct AiboPreviewBanner: View {
         }
     }
 
-    private var canApplyTakenName: Bool {
-        guard AiboLibraryNaming.normalizedDisplayName(takenDraftName) != nil else { return false }
+    private var renamePromptPresented: Binding<Bool> {
+        Binding(
+            get: { renamePrompt != nil },
+            set: { if !$0 { renamePrompt = nil } }
+        )
+    }
+
+    private var conflictPromptPresented: Binding<Bool> {
+        Binding(
+            get: { conflictPrompt != nil },
+            set: { if !$0 { conflictPrompt = nil } }
+        )
+    }
+
+    private func renameNameBinding(for prompt: AiboNamePrompt) -> Binding<String> {
+        Binding(
+            get: { renamePrompt?.name ?? prompt.name },
+            set: { renamePrompt?.name = $0 }
+        )
+    }
+
+    private func conflictNameBinding(for prompt: AiboNamePrompt) -> Binding<String> {
+        Binding(
+            get: { conflictPrompt?.name ?? prompt.name },
+            set: { conflictPrompt?.name = $0 }
+        )
+    }
+
+    private func canConfirmConflictName(_ prompt: AiboNamePrompt) -> Bool {
+        let name = conflictPrompt?.name ?? prompt.name
+        guard AiboLibraryNaming.normalizedDisplayName(name) != nil else { return false }
         return AiboLibraryNaming.collidingRecord(
             slug: nil,
-            displayName: takenDraftName,
+            displayName: name,
             in: AiboLibraryStore.shared.records,
-            excludingID: renamingID
+            excludingID: prompt.id
         ) == nil
     }
 
-    private func applyRename(_ name: String) {
-        switch onRename(renamingID, name) {
+    private func applyRename(id: String, name: String) {
+        switch onRename(id, name) {
         case .renamed, .unchanged:
-            isNameTaken = false
+            renamePrompt = nil
+            conflictPrompt = nil
         case .nameTaken(let existing, let suggested):
-            takenExistingName = existing
-            takenDraftName = suggested
+            renamePrompt = nil
+            // Present after the rename alert finishes dismissing.
             Task { @MainActor in
-                isNameTaken = true
+                conflictPrompt = AiboNamePrompt(
+                    id: id,
+                    name: suggested,
+                    existingDisplayName: existing
+                )
             }
         }
     }
