@@ -24,14 +24,16 @@ DerivedData/
 # Local xcodebuild output used by Scripts/run.sh
 .derivedData/
 
-# Distributable .app produced by Scripts/package.sh
-/.product/
+# Local hatch-aibo / skill run output
+/output/
+**/__pycache__/
 
 # macOS
 .DS_Store
 
 # Cursor local state
-/.cursor
+/.cursor/*
+!/.cursor/skills/
 
 # Local agent / planning docs (not for public repo)
 AGENTS.md
