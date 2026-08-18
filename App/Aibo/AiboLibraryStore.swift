@@ -11,6 +11,7 @@ final class AiboLibraryStore {
     private(set) var selectedID: String = AiboLibraryDefaults.builtInID
     private(set) var lastErrorMessage: String?
     private(set) var isInstalling = false
+    private(set) var pendingNamedImport: PendingNamedAiboImport?
 
     private let installer = PetdexInstaller()
     private var builtInHidden = false
@@ -93,16 +94,31 @@ final class AiboLibraryStore {
         Task { await convertPetdexClipsIfNeeded(selectedRecord) }
     }
 
-    func rename(id: String, to rawName: String) {
+    func rename(id: String, to rawName: String) -> AiboRenameOutcome {
         guard let name = AiboLibraryNaming.normalizedDisplayName(rawName),
               let index = records.firstIndex(where: { $0.id == id })
-        else { return }
-        guard records[index].displayName != name else { return }
+        else { return .unchanged }
+        if records[index].displayName == name { return .unchanged }
+        if let existing = AiboLibraryNaming.collidingRecord(
+            slug: nil,
+            displayName: name,
+            in: records,
+            excludingID: id
+        ) {
+            return .nameTaken(
+                existingDisplayName: existing.displayName,
+                suggestedDisplayName: AiboLibraryNaming.suggestedCopyDisplayName(
+                    base: name,
+                    existingNames: records.map(\.displayName)
+                )
+            )
+        }
         records[index].displayName = name
         if id == AiboLibraryDefaults.builtInID {
             persistedBuiltInDisplayName = name
         }
         persist()
+        return .renamed
     }
 
     func installPetdex(from slugOrURL: String) async {
@@ -129,6 +145,7 @@ final class AiboLibraryStore {
         guard !isInstalling else { return }
         isInstalling = true
         lastErrorMessage = nil
+        pendingNamedImport = nil
         defer { isInstalling = false }
 
         switch LocalAiboImporter.classify(url: sourceURL) {
@@ -136,14 +153,25 @@ final class AiboLibraryStore {
             importStaticImage(from: sourceURL, displayName: displayName)
         case .zipArchive:
             do {
-                let record = try await Task.detached {
-                    try LocalAiboImporter.installPack(fromArchive: sourceURL)
+                let payload = try await Task.detached {
+                    try LocalAiboImporter.loadPack(fromArchive: sourceURL)
                 }.value
-                upsert(record)
-                selectedID = record.id
-                persist()
-                notifyAppearanceChanged()
-                await convertPetdexClipsIfNeeded(record)
+                if let existing = AiboLibraryNaming.collidingRecord(
+                    slug: payload.slug,
+                    displayName: payload.displayName,
+                    in: records
+                ) {
+                    pendingNamedImport = PendingNamedAiboImport(
+                        payload: payload,
+                        existingDisplayName: existing.displayName,
+                        suggestedDisplayName: AiboLibraryNaming.suggestedCopyDisplayName(
+                            base: payload.displayName,
+                            existingNames: records.map(\.displayName)
+                        )
+                    )
+                    return
+                }
+                try await finishLocalPackImport(payload)
             } catch let error as LocalAiboImportError {
                 lastErrorMessage = Self.message(for: error)
             } catch {
@@ -151,6 +179,43 @@ final class AiboLibraryStore {
             }
         case nil:
             lastErrorMessage = String(localized: "This file isn’t a supported image or Petdex pack")
+        }
+    }
+
+    func canConfirmPendingNamedImport(displayName: String) -> Bool {
+        guard pendingNamedImport != nil,
+              let name = AiboLibraryNaming.normalizedDisplayName(displayName)
+        else { return false }
+        return AiboLibraryNaming.collidingRecord(slug: nil, displayName: name, in: records) == nil
+    }
+
+    func cancelPendingNamedImport() {
+        pendingNamedImport = nil
+    }
+
+    func confirmPendingNamedImport(displayName: String) async {
+        guard !isInstalling, let pending = pendingNamedImport else { return }
+        guard let name = AiboLibraryNaming.normalizedDisplayName(displayName),
+              canConfirmPendingNamedImport(displayName: name)
+        else { return }
+        let takenSlugs = Set(records.compactMap(\.slug))
+        guard let slug = LocalAiboImporter.uniqueSlug(
+            preferredDisplayName: name,
+            originalSlug: pending.payload.slug,
+            takenSlugs: takenSlugs
+        ) else { return }
+
+        pendingNamedImport = nil
+        isInstalling = true
+        lastErrorMessage = nil
+        defer { isInstalling = false }
+
+        do {
+            try await finishLocalPackImport(pending.payload, slug: slug, displayName: name)
+        } catch let error as LocalAiboImportError {
+            lastErrorMessage = Self.message(for: error)
+        } catch {
+            lastErrorMessage = String(localized: "Failed to install aibo")
         }
     }
 
@@ -264,6 +329,21 @@ final class AiboLibraryStore {
         case .staticImage:
             return AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath)
         }
+    }
+
+    private func finishLocalPackImport(
+        _ payload: LocalAiboPackPayload,
+        slug: String? = nil,
+        displayName: String? = nil
+    ) async throws {
+        let record = try await Task.detached {
+            try LocalAiboImporter.commit(payload, slug: slug, displayName: displayName)
+        }.value
+        upsert(record)
+        selectedID = record.id
+        persist()
+        notifyAppearanceChanged()
+        await convertPetdexClipsIfNeeded(record)
     }
 
     private func upsert(_ record: AiboLibraryRecord) {
@@ -390,4 +470,10 @@ final class AiboLibraryStore {
             return String(localized: "Failed to save aibo files")
         }
     }
+}
+
+struct PendingNamedAiboImport: Sendable {
+    var payload: LocalAiboPackPayload
+    var existingDisplayName: String
+    var suggestedDisplayName: String
 }

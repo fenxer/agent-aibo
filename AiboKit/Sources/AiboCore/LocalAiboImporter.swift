@@ -11,6 +11,16 @@ public enum LocalAiboImportError: Error, Sendable, Equatable {
     case ioFailed
 }
 
+/// Parsed local pack, before writing into the library.
+public struct LocalAiboPackPayload: Sendable {
+    public var petJSON: PetdexPetJSON
+    public var petJSONData: Data
+    public var spriteData: Data
+    public var spriteFileName: String
+    public var slug: String
+    public var displayName: String
+}
+
 /// Classifies a user-picked file and installs a local Petdex zip into `petdex/<slug>/`.
 public enum LocalAiboImporter: Sendable {
     public static let imageExtensions: Set<String> = [
@@ -27,14 +37,7 @@ public enum LocalAiboImporter: Sendable {
 
     /// Unzips `archive`, requires `pet.json` + its spritesheet, writes a petdex pack.
     public static func installPack(fromArchive archive: URL) throws -> AiboLibraryRecord {
-        let fileManager = FileManager.default
-        let extractRoot = fileManager.temporaryDirectory
-            .appendingPathComponent("aibo-local-\(UUID().uuidString)", isDirectory: true)
-        try fileManager.createDirectory(at: extractRoot, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: extractRoot) }
-
-        try extractZip(archive, to: extractRoot)
-        return try installPack(fromDirectory: extractRoot, fallbackSlug: archive.deletingPathExtension().lastPathComponent)
+        try commit(loadPack(fromArchive: archive))
     }
 
     /// Testable pack install from an already-expanded folder.
@@ -42,6 +45,27 @@ public enum LocalAiboImporter: Sendable {
         fromDirectory directory: URL,
         fallbackSlug: String
     ) throws -> AiboLibraryRecord {
+        try commit(loadPack(fromDirectory: directory, fallbackSlug: fallbackSlug))
+    }
+
+    public static func loadPack(fromArchive archive: URL) throws -> LocalAiboPackPayload {
+        let fileManager = FileManager.default
+        let extractRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("aibo-local-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: extractRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: extractRoot) }
+
+        try extractZip(archive, to: extractRoot)
+        return try loadPack(
+            fromDirectory: extractRoot,
+            fallbackSlug: archive.deletingPathExtension().lastPathComponent
+        )
+    }
+
+    public static func loadPack(
+        fromDirectory directory: URL,
+        fallbackSlug: String
+    ) throws -> LocalAiboPackPayload {
         let petJSONURL = try findPetJSON(in: directory)
         let petJSONData = try Data(contentsOf: petJSONURL)
         guard let petJSON = try? PetdexInstallAPI.decodePetJSON(petJSONData) else {
@@ -57,15 +81,35 @@ public enum LocalAiboImporter: Sendable {
             throw LocalAiboImportError.invalidPack
         }
 
-        let spriteFileName = spriteURL.lastPathComponent
+        return LocalAiboPackPayload(
+            petJSON: petJSON,
+            petJSONData: petJSONData,
+            spriteData: spriteData,
+            spriteFileName: spriteURL.lastPathComponent,
+            slug: slug,
+            displayName: displayName(from: petJSON, slug: slug)
+        )
+    }
+
+    public static func commit(
+        _ payload: LocalAiboPackPayload,
+        slug slugOverride: String? = nil,
+        displayName displayNameOverride: String? = nil
+    ) throws -> AiboLibraryRecord {
+        let slug = slugOverride ?? payload.slug
+        guard sanitizeSlug(slug) == slug else {
+            throw LocalAiboImportError.invalidPack
+        }
+        let displayName = AiboLibraryNaming.normalizedDisplayName(displayNameOverride ?? payload.displayName)
+            ?? payload.displayName
         let record = AiboLibraryRecord(
             id: "petdex.\(slug)",
             kind: .petdex,
-            displayName: displayName(from: petJSON, slug: slug),
+            displayName: displayName,
             relativePath: "\(AiboPaths.petdexDirectoryName)/\(slug)",
             slug: slug,
-            spriteFileName: spriteFileName,
-            spriteVersionNumber: petJSON.spriteVersionNumber,
+            spriteFileName: payload.spriteFileName,
+            spriteVersionNumber: payload.petJSON.spriteVersionNumber,
             installedAt: Date(),
             installSource: "Local"
         )
@@ -74,15 +118,35 @@ public enum LocalAiboImporter: Sendable {
             let destination = AiboPaths.petdexAiboDirectory(slug: slug)
             try PetdexPackStore.writeAtomically(
                 destination: destination,
-                petJSONData: petJSONData,
-                spriteData: spriteData,
-                spriteFileName: spriteFileName
+                petJSONData: payload.petJSONData,
+                spriteData: payload.spriteData,
+                spriteFileName: payload.spriteFileName
             )
             PetdexClipSlicer.convertIfNeeded(in: destination)
         } catch {
             throw LocalAiboImportError.ioFailed
         }
         return record
+    }
+
+    /// `preferredName` sanitized if free, otherwise `originalSlug-2`, `-3`, …
+    public static func uniqueSlug(
+        preferredDisplayName: String,
+        originalSlug: String,
+        takenSlugs: Set<String>
+    ) -> String? {
+        if let slug = sanitizeSlug(preferredDisplayName), !takenSlugs.contains(slug) {
+            return slug
+        }
+        var suffix = 2
+        while suffix < 10_000 {
+            guard let slug = sanitizeSlug("\(originalSlug)-\(suffix)") else { return nil }
+            if !takenSlugs.contains(slug) {
+                return slug
+            }
+            suffix += 1
+        }
+        return nil
     }
 
     public static func slug(from petJSON: PetdexPetJSON, fallback: String) -> String? {
@@ -141,30 +205,55 @@ public enum LocalAiboImporter: Sendable {
         return url
     }
 
+    private static let spritesheetFileNames = ["spritesheet.webp", "spritesheet.png"]
+
     private static func resolveSpritesheet(petJSON: PetdexPetJSON, in directory: URL) throws -> URL {
         if let raw = petJSON.spritesheetPath?.trimmingCharacters(in: .whitespacesAndNewlines),
            !raw.isEmpty
         {
-            return try resolvedFile(named: raw, in: directory)
+            if let url = try fileInsideDirectory(named: raw, in: directory) {
+                return url
+            }
+            for alternate in alternateSpritesheetPaths(raw) {
+                if let url = try fileInsideDirectory(named: alternate, in: directory) {
+                    return url
+                }
+            }
         }
-        for name in ["spritesheet.webp", "spritesheet.png"] {
-            let candidate = directory.appendingPathComponent(name)
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                return candidate
+        for name in spritesheetFileNames {
+            if let url = try fileInsideDirectory(named: name, in: directory) {
+                return url
             }
         }
         throw LocalAiboImportError.invalidPack
     }
 
-    private static func resolvedFile(named relativePath: String, in directory: URL) throws -> URL {
-        let root = directory.standardizedFileURL
-        let candidate = directory.appendingPathComponent(relativePath).standardizedFileURL
-        let rootPath = root.path
-        let candidatePath = candidate.path
-        let isInside = candidatePath == rootPath
-            || candidatePath.hasPrefix(rootPath.hasSuffix("/") ? rootPath : rootPath + "/")
-        guard isInside, FileManager.default.fileExists(atPath: candidatePath) else {
+    private static func alternateSpritesheetPaths(_ relativePath: String) -> [String] {
+        let ext = (relativePath as NSString).pathExtension
+        guard !ext.isEmpty else {
+            return ["\(relativePath).webp", "\(relativePath).png"]
+        }
+        let stem = (relativePath as NSString).deletingPathExtension
+        switch ext.lowercased() {
+        case "webp":
+            return ["\(stem).png"]
+        case "png":
+            return ["\(stem).webp"]
+        default:
+            return ["\(stem).png", "\(stem).webp"]
+        }
+    }
+
+    /// `nil` if missing. Throws when the path escapes `directory`.
+    private static func fileInsideDirectory(named relativePath: String, in directory: URL) throws -> URL? {
+        let trimmed = relativePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("/") || trimmed.split(separator: "/").contains("..") {
             throw LocalAiboImportError.invalidPack
+        }
+        let root = directory.resolvingSymlinksInPath().standardizedFileURL
+        let candidate = root.appendingPathComponent(trimmed)
+        guard FileManager.default.fileExists(atPath: candidate.path) else {
+            return nil
         }
         return candidate
     }

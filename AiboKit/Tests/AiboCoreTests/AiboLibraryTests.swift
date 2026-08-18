@@ -67,6 +67,68 @@ import Testing
     #expect(AiboLibraryNaming.normalizedDisplayName("") == nil)
 }
 
+@Test func aiboLibraryNamingDetectsSlugAndDisplayCollisions() {
+    let poli = AiboLibraryRecord(
+        id: "petdex.poli",
+        kind: .petdex,
+        displayName: "POLI",
+        relativePath: "petdex/poli",
+        slug: "poli"
+    )
+    #expect(
+        AiboLibraryNaming.collidingRecord(slug: "poli", displayName: "POLI", in: [poli])?.id
+            == "petdex.poli"
+    )
+    #expect(
+        AiboLibraryNaming.collidingRecord(slug: "other", displayName: "poli", in: [poli])?.id
+            == "petdex.poli"
+    )
+    #expect(AiboLibraryNaming.collidingRecord(slug: "other", displayName: "Nova", in: [poli]) == nil)
+}
+
+@Test func aiboLibraryNamingRenameIgnoresSelfWhenCheckingCollisions() {
+    let poli = AiboLibraryRecord(
+        id: "petdex.poli",
+        kind: .petdex,
+        displayName: "POLI",
+        relativePath: "petdex/poli",
+        slug: "poli"
+    )
+    let nova = AiboLibraryRecord(
+        id: "petdex.nova",
+        kind: .petdex,
+        displayName: "Nova",
+        relativePath: "petdex/nova",
+        slug: "nova"
+    )
+    #expect(
+        AiboLibraryNaming.collidingRecord(
+            slug: nil,
+            displayName: "POLI",
+            in: [poli, nova],
+            excludingID: poli.id
+        ) == nil
+    )
+    #expect(
+        AiboLibraryNaming.collidingRecord(
+            slug: nil,
+            displayName: "POLI",
+            in: [poli, nova],
+            excludingID: nova.id
+        )?.id == poli.id
+    )
+}
+
+@Test func aiboLibraryNamingSuggestsDashTwoThenThree() {
+    #expect(
+        AiboLibraryNaming.suggestedCopyDisplayName(base: "POLI", existingNames: ["POLI"]) == "POLI-2"
+    )
+    #expect(
+        AiboLibraryNaming.suggestedCopyDisplayName(base: "POLI", existingNames: ["POLI", "POLI-2"])
+            == "POLI-3"
+    )
+}
+
 @Test func aiboLibrarySnapshotAppliesRenamedBuiltIn() {
     var builtIn = AiboLibraryRecord.builtInDefault
     builtIn.displayName = "Home"
@@ -449,6 +511,43 @@ import Testing
 
     try? FileManager.default.removeItem(at: source)
     try? FileManager.default.removeItem(at: dest)
+}
+
+@Test func localAiboImporterAcceptsPNGWhenJSONPointsAtWebP() throws {
+    let slug = "local-png-\(UUID().uuidString.prefix(8).lowercased())"
+    let source = FileManager.default.temporaryDirectory
+        .appendingPathComponent("aibo-pack-png-\(slug)", isDirectory: true)
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+    let petJSON = #"{"id":"\#(slug)","displayName":"PNG Pack","spritesheetPath":"spritesheet.webp"}"#
+    try Data(petJSON.utf8).write(to: source.appendingPathComponent("pet.json"))
+    try Data([0x89, 0x50, 0x4E, 0x47]).write(to: source.appendingPathComponent("spritesheet.png"))
+
+    let record = try LocalAiboImporter.installPack(fromDirectory: source, fallbackSlug: "ignored")
+    #expect(record.spriteFileName == "spritesheet.png")
+    #expect(record.slug == slug)
+
+    let dest = AiboPaths.petdexAiboDirectory(slug: slug)
+    #expect(FileManager.default.fileExists(atPath: dest.appendingPathComponent("spritesheet.png").path))
+
+    try? FileManager.default.removeItem(at: source)
+    try? FileManager.default.removeItem(at: dest)
+}
+
+@Test func localAiboImporterUniqueSlugPrefersSanitizedNameThenDashTwo() {
+    #expect(
+        LocalAiboImporter.uniqueSlug(
+            preferredDisplayName: "POLI-2",
+            originalSlug: "poli",
+            takenSlugs: ["poli"]
+        ) == "poli-2"
+    )
+    #expect(
+        LocalAiboImporter.uniqueSlug(
+            preferredDisplayName: "POLI-2",
+            originalSlug: "poli",
+            takenSlugs: ["poli", "poli-2"]
+        ) == "poli-3"
+    )
 }
 
 @Test func localAiboImporterRejectsPackWithoutSpritesheet() throws {

@@ -173,6 +173,42 @@ public enum AiboLibraryNaming {
         let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? nil : name
     }
+
+    public static func displayNamesMatch(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare(rhs.trimmingCharacters(in: .whitespacesAndNewlines))
+            == .orderedSame
+    }
+
+    /// Existing aibo that shares this slug or display name.
+    public static func collidingRecord(
+        slug: String?,
+        displayName: String,
+        in records: [AiboLibraryRecord],
+        excludingID: String? = nil
+    ) -> AiboLibraryRecord? {
+        records.first { record in
+            if record.id == excludingID { return false }
+            if let slug {
+                if record.slug == slug { return true }
+                if record.id == "petdex.\(slug)" { return true }
+            }
+            return displayNamesMatch(record.displayName, displayName)
+        }
+    }
+
+    /// `Base-2`, then `-3` if that name is taken.
+    public static func suggestedCopyDisplayName(
+        base: String,
+        existingNames: [String]
+    ) -> String {
+        let name = normalizedDisplayName(base) ?? base
+        var suffix = 2
+        while existingNames.contains(where: { displayNamesMatch($0, "\(name)-\(suffix)") }) {
+            suffix += 1
+        }
+        return "\(name)-\(suffix)"
+    }
 }
 
 public enum AiboLibraryDeletion {
@@ -188,6 +224,12 @@ public enum AiboLibraryDeletion {
         let remaining = records.contains { !wanted.contains($0.id) }
         return remaining ? known : nil
     }
+}
+
+public enum AiboRenameOutcome: Equatable, Sendable {
+    case renamed
+    case unchanged
+    case nameTaken(existingDisplayName: String, suggestedDisplayName: String)
 }
 
 public enum AiboLibraryOrdering {

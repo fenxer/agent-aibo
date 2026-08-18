@@ -30,6 +30,9 @@ private struct AiboSettingsRootView: View {
     @State private var isImportingLocal = false
 
     @State private var isAskingPetdex = false
+    @State private var isAskingDuplicateName = false
+    @State private var duplicateDraftName = ""
+    @State private var duplicateExistingName = ""
     @State private var installErrorMessage: String?
 
     var body: some View {
@@ -71,6 +74,24 @@ private struct AiboSettingsRootView: View {
         } message: {
             Text(String(localized: "Enter PetDex URL or slug to download."))
         }
+        .alert(String(localized: "Aibo Already Exists"), isPresented: $isAskingDuplicateName) {
+            TextField(String(localized: "Name"), text: $duplicateDraftName)
+            Button(String(localized: "Install")) {
+                let name = duplicateDraftName
+                Task {
+                    await library.confirmPendingNamedImport(displayName: name)
+                    if let message = library.lastErrorMessage {
+                        installErrorMessage = message
+                    }
+                }
+            }
+            .disabled(!library.canConfirmPendingNamedImport(displayName: duplicateDraftName))
+            Button(String(localized: "Cancel"), role: .cancel) {
+                library.cancelPendingNamedImport()
+            }
+        } message: {
+            Text(duplicateInstallMessage)
+        }
         .alert(
             String(localized: "Couldn't Install Aibo"),
             isPresented: Binding(
@@ -96,6 +117,10 @@ private struct AiboSettingsRootView: View {
         }
     }
 
+    private var duplicateInstallMessage: String {
+        String(localized: "“\(duplicateExistingName)” is already in your library. Choose a different name to install this aibo.")
+    }
+
     private func handleLocalImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
@@ -106,7 +131,11 @@ private struct AiboSettingsRootView: View {
                     if accessed { url.stopAccessingSecurityScopedResource() }
                 }
                 await library.importLocal(from: url)
-                if let message = library.lastErrorMessage {
+                if let pending = library.pendingNamedImport {
+                    duplicateExistingName = pending.existingDisplayName
+                    duplicateDraftName = pending.suggestedDisplayName
+                    isAskingDuplicateName = true
+                } else if let message = library.lastErrorMessage {
                     installErrorMessage = message
                 }
             }
@@ -146,12 +175,15 @@ private struct AiboPreviewAndSelectionSection: View {
 
 private struct AiboPreviewBanner: View {
     var record: AiboLibraryRecord
-    var onRename: (String, String) -> Void
+    var onRename: (String, String) -> AiboRenameOutcome
 
     @State private var isRenaming = false
     @State private var isPreviewing = false
+    @State private var isNameTaken = false
     @State private var draftName = ""
     @State private var renamingID = ""
+    @State private var takenExistingName = ""
+    @State private var takenDraftName = ""
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -205,14 +237,49 @@ private struct AiboPreviewBanner: View {
         .alert(String(localized: "Rename Aibo"), isPresented: $isRenaming) {
             TextField(String(localized: "Name"), text: $draftName)
             Button(String(localized: "Rename")) {
-                onRename(renamingID, draftName)
+                applyRename(draftName)
             }
             .disabled(AiboLibraryNaming.normalizedDisplayName(draftName) == nil)
             Button(String(localized: "Cancel"), role: .cancel) {}
         }
+        .alert(String(localized: "Aibo Already Exists"), isPresented: $isNameTaken) {
+            TextField(String(localized: "Name"), text: $takenDraftName)
+            Button(String(localized: "Rename")) {
+                applyRename(takenDraftName)
+            }
+            .disabled(!canApplyTakenName)
+            Button(String(localized: "Cancel"), role: .cancel) {}
+        } message: {
+            Text(
+                String(localized: "“\(takenExistingName)” is already in your library. Choose a different name.")
+            )
+        }
         .sheet(isPresented: $isPreviewing) {
             AiboActionPreviewSheet(record: record)
                 .id(record.id)
+        }
+    }
+
+    private var canApplyTakenName: Bool {
+        guard AiboLibraryNaming.normalizedDisplayName(takenDraftName) != nil else { return false }
+        return AiboLibraryNaming.collidingRecord(
+            slug: nil,
+            displayName: takenDraftName,
+            in: AiboLibraryStore.shared.records,
+            excludingID: renamingID
+        ) == nil
+    }
+
+    private func applyRename(_ name: String) {
+        switch onRename(renamingID, name) {
+        case .renamed, .unchanged:
+            isNameTaken = false
+        case .nameTaken(let existing, let suggested):
+            takenExistingName = existing
+            takenDraftName = suggested
+            Task { @MainActor in
+                isNameTaken = true
+            }
         }
     }
 }
@@ -422,6 +489,7 @@ private struct NewAiboToolbarMenu: View {
         } label: {
             Text(String(localized: "New Aibo"))
                 .font(.body)
+                .foregroundStyle(.white)
                 .frame(height: AllPetsToolbarMetrics.controlHeight)
                 .padding(.horizontal, 10)
                 .opacity(isInstalling ? 0 : 1)
@@ -429,6 +497,7 @@ private struct NewAiboToolbarMenu: View {
                     if isInstalling {
                         ProgressView()
                             .controlSize(.small)
+                            .tint(.white)
                     }
                 }
                 .contentShape(Capsule())
