@@ -427,15 +427,118 @@ import Testing
     #expect(AiboActionMapping.resolve(.dragLeft, overrides: invalid) == .runningLeft)
 }
 
+private func actionMappingSprite(_ key: SessionKey, _ snapshot: SessionSnapshot) -> PetdexSpriteState {
+    switch snapshot.activity {
+    case .waiting: .waiting
+    case .usingTool: .running
+    case .thinking: .review
+    case .responding: .jumping
+    case .registered: .waving
+    case .failed: .failed
+    case .interrupted: .failed
+    case .done: .waving
+    case .idle: .idle
+    }
+}
+
+private func actionMappingPresentation(
+    sessions: [SessionKey: SessionSnapshot] = [:],
+    dragSprite: PetdexSpriteState? = nil,
+    lookDirection: PetdexLookDirection? = nil
+) -> AiboDisplayPresentation {
+    AiboActionMapping.presentation(
+        sessions: sessions,
+        spriteFor: actionMappingSprite,
+        dragSprite: dragSprite,
+        lookDirection: lookDirection
+    )
+}
+
 @Test func aiboActionOverlayYieldsToHookSprite() {
+    let thinking = [
+        SessionKey(agent: .cursor, conversationID: "c1"):
+            SessionSnapshot(activity: .thinking, lastEventAt: Date(timeIntervalSince1970: 1)),
+    ]
     #expect(
-        AiboActionMapping.overlay(hookSprite: .idle, userActionSprite: .runningLeft) == .runningLeft
+        actionMappingPresentation(dragSprite: .runningLeft)
+            == .sprite(.runningLeft, activity: .idle)
     )
     #expect(
-        AiboActionMapping.overlay(hookSprite: .jumping, userActionSprite: .runningLeft) == .jumping
+        actionMappingPresentation(sessions: thinking, dragSprite: .runningLeft)
+            == .sprite(.review, activity: .thinking)
     )
+    #expect(actionMappingPresentation() == .sprite(.idle, activity: .idle))
+}
+
+@Test func aiboActionFollowMouseWhenIdle() throws {
+    let look = try #require(PetdexLookDirection(index: 4))
+    #expect(actionMappingPresentation(lookDirection: look) == .look(look))
     #expect(
-        AiboActionMapping.overlay(hookSprite: .idle, userActionSprite: nil) == .idle
+        actionMappingPresentation(dragSprite: .runningLeft, lookDirection: look)
+            == .sprite(.runningLeft, activity: .idle)
+    )
+}
+
+@Test func preferredSessionPicksNewestHookNotWaiting() {
+    let cursor = SessionKey(agent: .cursor, conversationID: "c1")
+    let codex = SessionKey(agent: .codex, conversationID: "x1")
+    let sessions: [SessionKey: SessionSnapshot] = [
+        cursor: SessionSnapshot(activity: .waiting, lastEventAt: Date(timeIntervalSince1970: 1)),
+        codex: SessionSnapshot(
+            activity: .usingTool("Bash"),
+            lastEventAt: Date(timeIntervalSince1970: 9)
+        ),
+    ]
+    let primary = AiboActionMapping.preferredSession(sessions: sessions)
+    #expect(primary?.key == codex)
+    #expect(
+        actionMappingPresentation(sessions: sessions, dragSprite: .runningLeft)
+            == .sprite(.running, activity: .usingTool("Bash"))
+    )
+}
+
+@Test func preferredSessionSameActivityPicksNewestConversation() {
+    let older = SessionKey(agent: .cursor, conversationID: "old")
+    let newer = SessionKey(agent: .cursor, conversationID: "new")
+    let sessions: [SessionKey: SessionSnapshot] = [
+        older: SessionSnapshot(
+            activity: .usingTool("Read"),
+            lastEventAt: Date(timeIntervalSince1970: 1)
+        ),
+        newer: SessionSnapshot(
+            activity: .usingTool("Shell"),
+            lastEventAt: Date(timeIntervalSince1970: 2)
+        ),
+    ]
+    let primary = AiboActionMapping.preferredSession(sessions: sessions)
+    #expect(primary?.key == newer)
+}
+
+@Test func outcomeHookBeatsNewerThinkingUntilItLeaves() {
+    let done = SessionKey(agent: .codex, conversationID: "done")
+    let thinking = SessionKey(agent: .cursor, conversationID: "live")
+    let sessions: [SessionKey: SessionSnapshot] = [
+        done: SessionSnapshot(activity: .done, lastEventAt: Date(timeIntervalSince1970: 1)),
+        thinking: SessionSnapshot(
+            activity: .thinking,
+            lastEventAt: Date(timeIntervalSince1970: 9)
+        ),
+    ]
+    #expect(AiboActionMapping.preferredSession(sessions: sessions)?.key == done)
+    #expect(
+        actionMappingPresentation(sessions: sessions, dragSprite: .runningLeft)
+            == .sprite(.waving, activity: .done)
+    )
+
+    var afterOutcome = sessions
+    afterOutcome[done] = SessionSnapshot(
+        activity: .idle,
+        lastEventAt: Date(timeIntervalSince1970: 10)
+    )
+    #expect(AiboActionMapping.preferredSession(sessions: afterOutcome)?.key == thinking)
+    #expect(
+        actionMappingPresentation(sessions: afterOutcome)
+            == .sprite(.review, activity: .thinking)
     )
 }
 

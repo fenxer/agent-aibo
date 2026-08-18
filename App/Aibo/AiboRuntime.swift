@@ -106,15 +106,15 @@ final class AiboRuntime {
     private static let ingestLoggingDefaultsKey = "debug.ingestLoggingEnabled"
     #endif
 
-    /// Sprite row for the primary session (idle when none).
-    var primarySpriteState: PetdexSpriteState {
-        guard let primary = world.primarySession else { return .idle }
-        return HookSpriteSettings.shared.resolve(
-            agent: primary.key.agent,
-            hookEventName: sessionHookEvents[primary.key],
-            activity: primary.snapshot.activity
+    /// Sprite row for one session (idle mapping when the hook file has no row).
+    func sprite(for key: SessionKey, snapshot: SessionSnapshot) -> PetdexSpriteState {
+        HookSpriteSettings.shared.resolve(
+            agent: key.agent,
+            hookEventName: sessionHookEvents[key],
+            activity: snapshot.activity
         )
     }
+
     private struct SessionDisplayMeta: Equatable, Sendable {
         var projectName: String?
         var modelName: String?

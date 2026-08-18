@@ -16,6 +16,14 @@ public enum AiboActivityState: Equatable, Sendable, Codable {
     case done
     case interrupted
     case failed
+
+    /// Terminal hook: keep this animation until the session leaves the state.
+    public var isOutcome: Bool {
+        switch self {
+        case .done, .failed, .interrupted: true
+        default: false
+        }
+    }
 }
 
 public struct SessionKey: Hashable, Sendable, Codable {
@@ -49,25 +57,8 @@ public struct AiboWorldState: Equatable, Sendable, Codable {
         self.sessions = sessions
     }
 
-    /// Primary session for the aibo bubble: waiting > active work > done > idle.
+    /// Session driving the sprite: outcome hooks first, else newest non-idle.
     public var primarySession: (key: SessionKey, snapshot: SessionSnapshot)? {
-        let ranked = sessions.sorted { lhs, rhs in
-            let left = Self.priority(lhs.value.activity)
-            let right = Self.priority(rhs.value.activity)
-            if left != right { return left > right }
-            return lhs.value.lastEventAt > rhs.value.lastEventAt
-        }
-        return ranked.first.map { ($0.key, $0.value) }
-    }
-
-    private static func priority(_ state: AiboActivityState) -> Int {
-        switch state {
-        case .waiting: 100
-        case .usingTool: 80
-        case .thinking, .responding, .registered: 60
-        case .failed, .interrupted: 40
-        case .done: 20
-        case .idle: 0
-        }
+        AiboActionMapping.preferredSession(sessions: sessions)
     }
 }

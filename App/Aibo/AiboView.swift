@@ -27,12 +27,38 @@ struct AiboView: View {
         bubbleItemsOverride ?? runtime.bubbleItems
     }
 
-    private var resolvedSpriteState: PetdexSpriteState {
+    private var resolvedPresentation: AiboDisplayPresentation {
         _ = hookSprites.file
-        return AiboActionMapping.overlay(
-            hookSprite: runtime.primarySpriteState,
-            userActionSprite: panelController.dragActionSprite
+        let look = AppSettings.shared.disableMouseTracking
+            ? nil
+            : panelController.lookDirection
+        return AiboActionMapping.presentation(
+            sessions: runtime.world.sessions,
+            spriteFor: { key, snapshot in runtime.sprite(for: key, snapshot: snapshot) },
+            dragSprite: panelController.dragActionSprite,
+            lookDirection: look
         )
+    }
+
+    private var displaySpriteState: PetdexSpriteState {
+        switch resolvedPresentation {
+        case .sprite(let state, _): state
+        case .look: .idle
+        }
+    }
+
+    private var displayActivity: AiboActivityState {
+        switch resolvedPresentation {
+        case .sprite(_, let activity): activity
+        case .look: .idle
+        }
+    }
+
+    private var displayLookDirection: PetdexLookDirection? {
+        switch resolvedPresentation {
+        case .sprite: nil
+        case .look(let direction): direction
+        }
     }
 
     private var placement: BubblePlacement {
@@ -270,11 +296,10 @@ struct AiboView: View {
             if panelController.isContentPresented {
                 AiboSpriteView(
                     record: library.selectedRecord,
-                    activity: runtime.world.primarySession?.snapshot.activity ?? .idle,
-                    spriteState: resolvedSpriteState,
+                    activity: displayActivity,
+                    spriteState: displaySpriteState,
                     size: aiboNominalSize,
-                    followsPointer: panelController.dragActionSprite == nil
-                        && !AppSettings.shared.disableMouseTracking,
+                    lookDirection: displayLookDirection,
                     pixelLayout: .fillWidth
                 )
                 .id("\(library.selectedID)-\(AppSettings.shared.pixelOptimizationEnabled)")

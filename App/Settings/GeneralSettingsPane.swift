@@ -403,8 +403,6 @@ private struct GeneralActionSection: View {
             .toggleStyle(VerticallyCenteredSwitchToggleStyle())
         } header: {
             Text(String(localized: "Action"))
-        } footer: {
-            Text(String(localized: "Choose which Petdex animation plays while dragging the aibo."))
         }
     }
 

@@ -790,11 +790,6 @@ final class AiboPanelController {
     }
 
     private func refreshDragAction(deltaX: CGFloat) {
-        let activity = AiboRuntime.shared.world.primarySession?.snapshot.activity ?? .idle
-        guard activity == .idle else {
-            if dragActionSprite != nil { dragActionSprite = nil }
-            return
-        }
         pendingDragDeltaX += deltaX
         guard abs(pendingDragDeltaX) >= Self.dragDirectionThreshold else { return }
         let action: AiboUserAction = pendingDragDeltaX < 0 ? .dragLeft : .dragRight
@@ -808,8 +803,8 @@ final class AiboPanelController {
     }
 
     private func refreshClickThroughState() {
-        if isPetDragging { return }
         refreshLookDirection()
+        if isPetDragging { return }
         guard let panel else { return }
         guard isVisible, isContentPresented, shouldPresentPanelOnScreen, !isSuppressedForFullscreen else {
             return
@@ -960,10 +955,6 @@ final class AiboPanelController {
         isPetDragging = true
         pendingDragDeltaX = 0
         dragActionSprite = nil
-        let activity = AiboRuntime.shared.world.primarySession?.snapshot.activity ?? .idle
-        if activity == .idle, lookDirection != nil {
-            lookDirection = nil
-        }
     }
 
     private func endPetDrag() {
@@ -1082,7 +1073,6 @@ final class AiboPanelController {
 
     /// Bucketed pointer look. Only assigns when the 22.5° cell changes.
     private func refreshLookDirection() {
-        guard !isPetDragging else { return }
         if AppSettings.shared.disableMouseTracking {
             if lookDirection != nil { lookDirection = nil }
             return

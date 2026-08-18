@@ -14,6 +14,7 @@ final class AiboActionSettings {
 
     private init() {
         overrides = Self.load()
+        UserDefaults.standard.removeObject(forKey: "settings.aiboDisplayLayerPriority")
     }
 
     func sprite(for action: AiboUserAction) -> PetdexSpriteState {
