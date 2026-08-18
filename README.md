@@ -1,6 +1,6 @@
 # aibo
 
-![](doc/hero.png)
+<img src="doc/hero.png" width="640">
 
 English ｜ [简体中文](README_CN.md)
 
@@ -17,9 +17,14 @@ Stays perched on your desktop, broadcasting two types of info via speech bubbles
 
 - Native app without heavy helper processes hogging system resources.
   - ~~Enjoy authentic SwiftUI stutters~~
-- Supports static single images.
-- Supports PetDex V1/V2 assets.
-- Handy little extras.
+- Supports [PetDex](https://petdex.dev/) V1/V2 assets.
+- Install from a local static image, or a `.zip` of V1/V2 assets.
+- Handy little extras:
+  - Webhook received logs
+  - Music notes when the system is playing audio
+  - Pixel-art sprite display optimization
+  - Slice spritesheets to keep resident resources down
+- More coming soon…
 
 ## Requirements
 
