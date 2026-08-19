@@ -26,7 +26,6 @@ final class AppSettings {
 
     private enum Keys {
         static let themeMode = "settings.themeMode"
-        static let bubblePlacement = "settings.bubblePlacement"
         static let bubbleGlassStyle = "settings.bubbleGlassStyle"
         static let bubbleGlassTint = "settings.bubbleGlassTint"
         static let cursorBubbleGlassStyle = "settings.agentBubbleGlassStyle.cursor"
@@ -39,7 +38,6 @@ final class AppSettings {
         static let codexCapsuleColor = "settings.agentCapsuleColor.codex"
         static let deepseekCapsuleColor = "settings.agentCapsuleColor.deepseek"
         static let aiboScalePercent = "settings.aiboScalePercent"
-        static let pixelOptimizationEnabled = "settings.pixelOptimizationEnabled"
         static let restoreLastAiboPosition = "settings.restoreLastAiboPosition"
         static let hideWhenFullscreen = "settings.hideWhenFullscreen"
         static let disableMouseTracking = "settings.disableMouseTracking"
@@ -78,53 +76,6 @@ final class AppSettings {
             guard oldValue != themeMode else { return }
             UserDefaults.standard.set(themeMode.rawValue, forKey: Keys.themeMode)
             Self.applyAppearance(themeMode)
-            AiboPanelController.shared.refreshContent()
-        }
-    }
-
-    var bubblePlacement: BubblePlacement {
-        didSet {
-            guard oldValue != bubblePlacement else { return }
-            UserDefaults.standard.set(bubblePlacement.rawValue, forKey: Keys.bubblePlacement)
-            AiboPanelController.shared.refreshContent()
-        }
-    }
-
-    /// Aibo sprite scale relative to the default size (`100` = 96×96 pt).
-    var aiboScalePercent: Double {
-        didSet {
-            let adjusted = Self.normalizedAiboScalePercent(
-                aiboScalePercent,
-                pixelOptimizationEnabled: pixelOptimizationEnabled
-            )
-            if adjusted != aiboScalePercent {
-                aiboScalePercent = adjusted
-                return
-            }
-            guard oldValue != aiboScalePercent else { return }
-            UserDefaults.standard.set(aiboScalePercent, forKey: Keys.aiboScalePercent)
-            AiboPanelController.shared.refreshContent()
-        }
-    }
-
-    /// Integer-scale pixel-art display plus grid recovery. Default off.
-    var pixelOptimizationEnabled: Bool = false {
-        didSet {
-            guard oldValue != pixelOptimizationEnabled else { return }
-            UserDefaults.standard.set(pixelOptimizationEnabled, forKey: Keys.pixelOptimizationEnabled)
-            if pixelOptimizationEnabled {
-                let steps = AiboSpriteDisplay.pixelOptimizationPercents(
-                    for: AiboLibraryStore.shared.selectedRecord,
-                    backingScale: NSScreen.main?.backingScaleFactor ?? 2
-                )
-                aiboScalePercent = Self.snapAiboScalePercentToPixelSteps(
-                    aiboScalePercent,
-                    steps: steps
-                )
-            }
-            AiboSpriteCache.shared.invalidate()
-            AiboAppearance.invalidateDominantColorCache()
-            AiboPanelController.shared.updateHitTestImage()
             AiboPanelController.shared.refreshContent()
         }
     }
@@ -375,9 +326,6 @@ final class AppSettings {
         themeMode = resolvedTheme
         Self.applyAppearance(resolvedTheme)
 
-        let raw = UserDefaults.standard.string(forKey: Keys.bubblePlacement) ?? BubblePlacement.top.rawValue
-        bubblePlacement = BubblePlacement(rawValue: raw) ?? .top
-
         let glassRaw = UserDefaults.standard.string(forKey: Keys.bubbleGlassStyle)
             ?? BubbleGlassStyle.clear.rawValue
         let resolvedGlassStyle = BubbleGlassStyle(rawValue: glassRaw) ?? .clear
@@ -411,16 +359,6 @@ final class AppSettings {
         cursorCapsuleColor = Self.loadColor(key: Keys.cursorCapsuleColor)
         codexCapsuleColor = Self.loadColor(key: Keys.codexCapsuleColor)
         deepseekCapsuleColor = Self.loadColor(key: Keys.deepseekCapsuleColor)
-
-        if UserDefaults.standard.object(forKey: Keys.aiboScalePercent) != nil {
-            aiboScalePercent = Self.clampAiboScalePercent(
-                UserDefaults.standard.double(forKey: Keys.aiboScalePercent)
-            )
-        } else {
-            aiboScalePercent = Self.defaultAiboScalePercent
-        }
-
-        pixelOptimizationEnabled = UserDefaults.standard.bool(forKey: Keys.pixelOptimizationEnabled)
 
         if UserDefaults.standard.object(forKey: Keys.restoreLastAiboPosition) != nil {
             restoreLastAiboPosition = UserDefaults.standard.bool(forKey: Keys.restoreLastAiboPosition)
@@ -512,10 +450,6 @@ final class AppSettings {
         webhookSecret = Self.makeSecret()
         try? KeychainStore.setString(webhookSecret, forAccount: Keys.webhookSecretAccount)
         AiboRuntime.shared.syncWebhookServer()
-    }
-
-    func resetAiboScalePercent() {
-        aiboScalePercent = Self.defaultAiboScalePercent
     }
 
     /// Custom agent-capsule fill, or `nil` for the default black/white look.
@@ -620,19 +554,6 @@ final class AppSettings {
 
     private static func applyAppearance(_ mode: AppThemeMode) {
         NSApp.appearance = mode.nsAppearance
-    }
-
-    private static func clampAiboScalePercent(_ value: Double) -> Double {
-        min(max(value, aiboScalePercentRange.lowerBound), aiboScalePercentRange.upperBound)
-    }
-
-    private static func normalizedAiboScalePercent(
-        _ value: Double,
-        pixelOptimizationEnabled: Bool
-    ) -> Double {
-        let clamped = clampAiboScalePercent(value)
-        guard pixelOptimizationEnabled else { return clamped }
-        return snapAiboScalePercentToPixelSteps(clamped)
     }
 
     static func snapAiboScalePercentToPixelSteps(

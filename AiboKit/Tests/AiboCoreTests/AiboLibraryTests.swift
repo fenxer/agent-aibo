@@ -281,6 +281,125 @@ import Testing
     let file = try AiboLibraryCodec.decode(Data(json.utf8))
     #expect(file.records[0].installedAt == nil)
     #expect(file.records[0].installSource == nil)
+    #expect(file.records[0].bubblePlacement == .top)
+    #expect(file.records[0].bubbleDistance == AiboLibraryRecord.defaultBubbleDistance)
+    #expect(file.records[0].scalePercent == AiboLibraryRecord.defaultScalePercent)
+    #expect(file.records[0].pixelOptimizationEnabled == false)
+}
+
+@Test func aiboLibraryCodecOmitsDefaultBubbleLayout() throws {
+    let record = AiboLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+    let json = String(decoding: try AiboLibraryCodec.encode(AiboLibraryFile(
+        selectedID: record.id,
+        records: [record]
+    )), as: UTF8.self)
+    #expect(!json.contains("bubblePlacement"))
+    #expect(!json.contains("bubbleDistance"))
+    #expect(!json.contains("scalePercent"))
+    #expect(!json.contains("pixelOptimizationEnabled"))
+}
+
+@Test func aiboLibraryCodecPreservesCustomBubbleLayout() throws {
+    var record = AiboLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+    record.bubblePlacement = .right
+    record.bubbleDistance = -12
+    let roundTrip = try AiboLibraryCodec.decode(AiboLibraryCodec.encode(
+        AiboLibraryFile(selectedID: record.id, records: [record])
+    ))
+    #expect(roundTrip.records[0].bubblePlacement == .right)
+    #expect(roundTrip.records[0].bubbleDistance == -12)
+}
+
+@Test func aiboLibraryPersistableRecordsKeepsBuiltInWithCustomBubbleLayout() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.bubblePlacement = .left
+    builtIn.bubbleDistance = -8
+    let boba = AiboLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+    let persisted = AiboLibraryCodec.persistableRecords(from: [builtIn, boba])
+    #expect(persisted.map(\.id) == [AiboLibraryDefaults.builtInID, "petdex.boba"])
+    #expect(persisted[0].bubblePlacement == .left)
+    #expect(persisted[0].bubbleDistance == -8)
+}
+
+@Test func aiboLibrarySnapshotRestoresBuiltInBubbleLayout() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.bubblePlacement = .bottom
+    builtIn.bubbleDistance = 18
+    let file = AiboLibraryFile(
+        selectedID: AiboLibraryDefaults.builtInID,
+        records: [builtIn]
+    )
+    let snap = AiboLibraryCodec.snapshot(from: file)
+    #expect(snap.records.first?.bubblePlacement == .bottom)
+    #expect(snap.records.first?.bubbleDistance == 18)
+}
+
+@Test func aiboLibraryCodecPreservesCustomScaleAndPixelOptimization() throws {
+    var record = AiboLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+    record.scalePercent = 200
+    record.pixelOptimizationEnabled = true
+    let roundTrip = try AiboLibraryCodec.decode(AiboLibraryCodec.encode(
+        AiboLibraryFile(selectedID: record.id, records: [record])
+    ))
+    #expect(roundTrip.records[0].scalePercent == 200)
+    #expect(roundTrip.records[0].pixelOptimizationEnabled == true)
+}
+
+@Test func aiboLibraryPersistableRecordsKeepsBuiltInWithCustomScale() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.scalePercent = 150
+    let boba = AiboLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+    let persisted = AiboLibraryCodec.persistableRecords(from: [builtIn, boba])
+    #expect(persisted.map(\.id) == [AiboLibraryDefaults.builtInID, "petdex.boba"])
+    #expect(persisted[0].scalePercent == 150)
+    #expect(persisted[0].pixelOptimizationEnabled == false)
+}
+
+@Test func aiboLibraryPersistableRecordsKeepsBuiltInWithPixelOptimization() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.pixelOptimizationEnabled = true
+    let persisted = AiboLibraryCodec.persistableRecords(from: [builtIn])
+    #expect(persisted.map(\.id) == [AiboLibraryDefaults.builtInID])
+    #expect(persisted[0].pixelOptimizationEnabled == true)
+    #expect(persisted[0].scalePercent == AiboLibraryRecord.defaultScalePercent)
+}
+
+@Test func aiboLibrarySnapshotRestoresBuiltInScaleAndPixelOptimization() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.scalePercent = 50
+    builtIn.pixelOptimizationEnabled = true
+    let file = AiboLibraryFile(
+        selectedID: AiboLibraryDefaults.builtInID,
+        records: [builtIn]
+    )
+    let snap = AiboLibraryCodec.snapshot(from: file)
+    #expect(snap.records.first?.scalePercent == 50)
+    #expect(snap.records.first?.pixelOptimizationEnabled == true)
 }
 
 @Test func aiboLibraryOrderingPutsNewestInstallFirst() {

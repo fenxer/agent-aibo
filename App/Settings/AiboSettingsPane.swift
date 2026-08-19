@@ -39,7 +39,17 @@ private struct AiboSettingsRootView: View {
         Form {
             AiboPreviewAndSelectionSection(library: library)
 
-            AiboConfigurationSection(settings: settings, record: library.selectedRecord)
+            AiboConfigurationSection(
+                record: library.selectedRecord,
+                pixelOptimizationEnabled: Binding(
+                    get: { library.selectedRecord.pixelOptimizationEnabled },
+                    set: { library.setPixelOptimizationEnabled($0) }
+                ),
+                scalePercent: Binding(
+                    get: { library.selectedRecord.scalePercent },
+                    set: { library.setScalePercent($0) }
+                )
+            )
 
             AiboWindowBehaviorSection(settings: settings)
 
@@ -196,10 +206,10 @@ private struct AiboPreviewBanner: View {
                     record: record,
                     activity: .idle,
                     spriteState: .idle,
-                    size: 96,
+                    size: 120,
                     pixelLayout: .fillWidth
                 )
-                .id("\(record.id)-\(AppSettings.shared.pixelOptimizationEnabled)")
+                .id("\(record.id)-\(record.pixelOptimizationEnabled)")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
@@ -411,12 +421,13 @@ private struct AiboNameMarquee: View {
 }
 
 private struct AiboConfigurationSection: View {
-    @Bindable var settings: AppSettings
     var record: AiboLibraryRecord
+    var pixelOptimizationEnabled: Binding<Bool>
+    var scalePercent: Binding<Double>
 
     var body: some View {
         Section {
-            Toggle(isOn: $settings.pixelOptimizationEnabled) {
+            Toggle(isOn: pixelOptimizationEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Pixel Optimization"))
                     Text(String(localized: "Note: Turn off for non-pixel-art images"))
@@ -427,9 +438,9 @@ private struct AiboConfigurationSection: View {
             .toggleStyle(VerticallyCenteredSwitchToggleStyle())
 
             AiboSizeRow(
-                percent: $settings.aiboScalePercent,
+                percent: scalePercent,
                 percentRange: AppSettings.aiboScalePercentRange,
-                usesPixelSteps: settings.pixelOptimizationEnabled,
+                usesPixelSteps: record.pixelOptimizationEnabled,
                 record: record
             )
         }
@@ -484,16 +495,21 @@ private struct AiboSizeRow: View {
                         }
                     }
 
-                    TextField(
-                        String(localized: "Aibo Size"),
-                        value: percentIntBinding,
-                        format: AiboScalePercentFormat()
-                    )
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .frame(width: 64)
+                    HStack(spacing: 6) {
+                        TextField(
+                            String(localized: "Aibo Size"),
+                            value: percentIntBinding,
+                            format: .number.grouping(.never)
+                        )
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 64)
+
+                        Text(verbatim: "%")
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -957,24 +973,5 @@ private struct AllPetsSubtitle: View {
             }
             return String(localized: "PetDex")
         }
-    }
-}
-
-private struct AiboScalePercentFormat: ParseableFormatStyle {
-    var parseStrategy = AiboScalePercentParseStrategy()
-
-    func format(_ value: Int) -> String {
-        "\(value)%"
-    }
-}
-
-private struct AiboScalePercentParseStrategy: ParseStrategy {
-    func parse(_ value: String) throws -> Int {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let numberPart = trimmed.hasSuffix("%") ? String(trimmed.dropLast()) : trimmed
-        guard let parsed = Int(numberPart.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            throw CocoaError.error(.formatting)
-        }
-        return parsed
     }
 }

@@ -14,6 +14,11 @@ public enum AiboKind: String, Codable, Sendable, Equatable {
 
 /// One selectable aibo appearance. Built-in is synthesized; others come from disk.
 public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Hashable {
+    public static let defaultBubbleDistance: Double = 6
+    public static let bubbleDistanceRange: ClosedRange<Double> = -40...40
+    public static let defaultScalePercent: Double = 100
+    public static let scalePercentRange: ClosedRange<Double> = 0...300
+
     public var id: String
     public var kind: AiboKind
     public var displayName: String
@@ -27,6 +32,24 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
     public var installedAt: Date?
     /// Origin shown in All Aibos. Petdex: page URL. Local image: nil (UI shows Local).
     public var installSource: String?
+    /// Per-aibo bubble side. Default `.top`; omitted in older `library.json`.
+    public var bubblePlacement: BubblePlacement
+    /// Per-aibo gap to the bubble, in points. Default 6; omitted in older `library.json`.
+    public var bubbleDistance: Double
+    /// Per-aibo size as a percent of the 96pt base. Default 100; omitted in older `library.json`.
+    public var scalePercent: Double
+    /// Per-aibo integer-scale pixel-art display. Default off; omitted in older `library.json`.
+    public var pixelOptimizationEnabled: Bool
+
+    public var hasCustomAppearance: Bool {
+        hasCustomBubbleLayout
+            || scalePercent != Self.defaultScalePercent
+            || pixelOptimizationEnabled
+    }
+
+    public var hasCustomBubbleLayout: Bool {
+        bubblePlacement != .top || bubbleDistance != Self.defaultBubbleDistance
+    }
 
     public init(
         id: String,
@@ -37,7 +60,11 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
         spriteFileName: String? = nil,
         spriteVersionNumber: Int? = nil,
         installedAt: Date? = nil,
-        installSource: String? = nil
+        installSource: String? = nil,
+        bubblePlacement: BubblePlacement = .top,
+        bubbleDistance: Double = defaultBubbleDistance,
+        scalePercent: Double = defaultScalePercent,
+        pixelOptimizationEnabled: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -48,6 +75,89 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
         self.spriteVersionNumber = spriteVersionNumber
         self.installedAt = installedAt
         self.installSource = installSource
+        self.bubblePlacement = bubblePlacement
+        self.bubbleDistance = Self.clampedBubbleDistance(bubbleDistance)
+        self.scalePercent = Self.clampedScalePercent(scalePercent)
+        self.pixelOptimizationEnabled = pixelOptimizationEnabled
+    }
+
+    public static func clampedBubbleDistance(_ value: Double) -> Double {
+        min(max(value.rounded(), bubbleDistanceRange.lowerBound), bubbleDistanceRange.upperBound)
+    }
+
+    public static func clampedScalePercent(_ value: Double) -> Double {
+        min(max(value.rounded(), scalePercentRange.lowerBound), scalePercentRange.upperBound)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case kind
+        case displayName
+        case relativePath
+        case slug
+        case spriteFileName
+        case spriteVersionNumber
+        case installedAt
+        case installSource
+        case bubblePlacement
+        case bubbleDistance
+        case scalePercent
+        case pixelOptimizationEnabled
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        kind = try container.decode(AiboKind.self, forKey: .kind)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        relativePath = try container.decode(String.self, forKey: .relativePath)
+        slug = try container.decodeIfPresent(String.self, forKey: .slug)
+        spriteFileName = try container.decodeIfPresent(String.self, forKey: .spriteFileName)
+        spriteVersionNumber = try container.decodeIfPresent(Int.self, forKey: .spriteVersionNumber)
+        installedAt = try container.decodeIfPresent(Date.self, forKey: .installedAt)
+        installSource = try container.decodeIfPresent(String.self, forKey: .installSource)
+        if let raw = try container.decodeIfPresent(String.self, forKey: .bubblePlacement) {
+            bubblePlacement = BubblePlacement(rawValue: raw) ?? .top
+        } else {
+            bubblePlacement = .top
+        }
+        if let distance = try container.decodeIfPresent(Double.self, forKey: .bubbleDistance) {
+            bubbleDistance = Self.clampedBubbleDistance(distance)
+        } else {
+            bubbleDistance = Self.defaultBubbleDistance
+        }
+        if let percent = try container.decodeIfPresent(Double.self, forKey: .scalePercent) {
+            scalePercent = Self.clampedScalePercent(percent)
+        } else {
+            scalePercent = Self.defaultScalePercent
+        }
+        pixelOptimizationEnabled =
+            try container.decodeIfPresent(Bool.self, forKey: .pixelOptimizationEnabled) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encode(relativePath, forKey: .relativePath)
+        try container.encodeIfPresent(slug, forKey: .slug)
+        try container.encodeIfPresent(spriteFileName, forKey: .spriteFileName)
+        try container.encodeIfPresent(spriteVersionNumber, forKey: .spriteVersionNumber)
+        try container.encodeIfPresent(installedAt, forKey: .installedAt)
+        try container.encodeIfPresent(installSource, forKey: .installSource)
+        if bubblePlacement != .top {
+            try container.encode(bubblePlacement, forKey: .bubblePlacement)
+        }
+        if bubbleDistance != Self.defaultBubbleDistance {
+            try container.encode(bubbleDistance, forKey: .bubbleDistance)
+        }
+        if scalePercent != Self.defaultScalePercent {
+            try container.encode(scalePercent, forKey: .scalePercent)
+        }
+        if pixelOptimizationEnabled {
+            try container.encode(true, forKey: .pixelOptimizationEnabled)
+        }
     }
 
     public static var builtInDefault: AiboLibraryRecord {
@@ -65,7 +175,7 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
     }
 }
 
-/// On-disk `library.json` shape. Does not include the built-in default unless renamed.
+/// On-disk `library.json` shape. Built-in Default is included when renamed or its bubble layout is custom.
 public struct AiboLibraryFile: Codable, Sendable, Equatable {
     public var selectedID: String
     public var records: [AiboLibraryRecord]
@@ -124,10 +234,14 @@ public enum AiboLibraryCodec {
         from file: AiboLibraryFile
     ) -> (selectedID: String, records: [AiboLibraryRecord], builtInHidden: Bool) {
         var builtIn = AiboLibraryRecord.builtInDefault
-        if let saved = file.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }),
-           let name = AiboLibraryNaming.normalizedDisplayName(saved.displayName)
-        {
-            builtIn.displayName = name
+        if let saved = file.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }) {
+            if let name = AiboLibraryNaming.normalizedDisplayName(saved.displayName) {
+                builtIn.displayName = name
+            }
+            builtIn.bubblePlacement = saved.bubblePlacement
+            builtIn.bubbleDistance = saved.bubbleDistance
+            builtIn.scalePercent = saved.scalePercent
+            builtIn.pixelOptimizationEnabled = saved.pixelOptimizationEnabled
         }
         var records: [AiboLibraryRecord] = []
         var hidden = file.builtInHidden
@@ -152,16 +266,21 @@ public enum AiboLibraryCodec {
         return (selected, records, hidden)
     }
 
-    /// Records written to `library.json`. Built-in is included only when renamed.
+    /// Records written to `library.json`. Built-in is included when renamed or when appearance is custom.
     public static func persistableRecords(from records: [AiboLibraryRecord]) -> [AiboLibraryRecord] {
         var persisted = records.filter { $0.kind != .builtInDefault }
-        if let builtIn = records.first(where: { $0.id == AiboLibraryDefaults.builtInID }),
-           let name = AiboLibraryNaming.normalizedDisplayName(builtIn.displayName),
-           name != AiboLibraryDefaults.builtInDisplayName
-        {
-            var saved = AiboLibraryRecord.builtInDefault
-            saved.displayName = name
-            persisted.insert(saved, at: 0)
+        if let builtIn = records.first(where: { $0.id == AiboLibraryDefaults.builtInID }) {
+            let customName = AiboLibraryNaming.normalizedDisplayName(builtIn.displayName)
+                .map { $0 != AiboLibraryDefaults.builtInDisplayName } ?? false
+            if customName || builtIn.hasCustomAppearance {
+                var saved = AiboLibraryRecord.builtInDefault
+                saved.displayName = builtIn.displayName
+                saved.bubblePlacement = builtIn.bubblePlacement
+                saved.bubbleDistance = builtIn.bubbleDistance
+                saved.scalePercent = builtIn.scalePercent
+                saved.pixelOptimizationEnabled = builtIn.pixelOptimizationEnabled
+                persisted.insert(saved, at: 0)
+            }
         }
         return persisted
     }

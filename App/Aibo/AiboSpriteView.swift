@@ -32,7 +32,7 @@ struct AiboSpriteView: View {
     }
 
     private var usesPixelOptimization: Bool {
-        AppSettings.shared.pixelOptimizationEnabled && record.kind != .builtInDefault
+        record.pixelOptimizationEnabled && record.kind != .builtInDefault
     }
 
     private var spriteSize: CGSize {

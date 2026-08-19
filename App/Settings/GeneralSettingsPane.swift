@@ -9,7 +9,8 @@ struct GeneralSettingsPane: View {
         Form {
             GeneralPreviewSection(
                 themeMode: settings.themeMode,
-                placement: settings.bubblePlacement,
+                placement: library.selectedRecord.bubblePlacement,
+                bubbleDistance: library.selectedRecord.bubbleDistance,
                 record: library.selectedRecord
             )
 
@@ -17,7 +18,16 @@ struct GeneralSettingsPane: View {
 
             GeneralMusicSection(settings: settings)
 
-            GeneralBubbleSection(placement: $settings.bubblePlacement)
+            GeneralBubbleSection(
+                placement: Binding(
+                    get: { library.selectedRecord.bubblePlacement },
+                    set: { library.setBubblePlacement($0) }
+                ),
+                distance: Binding(
+                    get: { library.selectedRecord.bubbleDistance },
+                    set: { library.setBubbleDistance($0) }
+                )
+            )
 
             GeneralActionSection()
         }
@@ -30,6 +40,7 @@ struct GeneralSettingsPane: View {
 private struct GeneralPreviewSection: View {
     var themeMode: AppThemeMode
     var placement: BubblePlacement
+    var bubbleDistance: Double
     var record: AiboLibraryRecord
 
     var body: some View {
@@ -37,6 +48,7 @@ private struct GeneralPreviewSection: View {
             GeneralPreview(
                 themeMode: themeMode,
                 placement: placement,
+                bubbleDistance: bubbleDistance,
                 record: record
             )
             .listRowInsets(EdgeInsets())
@@ -48,16 +60,55 @@ private struct GeneralPreviewSection: View {
 private struct GeneralPreview: View {
     var themeMode: AppThemeMode
     var placement: BubblePlacement
+    var bubbleDistance: Double
     var record: AiboLibraryRecord
 
     @Environment(\.colorScheme) private var systemColorScheme
+    @Environment(\.displayScale) private var displayScale
     @Bindable private var settings = AppSettings.shared
     @State private var floatingNotes: [FloatingMusicNote] = []
     @State private var burstTask: Task<Void, Never>?
     @State private var colorBurstTask: Task<Void, Never>?
 
-    private let aiboSize: CGFloat = 80
-    private let spacing: CGFloat = 6
+    /// Preview slot; desktop is `basePointSize` × Aibo Size. Distance is scaled to this ratio.
+    private let aiboNominalSize: CGFloat = 80
+
+    private var previewAiboLayoutSize: CGSize {
+        AiboSpriteDisplay.desktopSize(
+            for: record,
+            nominal: aiboNominalSize,
+            backingScale: displayScale
+        )
+    }
+
+    private var desktopAiboLayoutSize: CGSize {
+        AiboSpriteDisplay.desktopSize(
+            for: record,
+            nominal: AiboSpriteDisplay.basePointSize
+                * CGFloat(record.scalePercent / 100),
+            backingScale: displayScale
+        )
+    }
+
+    /// Same point distance would over-eat a smaller preview sprite (transparent padding scales with size).
+    private var spacing: CGFloat {
+        let previewSpan: CGFloat
+        let desktopSpan: CGFloat
+        switch placement {
+        case .top, .bottom:
+            previewSpan = previewAiboLayoutSize.height
+            desktopSpan = desktopAiboLayoutSize.height
+        case .left, .right:
+            previewSpan = previewAiboLayoutSize.width
+            desktopSpan = desktopAiboLayoutSize.width
+        }
+        guard desktopSpan > 0 else { return CGFloat(bubbleDistance) }
+        return CGFloat(bubbleDistance) * (previewSpan / desktopSpan)
+    }
+
+    private var aiboSize: CGFloat {
+        max(previewAiboLayoutSize.width, previewAiboLayoutSize.height)
+    }
 
     var body: some View {
         ZStack {
@@ -117,12 +168,12 @@ private struct GeneralPreview: View {
                 previewBubble
             }
         case .left:
-            HStack(spacing: spacing) {
+            HStack(alignment: .center, spacing: spacing) {
                 previewBubble
                 previewPet
             }
         case .right:
-            HStack(spacing: spacing) {
+            HStack(alignment: .center, spacing: spacing) {
                 previewPet
                 previewBubble
             }
@@ -142,7 +193,8 @@ private struct GeneralPreview: View {
                 record: record,
                 activity: .idle,
                 spriteState: .idle,
-                size: aiboSize
+                size: aiboNominalSize,
+                pixelLayout: .fillWidth
             )
             ForEach(floatingNotes) { note in
                 FloatingMusicNoteView(
@@ -362,6 +414,7 @@ private struct VerticallyCenteredLabeledContentStyle: LabeledContentStyle {
 
 private struct GeneralBubbleSection: View {
     @Binding var placement: BubblePlacement
+    @Binding var distance: Double
 
     var body: some View {
         Section {
@@ -371,9 +424,65 @@ private struct GeneralBubbleSection: View {
                 }
             }
             .pickerStyle(.menu)
+
+            BubbleDistanceRow(
+                distance: $distance,
+                range: AiboLibraryRecord.bubbleDistanceRange
+            )
         } header: {
             Text(String(localized: "Bubble"))
         }
+    }
+}
+
+private struct BubbleDistanceRow: View {
+    @Binding var distance: Double
+    var range: ClosedRange<Double>
+
+    private static let tickDistances: [Double] = [-40, -20, 0, 20, 40]
+
+    var body: some View {
+        LabeledContent(String(localized: "Distance")) {
+            HStack(spacing: 12) {
+                Slider(value: roundedDistanceBinding, in: range) {
+                    EmptyView()
+                } ticks: {
+                    SliderTickContentForEach(Self.tickDistances, id: \.self) { value in
+                        SliderTick(value)
+                    }
+                }
+
+                HStack(spacing: 6) {
+                    TextField(
+                        String(localized: "Distance"),
+                        value: distanceIntBinding,
+                        format: .number.grouping(.never)
+                    )
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 64)
+
+                    Text(verbatim: "pt")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var roundedDistanceBinding: Binding<Double> {
+        Binding(
+            get: { distance },
+            set: { distance = $0.rounded() }
+        )
+    }
+
+    private var distanceIntBinding: Binding<Int> {
+        Binding(
+            get: { Int(distance.rounded()) },
+            set: { distance = Double($0) }
+        )
     }
 }
 
@@ -402,7 +511,7 @@ private struct GeneralActionSection: View {
             }
             .toggleStyle(VerticallyCenteredSwitchToggleStyle())
         } header: {
-            Text(String(localized: "Action"))
+            Text(String(localized: "Extra Action"))
         }
     }
 

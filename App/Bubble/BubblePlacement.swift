@@ -1,23 +1,7 @@
 import SwiftUI
+import AiboCore
 
-/// Where the status bubble sits relative to the aibo image.
-enum BubblePlacement: String, CaseIterable, Identifiable, Sendable, Hashable {
-    case top
-    case bottom
-    case left
-    case right
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .top: String(localized: "Up")
-        case .bottom: String(localized: "Down")
-        case .left: String(localized: "Left")
-        case .right: String(localized: "Right")
-        }
-    }
-
+extension BubblePlacement {
     /// Edge of the bubble that should show the popover arrow (toward the aibo).
     var arrowEdge: Edge {
         switch self {

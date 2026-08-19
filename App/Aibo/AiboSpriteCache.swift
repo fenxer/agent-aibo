@@ -93,9 +93,17 @@ final class AiboSpriteCache {
         if let cached = pet.framesByState[state], !cached.isEmpty {
             return cached
         }
-        let loaded = restoreFrames(loadStateFrames(state, pet: pet), pet: &pet)
+        let loaded = restoreFrames(
+            loadStateFrames(state, pet: pet),
+            pet: &pet,
+            pixelOptimizationEnabled: record.pixelOptimizationEnabled
+        )
         let frames = loaded.isEmpty
-            ? restoreFrames(loadStateFrames(.idle, pet: pet), pet: &pet)
+            ? restoreFrames(
+                loadStateFrames(.idle, pet: pet),
+                pet: &pet,
+                pixelOptimizationEnabled: record.pixelOptimizationEnabled
+            )
             : loaded
         guard !frames.isEmpty else { return [] }
         pet.framesByState[state] = frames
@@ -124,7 +132,11 @@ final class AiboSpriteCache {
             return cached
         }
         guard let raw = loadLookFrame(index, pet: pet) else { return nil }
-        let frame = restoreFrames([raw], pet: &pet).first ?? raw
+        let frame = restoreFrames(
+            [raw],
+            pet: &pet,
+            pixelOptimizationEnabled: record.pixelOptimizationEnabled
+        ).first ?? raw
         pet.lookByIndex = [index: frame]
         pets[record.id] = pet
         return frame
@@ -135,7 +147,7 @@ final class AiboSpriteCache {
         guard let url = AiboLibraryStore.shared.artworkURL(for: record),
               var image = NSImage(contentsOf: url)
         else { return nil }
-        if AppSettings.shared.pixelOptimizationEnabled,
+        if record.pixelOptimizationEnabled,
            let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         {
             let restored = PixelArtGridRestorer.restore(cgImage) ?? cgImage
@@ -156,7 +168,11 @@ final class AiboSpriteCache {
         if let manifest = AiboSpritePack.loadManifest(in: directory),
            AiboSpritePack.isComplete(manifest, in: directory)
         {
-            let cached = loadConvertedPet(directory: directory, manifest: manifest)
+            let cached = loadConvertedPet(
+                directory: directory,
+                manifest: manifest,
+                pixelOptimizationEnabled: record.pixelOptimizationEnabled
+            )
             pets[record.id] = cached
             return cached
         }
@@ -165,14 +181,19 @@ final class AiboSpriteCache {
             in: directory,
             preferredFileName: record.spriteFileName
         ) else { return nil }
-        let cached = loadUnconvertedPreview(directory: directory, atlasURL: atlasURL)
+        let cached = loadUnconvertedPreview(
+            directory: directory,
+            atlasURL: atlasURL,
+            pixelOptimizationEnabled: record.pixelOptimizationEnabled
+        )
         pets[record.id] = cached
         return cached
     }
 
     private func loadConvertedPet(
         directory: URL,
-        manifest: AiboSpritePackManifest
+        manifest: AiboSpritePackManifest,
+        pixelOptimizationEnabled: Bool
     ) -> CachedPet {
         var cached = CachedPet(
             directory: directory,
@@ -183,7 +204,8 @@ final class AiboSpriteCache {
         )
         let idleFrames = restoreFrames(
             loadClipFrames(manifest: manifest, directory: directory, state: .idle),
-            pet: &cached
+            pet: &cached,
+            pixelOptimizationEnabled: pixelOptimizationEnabled
         )
         if let previewSource = idleFrames.first {
             cached.preview = NSImage(
@@ -197,7 +219,11 @@ final class AiboSpriteCache {
         return cached
     }
 
-    private func loadUnconvertedPreview(directory: URL, atlasURL: URL) -> CachedPet {
+    private func loadUnconvertedPreview(
+        directory: URL,
+        atlasURL: URL,
+        pixelOptimizationEnabled: Bool
+    ) -> CachedPet {
         guard let decoded = loadCGImage(url: atlasURL),
               let atlas = detachedBitmap(decoded)
         else {
@@ -237,7 +263,11 @@ final class AiboSpriteCache {
             lookSupported: layout.supportsLookDirections,
             preview: NSImage(size: .zero)
         )
-        let restoredIdle = restoreFrames([idle], pet: &cached)
+        let restoredIdle = restoreFrames(
+            [idle],
+            pet: &cached,
+            pixelOptimizationEnabled: pixelOptimizationEnabled
+        )
         let previewSource = restoredIdle.first ?? idle
         cached.preview = NSImage(
             cgImage: previewSource,
@@ -319,8 +349,12 @@ final class AiboSpriteCache {
         return frames
     }
 
-    private func restoreFrames(_ frames: [CGImage], pet: inout CachedPet) -> [CGImage] {
-        guard AppSettings.shared.pixelOptimizationEnabled, !frames.isEmpty else { return frames }
+    private func restoreFrames(
+        _ frames: [CGImage],
+        pet: inout CachedPet,
+        pixelOptimizationEnabled: Bool
+    ) -> [CGImage] {
+        guard pixelOptimizationEnabled, !frames.isEmpty else { return frames }
         switch pet.gridRestore {
         case .pending:
             if let first = frames.first,

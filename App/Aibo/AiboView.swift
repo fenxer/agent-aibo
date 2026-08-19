@@ -7,7 +7,7 @@ struct AiboView: View {
     var bubbleItemsOverride: [StatusBubbleItem]? = nil
     /// Preview / test override; `nil` reads `AppSettings.shared`.
     var placementOverride: BubblePlacement? = nil
-    /// Preview / test override; `nil` derives from `AppSettings.shared.aiboScalePercent`.
+    /// Preview / test override; `nil` derives from the selected aibo's `scalePercent`.
     var aiboSizeOverride: CGFloat? = nil
 
     @State private var panelController = AiboPanelController.shared
@@ -21,7 +21,9 @@ struct AiboView: View {
     @Environment(\.displayScale) private var displayScale
 
     private let stackSpacing: CGFloat = 4
-    private let aiboBubbleSpacing: CGFloat = 6
+    private var aiboBubbleSpacing: CGFloat {
+        CGFloat(library.selectedRecord.bubbleDistance)
+    }
     private let baseAiboSize: CGFloat = 96
     private var bubbleItems: [StatusBubbleItem] {
         bubbleItemsOverride ?? runtime.bubbleItems
@@ -62,11 +64,11 @@ struct AiboView: View {
     }
 
     private var placement: BubblePlacement {
-        placementOverride ?? AppSettings.shared.bubblePlacement
+        placementOverride ?? library.selectedRecord.bubblePlacement
     }
 
     private var aiboNominalSize: CGFloat {
-        aiboSizeOverride ?? baseAiboSize * CGFloat(AppSettings.shared.aiboScalePercent / 100)
+        aiboSizeOverride ?? baseAiboSize * CGFloat(library.selectedRecord.scalePercent / 100)
     }
 
     private var aiboLayoutSize: CGSize {
@@ -137,7 +139,7 @@ struct AiboView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         case .left:
-            HStack(alignment: .center, spacing: 0) {
+            HStack(alignment: .center, spacing: aiboBubbleSpacing) {
                 // Layout height = near-aibo bubble only; older bubbles grow upward.
                 fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
                 aiboImage
@@ -145,7 +147,7 @@ struct AiboView: View {
             // Bottom-align so upward bubble stack doesn't force empty panel below.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         case .right:
-            HStack(alignment: .center, spacing: 0) {
+            HStack(alignment: .center, spacing: aiboBubbleSpacing) {
                 aiboImage
                 fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
             }
@@ -302,7 +304,7 @@ struct AiboView: View {
                     lookDirection: displayLookDirection,
                     pixelLayout: .fillWidth
                 )
-                .id("\(library.selectedID)-\(AppSettings.shared.pixelOptimizationEnabled)")
+                .id("\(library.selectedID)-\(library.selectedRecord.pixelOptimizationEnabled)")
                 .scaleEffect(x: widen, y: squash, anchor: .bottom)
                 .offset(y: (1 - clamped) * -aiboLayoutSize.height * 1.35)
                 .contentShape(Rectangle())

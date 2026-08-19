@@ -130,7 +130,7 @@ private struct AiboActionPreviewCanvas: View {
         case .sprite(let state): selected = state.rawValue
         case .followMouse: selected = "follow-mouse"
         }
-        return "\(record.id)-\(selected)-\(AppSettings.shared.pixelOptimizationEnabled)"
+        return "\(record.id)-\(selected)-\(record.pixelOptimizationEnabled)"
     }
 
     /// Same 22.5° buckets and half-aibo deadzone as the desktop pet.

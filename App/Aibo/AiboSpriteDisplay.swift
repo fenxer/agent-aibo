@@ -46,7 +46,7 @@ enum AiboSpriteDisplay {
         layout: AiboSpritePixelLayout
     ) -> CGSize {
         let square = CGSize(width: nominal, height: nominal)
-        guard AppSettings.shared.pixelOptimizationEnabled,
+        guard record.pixelOptimizationEnabled,
               record.kind != .builtInDefault,
               nominal > 0,
               backingScale > 0,

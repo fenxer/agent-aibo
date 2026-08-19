@@ -51,7 +51,11 @@ final class AiboPanelController {
     private let bubbleEstimatedHeight: CGFloat = 88
     private let bubbleStackSpacing: CGFloat = 4
     /// Matches `AiboView.aiboBubbleSpacing` (aibo ↔ bubble stack gap).
-    private let aiboBubbleSpacing: CGFloat = 6
+    private var aiboBubbleSpacing: CGFloat {
+        CGFloat(AiboLibraryStore.shared.selectedRecord.bubbleDistance)
+    }
+    /// Extra panel slack beyond the configured gap so estimated bubble height can undershoot.
+    private let panelBubbleSlack: CGFloat = 14
     private let bubbleContentPadding: CGFloat = 12
     private let bubbleHeaderLineHeight: CGFloat = 15
     private let bubbleSectionSpacing: CGFloat = 12
@@ -350,7 +354,7 @@ final class AiboPanelController {
         guard let panel, !isPetDragging else { return }
 
         let items = AiboRuntime.shared.bubbleItems
-        let placement = AppSettings.shared.bubblePlacement
+        let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
         let aiboSize = currentAiboSize
         let bubbleCount = items.count
 
@@ -425,7 +429,7 @@ final class AiboPanelController {
     private var currentAiboSize: CGSize {
         AiboSpriteDisplay.desktopSize(
             for: AiboLibraryStore.shared.selectedRecord,
-            nominal: baseAiboSize * CGFloat(AppSettings.shared.aiboScalePercent / 100),
+            nominal: baseAiboSize * CGFloat(AiboLibraryStore.shared.selectedRecord.scalePercent / 100),
             backingScale: spriteBackingScale
         )
     }
@@ -445,7 +449,7 @@ final class AiboPanelController {
         placement: BubblePlacement,
         bubbleCount: Int
     ) -> NSRect {
-        guard AppSettings.shared.pixelOptimizationEnabled else { return frame }
+        guard AiboLibraryStore.shared.selectedRecord.pixelOptimizationEnabled else { return frame }
         let scale = spriteBackingScale
         guard scale > 0 else { return frame }
         let origin = aiboOrigin(
@@ -466,7 +470,7 @@ final class AiboPanelController {
     }
 
     private func makePanel() -> AiboPanel {
-        let placement = AppSettings.shared.bubblePlacement
+        let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
         let items = AiboRuntime.shared.bubbleItems
         let aiboSize = currentAiboSize
         let initialSize = panelSize(items: items, aiboSize: aiboSize, placement: placement)
@@ -539,7 +543,7 @@ final class AiboPanelController {
         case .top, .bottom:
             return NSSize(
                 width: max(aiboBlockWidth, bubbleMaxWidth + insets.horizontal),
-                height: max(aiboBlockHeight + stackHeight + 20, 1)
+                height: max(aiboBlockHeight + stackHeight + aiboBubbleSpacing + panelBubbleSlack, 1)
             )
         case .left, .right:
             // Near-pet bubble centered with pet; older bubbles grow upward.
@@ -552,7 +556,7 @@ final class AiboPanelController {
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
             let rowHeight = max(aiboSize.height, nearHeight)
             return NSSize(
-                width: max(aiboBlockWidth + bubbleMaxWidth + 20, 1),
+                width: max(aiboBlockWidth + bubbleMaxWidth + aiboBubbleSpacing + panelBubbleSlack, 1),
                 height: max(insets.vertical + rowHeight + stackAbove, 1)
             )
         }
@@ -643,7 +647,7 @@ final class AiboPanelController {
             let y = origin.y - aiboBubbleSpacing - stackHeight
             return [CGRect(x: x, y: y, width: width, height: stackHeight)]
         case .right:
-            let x = origin.x + aiboSize.width
+            let x = origin.x + aiboSize.width + aiboBubbleSpacing
             let width = min(bubbleMaxWidth, max(0, panelSize.width - x - insets.trailing))
             let nearHeight = heights.last ?? bubbleEstimatedHeight
             let aboveHeights = heights.dropLast()
@@ -654,8 +658,8 @@ final class AiboPanelController {
             let nearBottom = aiboCenterY - nearHeight / 2
             return [CGRect(x: x, y: nearBottom, width: width, height: nearHeight + stackAbove)]
         case .left:
-            let width = min(bubbleMaxWidth, max(0, origin.x - insets.leading))
-            let x = origin.x - width
+            let width = min(bubbleMaxWidth, max(0, origin.x - aiboBubbleSpacing - insets.leading))
+            let x = origin.x - aiboBubbleSpacing - width
             let nearHeight = heights.last ?? bubbleEstimatedHeight
             let aboveHeights = heights.dropLast()
             let stackAbove =

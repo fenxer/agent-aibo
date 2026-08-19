@@ -15,7 +15,7 @@ final class AiboLibraryStore {
 
     private let installer = PetdexInstaller()
     private var builtInHidden = false
-    private var persistedBuiltInDisplayName = AiboLibraryDefaults.builtInDisplayName
+    private var persistedBuiltInRecord = AiboLibraryRecord.builtInDefault
 
     var selectedRecord: AiboLibraryRecord {
         records.first(where: { $0.id == selectedID }) ?? .builtInDefault
@@ -70,6 +70,8 @@ final class AiboLibraryStore {
     private init() {
         AiboPaths.migrateLegacyLibraryDirectoryIfNeeded()
         reloadFromDisk()
+        migrateGlobalBubbleLayoutIfNeeded()
+        migrateGlobalAiboScaleIfNeeded()
         let selected = selectedRecord
         Task { await convertPetdexClipsIfNeeded(selected) }
     }
@@ -80,10 +82,82 @@ final class AiboLibraryStore {
         selectedID = snap.selectedID
         records = snap.records.map { backfillMetadata($0) }
         builtInHidden = snap.builtInHidden
-        persistedBuiltInDisplayName = savedBuiltInDisplayName(in: file) ?? snap.records
-            .first(where: { $0.id == AiboLibraryDefaults.builtInID })?
-            .displayName
-            ?? AiboLibraryDefaults.builtInDisplayName
+        if let saved = file.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }) {
+            persistedBuiltInRecord = savedBuiltInRecord(from: saved)
+        } else if let visible = snap.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }) {
+            persistedBuiltInRecord = visible
+        } else {
+            persistedBuiltInRecord = .builtInDefault
+        }
+    }
+
+    func setBubblePlacement(_ placement: BubblePlacement) {
+        guard let index = records.firstIndex(where: { $0.id == selectedID }) else { return }
+        guard records[index].bubblePlacement != placement else { return }
+        records[index].bubblePlacement = placement
+        if selectedID == AiboLibraryDefaults.builtInID {
+            persistedBuiltInRecord.bubblePlacement = placement
+        }
+        persist()
+        AiboPanelController.shared.refreshContent()
+    }
+
+    func setBubbleDistance(_ distance: Double) {
+        let clamped = AiboLibraryRecord.clampedBubbleDistance(distance)
+        guard let index = records.firstIndex(where: { $0.id == selectedID }) else { return }
+        guard records[index].bubbleDistance != clamped else { return }
+        records[index].bubbleDistance = clamped
+        if selectedID == AiboLibraryDefaults.builtInID {
+            persistedBuiltInRecord.bubbleDistance = clamped
+        }
+        persist()
+        AiboPanelController.shared.refreshContent()
+    }
+
+    func setScalePercent(_ percent: Double) {
+        guard let index = records.firstIndex(where: { $0.id == selectedID }) else { return }
+        var adjusted = AiboLibraryRecord.clampedScalePercent(percent)
+        if records[index].pixelOptimizationEnabled {
+            let steps = AiboSpriteDisplay.pixelOptimizationPercents(
+                for: records[index],
+                backingScale: NSScreen.main?.backingScaleFactor ?? 2
+            )
+            adjusted = AppSettings.snapAiboScalePercentToPixelSteps(adjusted, steps: steps)
+        }
+        guard records[index].scalePercent != adjusted else { return }
+        records[index].scalePercent = adjusted
+        if selectedID == AiboLibraryDefaults.builtInID {
+            persistedBuiltInRecord.scalePercent = adjusted
+        }
+        persist()
+        AiboPanelController.shared.updateHitTestImage()
+        AiboPanelController.shared.refreshContent()
+    }
+
+    func setPixelOptimizationEnabled(_ enabled: Bool) {
+        guard let index = records.firstIndex(where: { $0.id == selectedID }) else { return }
+        guard records[index].pixelOptimizationEnabled != enabled else { return }
+        records[index].pixelOptimizationEnabled = enabled
+        if enabled {
+            let steps = AiboSpriteDisplay.pixelOptimizationPercents(
+                for: records[index],
+                backingScale: NSScreen.main?.backingScaleFactor ?? 2
+            )
+            let snapped = AppSettings.snapAiboScalePercentToPixelSteps(
+                records[index].scalePercent,
+                steps: steps
+            )
+            records[index].scalePercent = snapped
+        }
+        if selectedID == AiboLibraryDefaults.builtInID {
+            persistedBuiltInRecord.pixelOptimizationEnabled = records[index].pixelOptimizationEnabled
+            persistedBuiltInRecord.scalePercent = records[index].scalePercent
+        }
+        persist()
+        AiboSpriteCache.shared.invalidateRecord(selectedID)
+        AiboAppearance.invalidateDominantColorCache()
+        AiboPanelController.shared.updateHitTestImage()
+        AiboPanelController.shared.refreshContent()
     }
 
     func select(id: String) {
@@ -115,7 +189,7 @@ final class AiboLibraryStore {
         }
         records[index].displayName = name
         if id == AiboLibraryDefaults.builtInID {
-            persistedBuiltInDisplayName = name
+            persistedBuiltInRecord.displayName = name
         }
         persist()
         return .renamed
@@ -270,7 +344,7 @@ final class AiboLibraryStore {
         let removeIDs = Set(toRemoveIDs)
         let toRemove = records.filter { removeIDs.contains($0.id) }
         if let builtIn = toRemove.first(where: { $0.id == AiboLibraryDefaults.builtInID }) {
-            persistedBuiltInDisplayName = builtIn.displayName
+            persistedBuiltInRecord = builtIn
             builtInHidden = true
         }
         records.removeAll { removeIDs.contains($0.id) }
@@ -352,6 +426,10 @@ final class AiboLibraryStore {
             let existing = records[index]
             merged.installedAt = existing.installedAt ?? record.installedAt
             merged.installSource = existing.installSource ?? record.installSource
+            merged.bubblePlacement = existing.bubblePlacement
+            merged.bubbleDistance = existing.bubbleDistance
+            merged.scalePercent = existing.scalePercent
+            merged.pixelOptimizationEnabled = existing.pixelOptimizationEnabled
             records[index] = merged
         } else {
             records.append(record)
@@ -387,19 +465,82 @@ final class AiboLibraryStore {
         return file
     }
 
-    private func savedBuiltInDisplayName(in file: AiboLibraryFile) -> String? {
-        guard let saved = file.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }) else {
-            return nil
+    private func savedBuiltInRecord(from saved: AiboLibraryRecord) -> AiboLibraryRecord {
+        var record = AiboLibraryRecord.builtInDefault
+        if let name = AiboLibraryNaming.normalizedDisplayName(saved.displayName) {
+            record.displayName = name
         }
-        return AiboLibraryNaming.normalizedDisplayName(saved.displayName)
+        record.bubblePlacement = saved.bubblePlacement
+        record.bubbleDistance = saved.bubbleDistance
+        record.scalePercent = saved.scalePercent
+        record.pixelOptimizationEnabled = saved.pixelOptimizationEnabled
+        return record
+    }
+
+    /// One-shot: copy the former global Position/Distance onto every existing aibo so the current look doesn't jump.
+    private func migrateGlobalBubbleLayoutIfNeeded() {
+        let defaults = UserDefaults.standard
+        let flag = "settings.migratedBubbleLayoutToLibrary"
+        guard defaults.object(forKey: flag) == nil else { return }
+
+        let placement = BubblePlacement(
+            rawValue: defaults.string(forKey: "settings.bubblePlacement") ?? ""
+        ) ?? .top
+        let distance: Double
+        if defaults.object(forKey: "settings.bubbleDistance") != nil {
+            distance = AiboLibraryRecord.clampedBubbleDistance(
+                defaults.double(forKey: "settings.bubbleDistance")
+            )
+        } else {
+            distance = AiboLibraryRecord.defaultBubbleDistance
+        }
+
+        let hasCustom = placement != .top || distance != AiboLibraryRecord.defaultBubbleDistance
+        if hasCustom {
+            for index in records.indices {
+                records[index].bubblePlacement = placement
+                records[index].bubbleDistance = distance
+            }
+            persistedBuiltInRecord.bubblePlacement = placement
+            persistedBuiltInRecord.bubbleDistance = distance
+            persist()
+        }
+        defaults.set(true, forKey: flag)
+    }
+
+    /// One-shot: copy the former global Aibo Size / Pixel Optimization onto every existing aibo.
+    private func migrateGlobalAiboScaleIfNeeded() {
+        let defaults = UserDefaults.standard
+        let flag = "settings.migratedAiboScaleToLibrary"
+        guard defaults.object(forKey: flag) == nil else { return }
+
+        let scaleKey = defaults.object(forKey: "settings.aiboScalePercent") != nil
+            ? "settings.aiboScalePercent"
+            : "settings.petScalePercent"
+        let scale: Double
+        if defaults.object(forKey: scaleKey) != nil {
+            scale = AiboLibraryRecord.clampedScalePercent(defaults.double(forKey: scaleKey))
+        } else {
+            scale = AiboLibraryRecord.defaultScalePercent
+        }
+        let pixelOpt = defaults.bool(forKey: "settings.pixelOptimizationEnabled")
+        let hasCustom = scale != AiboLibraryRecord.defaultScalePercent || pixelOpt
+        if hasCustom {
+            for index in records.indices {
+                records[index].scalePercent = scale
+                records[index].pixelOptimizationEnabled = pixelOpt
+            }
+            persistedBuiltInRecord.scalePercent = scale
+            persistedBuiltInRecord.pixelOptimizationEnabled = pixelOpt
+            persist()
+        }
+        defaults.set(true, forKey: flag)
     }
 
     private func persist() {
         var source = records
         if builtInHidden, !source.contains(where: { $0.id == AiboLibraryDefaults.builtInID }) {
-            var builtIn = AiboLibraryRecord.builtInDefault
-            builtIn.displayName = persistedBuiltInDisplayName
-            source.insert(builtIn, at: 0)
+            source.insert(persistedBuiltInRecord, at: 0)
         }
         let userRecords = AiboLibraryCodec.persistableRecords(from: source)
         let file = AiboLibraryFile(
