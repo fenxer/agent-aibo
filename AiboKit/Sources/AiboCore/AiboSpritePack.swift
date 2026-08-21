@@ -87,10 +87,50 @@ public struct AiboSpriteLookFrame: Codable, Sendable, Equatable {
 public enum AiboSpritePack: Sendable {
     public static let manifestFileName = "aibo.json"
     public static let clipsDirectoryName = "clips"
+    public static let bundledDefaultDirectoryName = "default-aibo"
 
     public static func directory(for record: AiboLibraryRecord) -> URL? {
-        guard record.kind == .petdex, !record.relativePath.isEmpty else { return nil }
-        return AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath, isDirectory: true)
+        switch record.kind {
+        case .builtInDefault:
+            return bundledDefaultDirectory()
+        case .petdex:
+            guard !record.relativePath.isEmpty else { return nil }
+            return AiboPaths.aibosDirectory.appendingPathComponent(
+                record.relativePath,
+                isDirectory: true
+            )
+        case .staticImage:
+            return nil
+        }
+    }
+
+    /// App copies `App/Aibo/default-aibo` into Resources. Tests have no such folder.
+    public static func bundledDefaultDirectory(bundle: Bundle = .main) -> URL? {
+        let subdirectories = [
+            bundledDefaultDirectoryName,
+            "Aibo/\(bundledDefaultDirectoryName)",
+        ]
+        for subdirectory in subdirectories {
+            if let url = bundle.url(
+                forResource: "aibo",
+                withExtension: "json",
+                subdirectory: subdirectory
+            ) {
+                let directory = url.deletingLastPathComponent()
+                if resolveExistingFile(named: "clips/idle.png", in: directory) != nil {
+                    return directory
+                }
+            }
+            if let root = bundle.resourceURL {
+                let candidate = root.appendingPathComponent(subdirectory, isDirectory: true)
+                if FileManager.default.fileExists(atPath: manifestURL(in: candidate).path),
+                   resolveExistingFile(named: "clips/idle.png", in: candidate) != nil
+                {
+                    return candidate
+                }
+            }
+        }
+        return nil
     }
 
     public static func manifestURL(in directory: URL) -> URL {

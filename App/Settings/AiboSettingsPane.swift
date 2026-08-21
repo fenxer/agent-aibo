@@ -645,8 +645,12 @@ private struct AllPetsSettingsView: View {
                         isSelecting: isSelecting,
                         isSelected: selectedIDs.contains(record.id),
                         onTap: { handleTap(record) },
-                        onRevealInFinder: { library.revealInFinder(record) },
-                        onDelete: { confirmDelete(ids: [record.id]) }
+                        onRevealInFinder: record.revealsOnDiskFolder
+                            ? { library.revealInFinder(record) }
+                            : nil,
+                        onDelete: record.canRemoveFromLibrary
+                            ? { confirmDelete(ids: [record.id]) }
+                            : nil
                     )
                 }
             }
@@ -745,6 +749,7 @@ private struct AllPetsSettingsView: View {
 
     private func handleTap(_ record: AiboLibraryRecord) {
         if isSelecting {
+            guard record.canRemoveFromLibrary else { return }
             if selectedIDs.contains(record.id) {
                 selectedIDs.remove(record.id)
             } else {
@@ -855,17 +860,23 @@ private struct AllPetsRow: View {
     var isSelecting: Bool
     var isSelected: Bool
     var onTap: () -> Void
-    var onRevealInFinder: () -> Void
-    var onDelete: () -> Void
+    var onRevealInFinder: (() -> Void)?
+    var onDelete: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Button(action: onTap) {
                 HStack(alignment: .center, spacing: 12) {
                     if isSelecting {
-                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
-                            .imageScale(.medium)
+                        if record.canRemoveFromLibrary {
+                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                                .imageScale(.medium)
+                        } else {
+                            Image(systemName: "circle")
+                                .imageScale(.medium)
+                                .hidden()
+                        }
                     }
 
                     AiboSpriteView(
@@ -889,23 +900,27 @@ private struct AllPetsRow: View {
             }
             .buttonStyle(.plain)
 
-            if !isSelecting {
+            if !isSelecting, onRevealInFinder != nil || onDelete != nil {
                 HStack(spacing: 24) {
-                    Button(action: onRevealInFinder) {
-                        Image(systemName: "folder")
+                    if let onRevealInFinder {
+                        Button(action: onRevealInFinder) {
+                            Image(systemName: "folder")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                        .help(String(localized: "Show in Finder"))
+                        .accessibilityLabel(String(localized: "Show \(record.displayName) in Finder"))
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-                    .help(String(localized: "Show in Finder"))
-                    .accessibilityLabel(String(localized: "Show \(record.displayName) in Finder"))
 
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
+                    if let onDelete {
+                        Button(action: onDelete) {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                        .help(String(localized: "Delete"))
+                        .accessibilityLabel(String(localized: "Delete \(record.displayName)"))
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-                    .help(String(localized: "Delete"))
-                    .accessibilityLabel(String(localized: "Delete \(record.displayName)"))
                 }
             }
         }
@@ -917,30 +932,31 @@ private struct AllPetsSubtitle: View {
     var occupiedBytes: Int64
 
     var body: some View {
-        HStack(spacing: 4) {
-            sizeText
-                .fixedSize(horizontal: true, vertical: false)
-            Text(verbatim: "·")
-                .fixedSize()
-            dateText
-                .fixedSize(horizontal: true, vertical: false)
-            Text(verbatim: "·")
-                .fixedSize()
-            Text(installSourceText)
-                .lineLimit(1)
-                .truncationMode(.tail)
+        Group {
+            if record.kind == .builtInDefault {
+                Text(String(localized: "Built-in"))
+            } else {
+                HStack(spacing: 4) {
+                    sizeText
+                        .fixedSize(horizontal: true, vertical: false)
+                    Text(verbatim: "·")
+                        .fixedSize()
+                    dateText
+                        .fixedSize(horizontal: true, vertical: false)
+                    Text(verbatim: "·")
+                        .fixedSize()
+                    Text(installSourceText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
     }
 
-    @ViewBuilder
     private var sizeText: some View {
-        if record.kind == .builtInDefault {
-            Text(verbatim: "—")
-        } else {
-            Text(occupiedBytes, format: .byteCount(style: .file))
-        }
+        Text(occupiedBytes, format: .byteCount(style: .file))
     }
 
     @ViewBuilder

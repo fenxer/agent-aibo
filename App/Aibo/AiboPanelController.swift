@@ -313,7 +313,6 @@ final class AiboPanelController {
 
     func updateHitTestImage() {
         let image = AiboSpriteCache.shared.previewImage(for: AiboLibraryStore.shared.selectedRecord)
-            ?? NSImage(named: "DefaultAibo")
         hostingView?.updateHitTestImage(image)
         AiboAppearance.invalidateDominantColorCache()
         #if DEBUG
@@ -507,7 +506,6 @@ final class AiboPanelController {
         let hostingView = PassThroughHostingView(
             rootView: AiboView(),
             hitTestImage: AiboSpriteCache.shared.previewImage(for: AiboLibraryStore.shared.selectedRecord)
-                ?? NSImage(named: "DefaultAibo")
         )
         hostingView.sizingOptions = []
         hostingView.clipsToBounds = false

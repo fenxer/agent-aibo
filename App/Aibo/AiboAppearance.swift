@@ -18,7 +18,7 @@ enum AiboAppearance {
     /// Dominant opaque color of the current aibo artwork (cached per aibo id).
     static func dominantColor(for record: AiboLibraryRecord) -> Color {
         if let cached = dominantColorCache[record.id] { return cached }
-        let image = AiboSpriteCache.shared.previewImage(for: record) ?? NSImage(named: "DefaultAibo")
+        let image = AiboSpriteCache.shared.previewImage(for: record)
         let nsColor = image.flatMap(DominantColorSampler.sample) ?? .systemPink
         let color = Color(nsColor: nsColor)
         dominantColorCache[record.id] = color

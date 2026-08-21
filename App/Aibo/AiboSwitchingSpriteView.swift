@@ -474,7 +474,6 @@ private enum AiboSwitchSnapshot {
         backingScale: CGFloat
     ) -> NSImage? {
         let source = AiboSpriteCache.shared.previewImage(for: record)
-            ?? NSImage(named: "DefaultAibo")
         guard let source,
               let cgImage = source.cgImage(forProposedRect: nil, context: nil, hints: nil),
               drawSize.width > 0,

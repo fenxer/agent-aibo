@@ -1,9 +1,16 @@
 import Foundation
 
-/// Built-in Asset Catalog aibo (`DefaultAibo`). Always available; never persisted.
+/// Built-in aibo (`builtin.default`). Artwork is the signed app-bundle `default-aibo` pack.
 public enum AiboLibraryDefaults {
     public static let builtInID = "builtin.default"
-    public static let builtInDisplayName = "Default"
+    public static let builtInDisplayName = "Poli"
+    /// Stock name before the bundled pet was Poli. Treated as unset on load.
+    public static let legacyBuiltInDisplayName = "Default"
+
+    public static func isStockDisplayName(_ name: String) -> Bool {
+        AiboLibraryNaming.displayNamesMatch(name, builtInDisplayName)
+            || AiboLibraryNaming.displayNamesMatch(name, legacyBuiltInDisplayName)
+    }
 }
 
 public enum AiboKind: String, Codable, Sendable, Equatable {
@@ -169,8 +176,18 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
         )
     }
 
-    /// Built-in Default has no on-disk files; hiding it only drops it from the list.
+    /// Built-in artwork is inside the signed app bundle. Hiding it only drops it from the list.
     public var removesOnDiskFiles: Bool {
+        kind != .builtInDefault
+    }
+
+    /// Finder reveal is only for user-installed files, never the app bundle.
+    public var revealsOnDiskFolder: Bool {
+        kind != .builtInDefault
+    }
+
+    /// Built-in Poli stays in the library; list delete and multi-select skip it.
+    public var canRemoveFromLibrary: Bool {
         kind != .builtInDefault
     }
 }
@@ -235,7 +252,9 @@ public enum AiboLibraryCodec {
     ) -> (selectedID: String, records: [AiboLibraryRecord], builtInHidden: Bool) {
         var builtIn = AiboLibraryRecord.builtInDefault
         if let saved = file.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }) {
-            if let name = AiboLibraryNaming.normalizedDisplayName(saved.displayName) {
+            if let name = AiboLibraryNaming.normalizedDisplayName(saved.displayName),
+               !AiboLibraryDefaults.isStockDisplayName(name)
+            {
                 builtIn.displayName = name
             }
             builtIn.bubblePlacement = saved.bubblePlacement
@@ -271,10 +290,12 @@ public enum AiboLibraryCodec {
         var persisted = records.filter { $0.kind != .builtInDefault }
         if let builtIn = records.first(where: { $0.id == AiboLibraryDefaults.builtInID }) {
             let customName = AiboLibraryNaming.normalizedDisplayName(builtIn.displayName)
-                .map { $0 != AiboLibraryDefaults.builtInDisplayName } ?? false
+                .map { !AiboLibraryDefaults.isStockDisplayName($0) } ?? false
             if customName || builtIn.hasCustomAppearance {
                 var saved = AiboLibraryRecord.builtInDefault
-                saved.displayName = builtIn.displayName
+                saved.displayName = customName
+                    ? builtIn.displayName
+                    : AiboLibraryDefaults.builtInDisplayName
                 saved.bubblePlacement = builtIn.bubblePlacement
                 saved.bubbleDistance = builtIn.bubbleDistance
                 saved.scalePercent = builtIn.scalePercent
@@ -332,15 +353,17 @@ public enum AiboLibraryNaming {
 
 public enum AiboLibraryDeletion {
     /// IDs that can be removed without emptying the library.
-    /// `nil` means the request would leave zero aibos.
+    /// Built-in Poli is never included. `nil` means the request would leave zero aibos.
     public static func idsToRemove(
         requested: some Sequence<String>,
         from records: [AiboLibraryRecord]
     ) -> [String]? {
         let wanted = Set(requested)
-        let known = records.map(\.id).filter { wanted.contains($0) }
+        let removable = Set(records.filter(\.canRemoveFromLibrary).map(\.id))
+        let known = records.map(\.id).filter { wanted.contains($0) && removable.contains($0) }
         guard !known.isEmpty else { return [] }
-        let remaining = records.contains { !wanted.contains($0.id) }
+        let removing = Set(known)
+        let remaining = records.contains { !removing.contains($0.id) }
         return remaining ? known : nil
     }
 }

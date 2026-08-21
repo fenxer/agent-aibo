@@ -1,0 +1,121 @@
+{
+  "cellHeight" : 208,
+  "cellWidth" : 192,
+  "clips" : {
+    "failed" : {
+      "durationMilliseconds" : 1220,
+      "file" : "clips\/failed.png",
+      "frames" : 8
+    },
+    "idle" : {
+      "durationMilliseconds" : 1100,
+      "file" : "clips\/idle.png",
+      "frames" : 6
+    },
+    "jumping" : {
+      "durationMilliseconds" : 840,
+      "file" : "clips\/jumping.png",
+      "frames" : 5
+    },
+    "review" : {
+      "durationMilliseconds" : 1030,
+      "file" : "clips\/review.png",
+      "frames" : 6
+    },
+    "running" : {
+      "durationMilliseconds" : 820,
+      "file" : "clips\/running.png",
+      "frames" : 6
+    },
+    "running-left" : {
+      "durationMilliseconds" : 1060,
+      "file" : "clips\/running-left.png",
+      "frames" : 8
+    },
+    "running-right" : {
+      "durationMilliseconds" : 1060,
+      "file" : "clips\/running-right.png",
+      "frames" : 8
+    },
+    "waiting" : {
+      "durationMilliseconds" : 1010,
+      "file" : "clips\/waiting.png",
+      "frames" : 6
+    },
+    "waving" : {
+      "durationMilliseconds" : 700,
+      "file" : "clips\/waving.png",
+      "frames" : 4
+    }
+  },
+  "extends" : "petdex-v2",
+  "format" : "aibo",
+  "formatVersion" : 1,
+  "look" : [
+    {
+      "file" : "clips\/look-00.png",
+      "index" : 0
+    },
+    {
+      "file" : "clips\/look-01.png",
+      "index" : 1
+    },
+    {
+      "file" : "clips\/look-02.png",
+      "index" : 2
+    },
+    {
+      "file" : "clips\/look-03.png",
+      "index" : 3
+    },
+    {
+      "file" : "clips\/look-04.png",
+      "index" : 4
+    },
+    {
+      "file" : "clips\/look-05.png",
+      "index" : 5
+    },
+    {
+      "file" : "clips\/look-06.png",
+      "index" : 6
+    },
+    {
+      "file" : "clips\/look-07.png",
+      "index" : 7
+    },
+    {
+      "file" : "clips\/look-08.png",
+      "index" : 8
+    },
+    {
+      "file" : "clips\/look-09.png",
+      "index" : 9
+    },
+    {
+      "file" : "clips\/look-10.png",
+      "index" : 10
+    },
+    {
+      "file" : "clips\/look-11.png",
+      "index" : 11
+    },
+    {
+      "file" : "clips\/look-12.png",
+      "index" : 12
+    },
+    {
+      "file" : "clips\/look-13.png",
+      "index" : 13
+    },
+    {
+      "file" : "clips\/look-14.png",
+      "index" : 14
+    },
+    {
+      "file" : "clips\/look-15.png",
+      "index" : 15
+    }
+  ],
+  "sliceVersion" : 1
+}

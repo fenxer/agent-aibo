@@ -51,7 +51,7 @@ final class AiboSpriteCache {
     func previewImage(for record: AiboLibraryRecord) -> NSImage? {
         switch record.kind {
         case .builtInDefault:
-            return NSImage(named: "DefaultAibo")
+            return pet(for: record)?.preview
         case .staticImage:
             return staticImage(for: record)
         case .petdex:
@@ -74,7 +74,7 @@ final class AiboSpriteCache {
         state: PetdexSpriteState,
         frameIndex: Int
     ) -> NSImage? {
-        guard record.kind == .petdex else {
+        guard playsClips(record) else {
             return previewImage(for: record)
         }
         let frames = layerFrames(for: record, state: state)
@@ -93,7 +93,7 @@ final class AiboSpriteCache {
         for record: AiboLibraryRecord,
         state: PetdexSpriteState
     ) -> [CGImage] {
-        guard record.kind == .petdex, var pet = pet(for: record) else { return [] }
+        guard playsClips(record), var pet = pet(for: record) else { return [] }
         if let cached = pet.framesByState[state], !cached.isEmpty {
             return cached
         }
@@ -120,12 +120,12 @@ final class AiboSpriteCache {
     }
 
     func supportsLookDirections(for record: AiboLibraryRecord) -> Bool {
-        guard record.kind == .petdex else { return false }
+        guard playsClips(record) else { return false }
         return pet(for: record)?.lookSupported == true
     }
 
     func lookLayerFrame(for record: AiboLibraryRecord, index: Int) -> CGImage? {
-        guard record.kind == .petdex, var pet = pet(for: record), pet.lookSupported else {
+        guard playsClips(record), var pet = pet(for: record), pet.lookSupported else {
             return nil
         }
         if let cached = pet.lookByIndex[index] {
@@ -165,6 +165,10 @@ final class AiboSpriteCache {
         return image
     }
 
+    private func playsClips(_ record: AiboLibraryRecord) -> Bool {
+        record.kind == .petdex || record.kind == .builtInDefault
+    }
+
     private func pet(for record: AiboLibraryRecord) -> CachedPet? {
         if let cached = pets[record.id] { return cached }
         guard let directory = AiboSpritePack.directory(for: record) else { return nil }
@@ -181,10 +185,12 @@ final class AiboSpriteCache {
             return cached
         }
 
-        guard let atlasURL = AiboSpritePack.spritesheetURL(
-            in: directory,
-            preferredFileName: record.spriteFileName
-        ) else { return nil }
+        guard record.kind != .builtInDefault,
+              let atlasURL = AiboSpritePack.spritesheetURL(
+                  in: directory,
+                  preferredFileName: record.spriteFileName
+              )
+        else { return nil }
         let cached = loadUnconvertedPreview(
             directory: directory,
             atlasURL: atlasURL,

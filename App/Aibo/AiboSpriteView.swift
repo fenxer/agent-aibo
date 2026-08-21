@@ -2,7 +2,7 @@ import AiboCore
 import AppKit
 import SwiftUI
 
-/// Renders the selected library pet: Default / static square / Petdex atlas.
+/// Renders the selected library pet: bundled Poli clips / static square / Petdex.
 struct AiboSpriteView: View {
     var record: AiboLibraryRecord
     var activity: AiboActivityState
@@ -21,9 +21,9 @@ struct AiboSpriteView: View {
     var body: some View {
         Group {
             switch record.kind {
-            case .builtInDefault, .staticImage:
+            case .staticImage:
                 staticPetImage
-            case .petdex:
+            case .builtInDefault, .petdex:
                 petdexAiboImage
             }
         }
@@ -66,10 +66,7 @@ struct AiboSpriteView: View {
                 .scaledToFit()
                 .frame(width: spriteSize.width, height: spriteSize.height)
         } else {
-            Image("DefaultAibo")
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
+            Color.clear
                 .frame(width: spriteSize.width, height: spriteSize.height)
         }
     }
@@ -116,7 +113,6 @@ struct AiboSpriteView: View {
     @ViewBuilder
     private var stillFallbackImage: some View {
         let image = AiboSpriteCache.shared.previewImage(for: record)
-            ?? NSImage(named: "DefaultAibo")
         if let image {
             Image(nsImage: image)
                 .resizable()

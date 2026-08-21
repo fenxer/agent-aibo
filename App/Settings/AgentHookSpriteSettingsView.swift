@@ -496,8 +496,8 @@ private struct AgentHookSpritePreviewHost: View {
 
     private var previewRecord: AiboLibraryRecord? {
         let selected = library.selectedRecord
-        if selected.kind == .petdex { return selected }
-        return library.records.first(where: { $0.kind == .petdex })
+        if AiboSpritePack.directory(for: selected) != nil { return selected }
+        return library.records.first { AiboSpritePack.directory(for: $0) != nil }
     }
 
     var body: some View {

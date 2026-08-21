@@ -24,6 +24,9 @@ DerivedData/
 # Local xcodebuild output used by Scripts/run.sh
 .derivedData/
 
+# Local packaged app copies (not source)
+.product/
+
 # Local hatch-aibo / skill run output
 /output/
 **/__pycache__/

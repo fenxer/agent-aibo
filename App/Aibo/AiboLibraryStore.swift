@@ -363,10 +363,6 @@ final class AiboLibraryStore {
         else { return }
         let removeIDs = Set(toRemoveIDs)
         let toRemove = records.filter { removeIDs.contains($0.id) }
-        if let builtIn = toRemove.first(where: { $0.id == AiboLibraryDefaults.builtInID }) {
-            persistedBuiltInRecord = builtIn
-            builtInHidden = true
-        }
         records.removeAll { removeIDs.contains($0.id) }
         if !records.contains(where: { $0.id == selectedID }) {
             selectedID = records.first?.id ?? AiboLibraryDefaults.builtInID
@@ -379,8 +375,9 @@ final class AiboLibraryStore {
         notifyAppearanceChanged()
     }
 
-    /// Opens this aibo's folder in Finder (`aibos/` for Default).
+    /// Opens this aibo's folder in Finder. Built-in Poli lives in the app bundle and is skipped.
     func revealInFinder(_ record: AiboLibraryRecord) {
+        guard record.revealsOnDiskFolder else { return }
         let folder = folderURL(for: record)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         NSWorkspace.shared.open(folder)

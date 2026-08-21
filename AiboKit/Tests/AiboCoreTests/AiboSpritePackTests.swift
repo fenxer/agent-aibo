@@ -20,11 +20,29 @@ import UniformTypeIdentifiers
     #expect(decoded == manifest)
 }
 
-@Test func aiboSpritePackClipPathsAreStable() {
-    #expect(AiboSpritePack.clipRelativePath(state: .idle) == "clips/idle.png")
-    #expect(AiboSpritePack.clipRelativePath(state: .runningRight) == "clips/running-right.png")
-    #expect(AiboSpritePack.lookRelativePath(index: 0) == "clips/look-00.png")
-    #expect(AiboSpritePack.lookRelativePath(index: 15) == "clips/look-15.png")
+@Test func bundledDefaultAiboPackOnDiskIsComplete() throws {
+    let pack = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("App/Aibo/default-aibo", isDirectory: true)
+    #expect(FileManager.default.fileExists(atPath: pack.path))
+    let manifest = try #require(AiboSpritePack.loadManifest(in: pack))
+    #expect(AiboSpritePack.isComplete(manifest, in: pack))
+    #expect(manifest.extends == "petdex-v2")
+    #expect(manifest.cellWidth == 192)
+    #expect(manifest.cellHeight == 208)
+    #expect(manifest.look.count == PetdexLookDirection.count)
+    #expect(manifest.clips["idle"]?.frames == 6)
+    #expect(manifest.clips["idle"]?.file == "clips/idle.png")
+}
+
+@Test func aiboSpritePackBuiltInDirectoryIsNotApplicationSupport() {
+    if let bundled = AiboSpritePack.directory(for: .builtInDefault) {
+        #expect(bundled.standardizedFileURL != AiboPaths.aibosDirectory.standardizedFileURL)
+        #expect(AiboSpritePack.loadManifest(in: bundled) != nil)
+    }
 }
 
 @Test func aiboSpritePackRejectsPathTraversal() {

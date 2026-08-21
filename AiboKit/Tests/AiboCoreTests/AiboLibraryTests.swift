@@ -159,6 +159,36 @@ import Testing
     #expect(stock.map(\.id) == ["petdex.boba"])
 }
 
+@Test func aiboLibrarySnapshotTreatsLegacyDefaultNameAsStockPoli() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.displayName = "Default"
+    builtIn.scalePercent = 150
+    let snap = AiboLibraryCodec.snapshot(
+        from: AiboLibraryFile(
+            selectedID: AiboLibraryDefaults.builtInID,
+            records: [builtIn]
+        )
+    )
+    #expect(snap.records.first?.displayName == "Poli")
+    #expect(snap.records.first?.scalePercent == 150)
+}
+
+@Test func aiboLibraryPersistableRecordsRewritesLegacyDefaultNameToPoli() {
+    var builtIn = AiboLibraryRecord.builtInDefault
+    builtIn.displayName = "Default"
+    builtIn.scalePercent = 150
+    let persisted = AiboLibraryCodec.persistableRecords(from: [builtIn])
+    #expect(persisted.map(\.id) == [AiboLibraryDefaults.builtInID])
+    #expect(persisted[0].displayName == "Poli")
+    #expect(persisted[0].scalePercent == 150)
+}
+
+@Test func builtInAiboDoesNotRevealOrRemoveBundleFiles() {
+    #expect(AiboLibraryRecord.builtInDefault.revealsOnDiskFolder == false)
+    #expect(AiboLibraryRecord.builtInDefault.removesOnDiskFiles == false)
+    #expect(AiboLibraryRecord.builtInDefault.canRemoveFromLibrary == false)
+}
+
 @Test func aiboLibrarySnapshotHidesBuiltInWhenFlagSet() {
     var builtIn = AiboLibraryRecord.builtInDefault
     builtIn.displayName = "Home"
@@ -221,7 +251,7 @@ import Testing
     )
     let records = [AiboLibraryRecord.builtInDefault, boba]
 
-    #expect(AiboLibraryDeletion.idsToRemove(requested: records.map(\.id), from: records) == nil)
+    #expect(AiboLibraryDeletion.idsToRemove(requested: records.map(\.id), from: records) == [boba.id])
     #expect(
         AiboLibraryDeletion.idsToRemove(requested: [boba.id], from: records) == [boba.id]
     )
@@ -229,15 +259,25 @@ import Testing
         AiboLibraryDeletion.idsToRemove(
             requested: [AiboLibraryDefaults.builtInID],
             from: records
-        ) == [AiboLibraryDefaults.builtInID]
+        ) == []
     )
     #expect(
         AiboLibraryDeletion.idsToRemove(
             requested: [AiboLibraryDefaults.builtInID],
             from: [.builtInDefault]
-        ) == nil
+        ) == []
     )
     #expect(AiboLibraryDeletion.idsToRemove(requested: ["missing"], from: records) == [])
+
+    let apple = AiboLibraryRecord(
+        id: "static.apple",
+        kind: .staticImage,
+        displayName: "Apple",
+        relativePath: "static/apple.png"
+    )
+    #expect(
+        AiboLibraryDeletion.idsToRemove(requested: [boba.id, apple.id], from: [boba, apple]) == nil
+    )
 }
 
 @Test func aiboLibraryCodecPreservesInstallMetadata() throws {
@@ -435,7 +475,7 @@ import Testing
         relativePath: "static/apple.png"
     )
     let byName = AiboLibraryOrdering.byDisplayName([boba, apple, .builtInDefault])
-    #expect(byName.map(\.displayName) == ["Apple", "Boba", "Default"])
+    #expect(byName.map(\.displayName) == ["Apple", "Boba", "Poli"])
 
     let bySize = AiboLibraryOrdering.bySizeLargestFirst(
         [apple, boba, .builtInDefault],
