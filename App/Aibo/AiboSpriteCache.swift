@@ -30,12 +30,16 @@ final class AiboSpriteCache {
     private init() {}
 
     func invalidate(except keepID: String? = nil) {
-        if let keepID {
-            pets = pets.filter { $0.key == keepID }
-            staticImages = staticImages.filter { $0.key == keepID }
-        } else {
+        invalidate(keeping: keepID.map { [$0] } ?? [])
+    }
+
+    func invalidate(keeping keepIDs: Set<String>) {
+        if keepIDs.isEmpty {
             pets.removeAll()
             staticImages.removeAll()
+        } else {
+            pets = pets.filter { keepIDs.contains($0.key) }
+            staticImages = staticImages.filter { keepIDs.contains($0.key) }
         }
     }
 

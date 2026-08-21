@@ -4,13 +4,19 @@ import SwiftUI
 
 /// Shared command list for the menu bar extra and the aibo context menu.
 struct AiboAppMenu: View {
+    /// Context menu omits this: a live health-status rebuild dismisses the
+    /// Change Aibo submenu and forces the user to re-select.
+    var includesWebhookConnectivity: Bool = true
+
     @State private var aiboPanelController = AiboPanelController.shared
     @State private var runtime = AiboRuntime.shared
     @State private var settings = AppSettings.shared
     @State private var library = AiboLibraryStore.shared
 
     private var showsWebhookConnectivity: Bool {
-        settings.webhookEnabled && settings.resolvedPublicWebhookURL != nil
+        includesWebhookConnectivity
+            && settings.webhookEnabled
+            && settings.resolvedPublicWebhookURL != nil
     }
 
     var body: some View {

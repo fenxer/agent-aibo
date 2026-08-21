@@ -323,6 +323,14 @@ final class AiboPanelController {
     }
 
     /// Flush any pending resize and apply now. Caller must not be mid-layout.
+    ///
+    /// Desktop morph calls this from `AiboSwitchSignal.emit` (menu/button
+    /// action, a different window than Settings) so the transparent panel
+    /// already matches the union canvas before SwiftUI swaps in Metal.
+    func syncGeometryNow() {
+        applyGeometryNow()
+    }
+
     private func applyGeometryNow() {
         pendingGeometryTask?.cancel()
         pendingGeometryTask = nil
@@ -378,6 +386,13 @@ final class AiboPanelController {
             width: max(newSize.width, minSize.width),
             height: max(newSize.height, minSize.height)
         )
+        if NSEqualSizes(safeSize, oldFrame.size),
+           NSEqualSizes(aiboSize, laidOutAiboSize),
+           placement == laidOutPlacement,
+           bubbleCount == laidOutBubbleCount
+        {
+            return
+        }
         let newAiboCenter = aiboCenter(
             in: safeSize,
             aiboSize: aiboSize,
@@ -427,7 +442,11 @@ final class AiboPanelController {
     }
 
     private var currentAiboSize: CGSize {
-        AiboSpriteDisplay.desktopSize(
+        let signal = AiboSwitchSignal.shared
+        if signal.locksDesktopSize, signal.canvasSize.width > 1 {
+            return signal.canvasSize
+        }
+        return AiboSpriteDisplay.desktopSize(
             for: AiboLibraryStore.shared.selectedRecord,
             nominal: baseAiboSize * CGFloat(AiboLibraryStore.shared.selectedRecord.scalePercent / 100),
             backingScale: spriteBackingScale

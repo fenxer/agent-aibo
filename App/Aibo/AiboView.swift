@@ -13,7 +13,8 @@ struct AiboView: View {
     @State private var panelController = AiboPanelController.shared
     @State private var floatingNotes: [FloatingMusicNote] = []
     @State private var musicNoteTask: Task<Void, Never>?
-    private var library = AiboLibraryStore.shared
+    @Bindable private var library = AiboLibraryStore.shared
+    private var switchSignal = AiboSwitchSignal.shared
     private var runtime = AiboRuntime.shared
     private var hookSprites = HookSpriteSettings.shared
     private var musicMonitor = MusicPlaybackMonitor.shared
@@ -72,7 +73,10 @@ struct AiboView: View {
     }
 
     private var aiboLayoutSize: CGSize {
-        AiboSpriteDisplay.desktopSize(
+        if switchSignal.locksDesktopSize, switchSignal.canvasSize.width > 1 {
+            return switchSignal.canvasSize
+        }
+        return AiboSpriteDisplay.desktopSize(
             for: library.selectedRecord,
             nominal: aiboNominalSize,
             backingScale: displayScale
@@ -296,19 +300,20 @@ struct AiboView: View {
                 .allowsHitTesting(false)
 
             if panelController.isContentPresented {
-                AiboSpriteView(
+                AiboSwitchingSpriteView(
                     record: library.selectedRecord,
                     activity: displayActivity,
                     spriteState: displaySpriteState,
                     size: aiboNominalSize,
                     lookDirection: displayLookDirection,
-                    pixelLayout: .fillWidth
+                    pixelLayout: .fillWidth,
+                    usesPerAiboScale: true
                 )
-                .id("\(library.selectedID)-\(library.selectedRecord.pixelOptimizationEnabled)")
+                .id("desktop-current-aibo")
                 .scaleEffect(x: widen, y: squash, anchor: .bottom)
                 .offset(y: (1 - clamped) * -aiboLayoutSize.height * 1.35)
                 .contentShape(Rectangle())
-                .contextMenu { AiboAppMenu() }
+                .contextMenu { AiboAppMenu(includesWebhookConnectivity: false) }
                 // Insertion must stay `.identity` — Pow `.boing` is a GeometryEffect
                 // that makes NSHostingView zero out AiboPanel's width.
                 .transition(

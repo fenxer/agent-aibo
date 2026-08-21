@@ -189,7 +189,7 @@ private struct GeneralPreview: View {
 
     private var previewPet: some View {
         ZStack {
-            AiboSpriteView(
+            AiboSwitchingSpriteView(
                 record: record,
                 activity: .idle,
                 spriteState: .idle,

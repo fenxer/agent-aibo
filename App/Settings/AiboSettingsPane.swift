@@ -202,14 +202,13 @@ private struct AiboPreviewBanner: View {
             ZStack {
                 AiboNameMarquee(name: record.displayName)
                     .id(record.displayName)
-                AiboSpriteView(
+                AiboSwitchingSpriteView(
                     record: record,
                     activity: .idle,
                     spriteState: .idle,
                     size: 120,
                     pixelLayout: .fillWidth
                 )
-                .id("\(record.id)-\(record.pixelOptimizationEnabled)")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()

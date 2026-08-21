@@ -161,8 +161,28 @@ final class AiboLibraryStore {
     }
 
     func select(id: String) {
-        guard records.contains(where: { $0.id == id }) else { return }
+        guard records.contains(where: { $0.id == id }), id != selectedID else { return }
+        let fromID = selectedID
+        let fromRecord = selectedRecord
+        let backing = AiboPanelController.shared.spriteBackingScale
+        let fromDesktopSize = AiboSpriteDisplay.desktopSize(
+            for: fromRecord,
+            nominal: AiboSpriteDisplay.basePointSize * CGFloat(fromRecord.scalePercent / 100),
+            backingScale: backing
+        )
         selectedID = id
+        let toRecord = selectedRecord
+        let toDesktopSize = AiboSpriteDisplay.desktopSize(
+            for: toRecord,
+            nominal: AiboSpriteDisplay.basePointSize * CGFloat(toRecord.scalePercent / 100),
+            backingScale: backing
+        )
+        AiboSwitchSignal.shared.emit(
+            from: fromID,
+            to: id,
+            fromDesktopSize: fromDesktopSize,
+            toDesktopSize: toDesktopSize
+        )
         persist()
         notifyAppearanceChanged()
         Task { await convertPetdexClipsIfNeeded(selectedRecord) }
@@ -562,9 +582,17 @@ final class AiboLibraryStore {
     }
 
     private func notifyAppearanceChanged() {
-        AiboSpriteCache.shared.invalidate(except: selectedID)
+        var keep: Set<String> = [selectedID]
+        if AiboSwitchSignal.shared.locksDesktopSize {
+            keep.insert(AiboSwitchSignal.shared.fromID)
+        }
+        AiboSpriteCache.shared.invalidate(keeping: keep)
         AiboPanelController.shared.updateHitTestImage()
-        AiboPanelController.shared.refreshContent()
+        // emit() already synced the morph canvas; another deferred resize
+        // here would relayout the transparent panel under an empty Metal frame.
+        if !AiboSwitchSignal.shared.locksDesktopSize {
+            AiboPanelController.shared.refreshContent()
+        }
     }
 
     /// Slices leftover Petdex atlases for this one aibo. New installs already
@@ -578,7 +606,7 @@ final class AiboLibraryStore {
         }.value
         guard outcome == .converted else { return }
         AiboSpriteCache.shared.invalidateRecord(record.id)
-        if record.id == selectedID {
+        if record.id == selectedID, !AiboSwitchSignal.shared.locksDesktopSize {
             AiboPanelController.shared.updateHitTestImage()
             AiboPanelController.shared.refreshContent()
         }
