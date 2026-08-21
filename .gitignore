@@ -31,9 +31,8 @@ DerivedData/
 # macOS
 .DS_Store
 
-# Cursor local state
+# Cursor local state (skills live in Skills/; .cursor/skills is a local symlink)
 /.cursor/*
-!/.cursor/skills/
 
 # Local agent / planning docs (not for public repo)
 AGENTS.md
