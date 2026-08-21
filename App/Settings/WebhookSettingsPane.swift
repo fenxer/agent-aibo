@@ -105,8 +105,18 @@ private struct WebhookHeaderIcon: View {
 }
 
 private struct WebhookSetupLinkRow: View {
+    private static let guideURL = URL(
+        string: "https://github.com/fenxer/agent-aibo/tree/main/Skills/aibo-webhook"
+    )
+
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
-        Button {} label: {
+        Button {
+            if let url = Self.guideURL {
+                openURL(url)
+            }
+        } label: {
             HStack {
                 Text(String(localized: "Setup Guide"))
                     .foregroundStyle(.primary)
@@ -114,6 +124,7 @@ private struct WebhookSetupLinkRow: View {
                 Image(systemName: "arrow.up.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
         }
