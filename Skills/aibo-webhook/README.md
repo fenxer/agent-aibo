@@ -27,7 +27,7 @@ X-Webhook-Signature: sha256=<hex>
 X-Webhook-ID: <unique id>
 ```
 
-If the upstream service cannot set these headers, place a small adapter in front. Payload contracts, status codes, and a test signer script are in `SKILL.md`, `references/protocol.md`, and `scripts/send-test.sh`.
+If the upstream service cannot set these headers, place a small adapter in front. If GitHub Actions (or similar CI) gets an HTML bot challenge against the Tunnel URL, that is an edge issue, not a missing adapter: point CI at a forwarder you already run, or change ingress — do not stand up a new relay for it. Payload contracts, status codes, and a test signer script are in `SKILL.md`, `references/protocol.md`, and `scripts/send-test.sh`.
 
 ---
 
@@ -59,4 +59,4 @@ X-Webhook-Signature: sha256=<hex>
 X-Webhook-ID: <unique id>
 ```
 
-若上游服务无法自定义这些请求头，可在前面加一层轻量 adapter。协议约定、状态码说明与测试签名脚本详见 `SKILL.md`、`references/protocol.md` 和 `scripts/send-test.sh`。
+若上游服务无法自定义这些请求头，可在前面加一层轻量 adapter。若 GitHub Actions（或类似 CI）打 Tunnel URL 得到 HTML bot challenge，那是边缘拦截，不是缺 adapter：有现成转发就让 CI 打那里，或者换入口——不要为此新建一条 relay。协议约定、状态码说明与测试签名脚本详见 `SKILL.md`、`references/protocol.md` 和 `scripts/send-test.sh`。

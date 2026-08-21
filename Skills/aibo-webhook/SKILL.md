@@ -4,9 +4,10 @@ description: >-
   Guides wiring a product's notifications into Aibo desktop bubbles via Aibo's
   signed HTTP webhook. Covers listener setup, choosing public ingress (managed
   tunnel, mesh VPN funnel, or the user's own reverse proxy — never prescribe a
-  vendor), sender integration, signed smoke tests, and acceptance. Use when the
-  user mentions Aibo webhook, Setup Guide, sending CI/deploy/product events to
-  Aibo, HMAC X-Webhook-Signature, or exposing Aibo's local listener.
+  vendor), sender integration (direct, payload adapter, or an ingest hop the
+  user already runs — never invent a relay), signed smoke tests, and acceptance.
+  Use when the user mentions Aibo webhook, Setup Guide, sending CI/deploy/product
+  events to Aibo, HMAC X-Webhook-Signature, or exposing Aibo's local listener.
 ---
 
 # Aibo Webhook
@@ -18,7 +19,7 @@ Smoke test: execute [scripts/send-test.sh](scripts/send-test.sh) (do not rewrite
 
 ## Role
 
-You **advise**. The user **chooses** how the Mac is reached from the internet (or their LAN). Do not install a tunnel/VPN/proxy, rewrite DNS, or pick a vendor because it is convenient.
+You **advise**. The user **chooses** how the Mac is reached from the internet (or their LAN). Do not install a tunnel/VPN/proxy, rewrite DNS, or pick a vendor because it is convenient. Do not stand up a Worker, queue consumer, or ingest relay because a sender got a bot challenge — only reuse a hop they already operate and name.
 
 Never write the Shared Secret into git, README, CI logs, screenshots, or committed env files. Ask the user to paste it, or read it from a local untracked file they name.
 
@@ -33,7 +34,7 @@ Aibo webhook
 - [ ] 1. Intake (Aibo running; values from Settings; what to send)
 - [ ] 2. Listener on (Status Running; Local URL + Secret known)
 - [ ] 3. Ingress chosen by the user; Tunnel URL saved; Connectivity OK
-- [ ] 4. Sender speaks Aibo's contract (direct or adapter)
+- [ ] 4. Sender speaks Aibo's contract (direct, adapter, or existing ingest hop)
 - [ ] 5. Signed POST smoke test → bubble + Received Logs
 - [ ] 6. Acceptance
 ```
@@ -50,6 +51,7 @@ Confirm, don't assume:
    - **Tunnel URL** if already filled
 3. What should appear on the desktop (product name, which events, rough wording for `status` / `summary`).
 4. How they want this Mac reachable. If they already have a tunnel, mesh VPN, or a reverse proxy, **use that**. If they don't know, go to step 3 and stop after suggestions.
+5. Whether they already run a forwarder for **signed Aibo JSON** (an ingest URL they can name). If yes, CI that cannot hit Tunnel URL can POST there. If no, do not create one.
 
 If Aibo is not running or the listener is off, finish that before writing sender code.
 
@@ -62,9 +64,9 @@ Settings:
 - Toggle listen **on**
 - **Status** = Running
 - Copy **Secret** (regenerating invalidates every sender at once — confirm first)
-- **Tunnel URL** = the public (or VPN) URL senders will POST to, including the `/webhook` path
+- **Tunnel URL** = the public (or VPN) URL that reaches this Mac's `/webhook` (include the path). Connectivity Check and senders that can hit it POST here. A CI job blocked by an edge challenge may POST to a **pre-existing** ingest hop instead — that hop still targets this URL.
 
-Local URL is not the URL you give GitHub / CI / a SaaS. Only the ingress URL is.
+Local URL is not the URL you give GitHub / CI / a SaaS. Give them Tunnel URL, or an ingest URL they already run.
 
 ### 3. Public ingress — suggest, then wait
 
@@ -78,7 +80,9 @@ If the user has not chosen, present these **categories** with 1–2 examples eac
 | Mesh VPN expose | Tailscale Funnel/Serve, similar | They already live on that network |
 | Own reverse proxy | Caddy/nginx/Traefik on a VPS, or a small relay they already run | They want their own domain and ops; the VPS still needs a path **to this Mac** (VPN, reverse SSH, tunnel). Opening Aibo's port on the internet does not work — Aibo will not bind it. |
 
-Ask: what they already run, whether senders need a stable public HTTPS URL, whether an edge WAF/bot challenge might block server User-Agents.
+Ask: what they already run, whether senders need a stable public HTTPS URL, whether an edge WAF/bot challenge might block server User-Agents (GitHub Actions against a Cloudflare Tunnel hostname is a known case).
+
+If they need CI to POST and they pick a managed tunnel that challenges bots: ask whether they **already** have a forwarder for signed Aibo JSON. Yes → use it in step 4. No → do not create one; they can skip the challenge if they control the WAF, pick another ingress category, or later name a hop they already run.
 
 After they pick, help configure **that** option only. Paste the resulting URL into **Tunnel URL**. In Settings, click **Check**. Treat Connectivity **OK** as the ingress health signal (Aibo probes with GET; the listener itself answers **405** to GET, which counts as reachable).
 
@@ -86,14 +90,17 @@ Do not treat a helper daemon being “running” as proof the edge can reach thi
 
 ### 4. Sender
 
-Two topologies. Pick from the source's capabilities; do not force an adapter:
+Three topologies. Pick from what already exists; do not invent a hop:
 
-- **Direct** — the source can POST arbitrary JSON and custom headers. Point it at Tunnel URL. Sign with Aibo's Secret. This is the common case for CI, homegrown backends, and any “generic webhook” field.
-- **Adapter** — the source has a fixed body or its own signature. A tiny relay verifies the vendor, maps fields to Aibo JSON, HMAC-signs with Aibo's Secret, and POSTs to Tunnel URL. The SaaS webhook URL is the **adapter**, not Aibo. Settings **Tunnel URL** is still the URL that reaches Aibo.
+- **Direct** — the source can POST arbitrary JSON and custom headers. Point it at Tunnel URL. Sign with Aibo's Secret. This is the common case for homegrown backends and any “generic webhook” field. GitHub Actions can sign too — that does **not** mean it can reach Tunnel URL (see ingest hop).
+- **Adapter** — the source has a **fixed body or its own signature** (native GitHub/Ghost/etc. webhooks). A tiny relay verifies the vendor, maps fields to Aibo JSON, HMAC-signs with Aibo's Secret, and POSTs to Tunnel URL. The SaaS webhook URL is the **adapter**, not Aibo. Settings **Tunnel URL** is still the URL that reaches Aibo. Use an adapter only for payload shape, never as a workaround for a bot challenge.
+- **Existing ingest hop** — the source already speaks Aibo JSON + HMAC, but cannot POST to Tunnel URL. Typical: GitHub Actions / other CI User-Agents hitting a managed HTTPS tunnel that runs bot challenge (Cloudflare Tunnel custom hostnames often return **403** HTML “Just a moment…” — not a signing bug). If the user **already** runs a forwarder that accepts that signed body and POSTs it to Tunnel URL, point the sender at **that** URL (they name it). Settings **Tunnel URL** stays the URL that reaches Aibo.
+
+**If they do not already have an ingest hop, stop.** Do not create a Worker, queue consumer, reverse-proxy app, or “tiny relay” in the sending repo so CI can get past a challenge. Offer: skip/disable the challenge on that hostname if they control the WAF (many free plans cannot); pick a different ingress category that does not challenge server User-Agents; or they already operate a forwarder and will paste its URL. Wait.
 
 Required request (see [references/protocol.md](references/protocol.md)):
 
-- `POST` to the Tunnel URL (path that becomes `/webhook` on Aibo)
+- `POST` to Tunnel URL, or to a pre-existing ingest URL that forwards there (path that becomes `/webhook` on Aibo)
 - Body: UTF-8 JSON. Prefer `source`, `status`, `summary` (status → capsule, summary → text beside it, ≤280 chars)
 - `X-Webhook-Signature: sha256=<hex>` — HMAC-SHA256 of the **raw body bytes** with the Secret
 - `X-Webhook-ID` — unique per delivery; reuse on retry (dedup window is recent IDs)
@@ -118,6 +125,8 @@ curl -sS -o /dev/null -w "%{http_code}\n" -X GET "$AIBO_WEBHOOK_URL"
 
 Ask the user to look at the desktop bubble (`source` + `status` + `summary`) and **Settings → Webhook → Received Logs**.
 
+Always smoke-test Tunnel URL from this Mac first. If CI will use a pre-existing ingest URL, run the signed POST against that URL too — do not create a hop to make the test pass.
+
 Then one negative check: same command with a wrong secret must be **401** and no new bubble.
 
 ### 6. Acceptance
@@ -131,10 +140,11 @@ All of these:
 - [ ] Bubble shows the intended source / status / summary
 - [ ] Same `X-Webhook-ID` again → 200 and **no** second bubble
 - [ ] Bad signature → 401
-- [ ] Real sender path (CI job, app code, or adapter) uses env/secrets, not a hardcoded Secret
+- [ ] Real sender path (CI job, app code, adapter, or existing ingest hop) uses env/secrets, not a hardcoded Secret
 - [ ] User confirmed they are happy with the ingress they chose
+- [ ] No new relay/Worker/adapter was added solely to dodge a bot challenge
 
-Stop. Do not add extra products, dashboards, or a second tunnel “just in case”.
+Stop. Do not add extra products, dashboards, a second tunnel, or an ingest relay “just in case”.
 
 ## Troubleshooting (short)
 
@@ -146,7 +156,7 @@ Stop. Do not add extra products, dashboards, or a second tunnel “just in case�
 | 401 | Wrong Secret; signed a different byte string than the body; `sha256=` prefix missing |
 | 200, no bubble | Duplicate `X-Webhook-ID` / identical unsigned body (fallback id); dismiss mode; Aibo hidden |
 | 200, no Received Logs | `X-Aibo-Test` was set; or looking at the wrong Mac |
-| 403 / HTML challenge | Edge bot/WAF blocking non-browser clients — skip that challenge or POST through an adapter that already can |
-| Native GitHub/Ghost/etc. payload looks wrong | Need an adapter; do not point vendor-native webhooks at Aibo and hope |
+| 403 / HTML “Just a moment…” from CI (e.g. GitHub Actions → Cloudflare Tunnel) | Edge bot/WAF, not a bad signature and not a missing adapter. If the user already has a forwarder for signed Aibo JSON, POST there. If not: skip the challenge on that hostname, pick a different ingress, or wait — do not create an adapter or relay |
+| Native GitHub/Ghost/etc. payload looks wrong | Need an adapter for **payload shape**; do not point vendor-native webhooks at Aibo and hope |
 
 Settings **Check** failing while `curl` to localhost works means the **ingress** is the problem, not the signer.

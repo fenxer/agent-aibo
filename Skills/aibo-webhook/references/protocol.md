@@ -68,17 +68,20 @@ Plain text reason phrase. No JSON error body.
 | --- | --- |
 | Local URL | Loopback listener. Do not give this to SaaS. |
 | Secret | HMAC key (Keychain). Regenerating breaks every sender. |
-| Tunnel URL | URL **senders** (or the adapter) POST to. Must reach this Mac's `/webhook`. `http` or `https`. |
+| Tunnel URL | URL that reaches this Mac's `/webhook`. Connectivity Check and senders that can hit it POST here. An ingest hop the user already runs still forwards **to** this URL. `http` or `https`. |
 | Connectivity / Check | Event-driven GET to Tunnel URL. 5xx / network error = down. Other HTTP codes (including 405) = OK. |
 
 ## Topologies
 
 ```
-Direct:   Source --(Aibo JSON + HMAC)--> Tunnel URL --> 127.0.0.1:port/webhook
-Adapter:  Source --(vendor payload)--> adapter --(Aibo JSON + HMAC)--> Tunnel URL --> listener
+Direct:      Source --(Aibo JSON + HMAC)--> Tunnel URL --> 127.0.0.1:port/webhook
+Adapter:     Source --(vendor payload)--> adapter --(Aibo JSON + HMAC)--> Tunnel URL --> listener
+Ingest hop:  Source --(Aibo JSON + HMAC)--> user's existing forwarder --> Tunnel URL --> listener
 ```
 
-Tunnel URL in Aibo is always the URL that hits Aibo, never the vendor-facing adapter URL.
+Ingest hop is **pre-existing only** — not part of Aibo. Typical when CI User-Agents fail a bot challenge on the Tunnel hostname. Do not add this hop to make a new integration work.
+
+Tunnel URL in Aibo is always the URL that hits Aibo, never the vendor-facing adapter URL and never the ingest hop URL.
 
 ## Signing snippets
 
