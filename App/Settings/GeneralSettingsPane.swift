@@ -16,8 +16,6 @@ struct GeneralSettingsPane: View {
 
             GeneralThemeSection(themeMode: $settings.themeMode)
 
-            GeneralMusicSection(settings: settings)
-
             GeneralBubbleSection(
                 placement: Binding(
                     get: { library.selectedRecord.bubblePlacement },
@@ -28,6 +26,8 @@ struct GeneralSettingsPane: View {
                     set: { library.setBubbleDistance($0) }
                 )
             )
+
+            GeneralMusicSection(settings: settings)
 
             GeneralActionSection()
         }
