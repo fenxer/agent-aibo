@@ -26,6 +26,21 @@ Stays perched on your desktop, broadcasting two types of info via speech bubbles
   - Slice spritesheets to keep resident resources down
 - More coming soon…
 
+## Skills
+
+- [hatch-aibo](Skills/hatch-aibo): a rework of the original `hatch-pet` skill for more controllable sprite quality
+- [aibo-webhook](Skills/aibo-webhook): how to send webhook messages to aibo
+
+## Structure
+
+```
+App/        Desktop UI (panel, bubbles, settings)
+AiboKit/    Core logic and tests (events, hooks, webhook)
+Hook/       aibo-hook CLI
+Skills/     Agent skills
+Scripts/    Build and launch
+```
+
 ## Requirements
 
 macOS 26 or later.

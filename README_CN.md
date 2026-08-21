@@ -26,6 +26,21 @@
   - 切割 sprite 图片以优化常驻资源；
 - 更新中……
 
+## Skills
+
+- [hatch-aibo](Skills/hatch-aibo): 改造了原有的 'hatch-pet' skills 用于生成质量更可控的 sprite 图；
+- [aibo-webhook](Skills/aibo-webhook): 将 webhook 消息发送到 aibo 的说明；
+
+## 目录结构
+
+```
+App/        桌面 UI（窗口、气泡、设置）
+AiboKit/    核心逻辑与测试（事件、hooks、webhook）
+Hook/       aibo-hook 命令行
+Skills/     给 Agent 用的 skills
+Scripts/    构建与启动
+```
+
 ## 系统要求
 
 最低 macOS 26。
