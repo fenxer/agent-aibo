@@ -187,6 +187,15 @@ import Testing
     #expect(AiboLibraryRecord.builtInDefault.revealsOnDiskFolder == false)
     #expect(AiboLibraryRecord.builtInDefault.removesOnDiskFiles == false)
     #expect(AiboLibraryRecord.builtInDefault.canRemoveFromLibrary == false)
+    #expect(AiboLibraryRecord.builtInDefault.canRename == false)
+
+    let userInstalled = AiboLibraryRecord(
+        id: "petdex.boba",
+        kind: .petdex,
+        displayName: "Boba",
+        relativePath: "petdex/boba"
+    )
+    #expect(userInstalled.canRename == true)
 }
 
 @Test func aiboLibrarySnapshotHidesBuiltInWhenFlagSet() {

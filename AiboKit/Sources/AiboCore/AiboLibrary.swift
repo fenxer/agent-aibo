@@ -190,6 +190,11 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
     public var canRemoveFromLibrary: Bool {
         kind != .builtInDefault
     }
+
+    /// Built-in Poli keeps its stock name; only user-installed aibos show a rename control.
+    public var canRename: Bool {
+        kind != .builtInDefault
+    }
 }
 
 /// On-disk `library.json` shape. Built-in Default is included when renamed or its bubble layout is custom.

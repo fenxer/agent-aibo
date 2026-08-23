@@ -228,17 +228,19 @@ private struct AiboPreviewBanner: View {
                 .help(String(localized: "Preview"))
                 .accessibilityLabel(String(localized: "Preview"))
 
-                Button {
-                    renamePrompt = AiboNamePrompt(id: record.id, name: record.displayName)
-                } label: {
-                    Image(systemName: "pencil.line")
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
+                if record.canRename {
+                    Button {
+                        renamePrompt = AiboNamePrompt(id: record.id, name: record.displayName)
+                    } label: {
+                        Image(systemName: "pencil.line")
+                            .frame(width: 32, height: 32)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "Rename"))
+                    .accessibilityLabel(String(localized: "Rename"))
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .help(String(localized: "Rename"))
-                .accessibilityLabel(String(localized: "Rename"))
             }
         }
         .frame(minWidth: 0, maxWidth: .infinity)
