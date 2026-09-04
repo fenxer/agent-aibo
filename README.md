@@ -45,13 +45,21 @@ Scripts/    Build and launch
 
 macOS 26 or later.
 
+## Install
+
+Download `Aibo-*.zip` from [Releases](https://github.com/fenxer/agent-aibo/releases/latest), unzip, and move `aibo.app` into **Applications**. Do not keep running it from Downloads — in-app updates need the app to live in `/Applications`.
+
 ## Contributing
 
 **This project does not accept Pull Requests.**
 
 Feel free to open an [Issue](../../issues) for feedback or ideas, or fork and hack on it in your own repository.
 
-When forking, consider generating an `AGENTS.md` first and develop with your preferred workflow.
+When forking, consider generating an `AGENTS.md` first and develop with your preferred workflow. For example:
+
+- "Help me adapt Claude Code hook messages"
+- "Help me adapt this to macOS 15 and earlier"
+- "Help me adapt this to Linux"
 
 ## Build
 

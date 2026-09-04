@@ -27,6 +27,12 @@ DerivedData/
 # Local packaged app copies (not source)
 .product/
 
+# Local Developer ID / notarized shipping (personal Apple account)
+Scripts/package.sh
+Scripts/release.sh
+Scripts/make-dmg.sh
+Config/ExportOptions-DeveloperID.plist
+
 # Local hatch-aibo / skill run output
 /output/
 **/__pycache__/
@@ -42,4 +48,3 @@ AGENTS.md
 AGENTS_LEARNED.md
 PLANS.md
 
-Scripts/package.sh

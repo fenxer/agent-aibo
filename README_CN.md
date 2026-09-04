@@ -45,13 +45,21 @@ Scripts/    构建与启动
 
 最低 macOS 26。
 
+## 安装
+
+从 [Releases](https://github.com/fenxer/agent-aibo/releases/latest) 下载 `Aibo-*.zip`，解压后把 `aibo.app` 拖进 **应用程序**。不要长期放在「下载」里运行——应用内更新要求 app 在 `/Applications`。
+
 ## 贡献
 
 **本项目不接收 Pull Request。**
 
 欢迎提 issue 反馈问题或想法，或 fork 后在自己的仓库里修改。
 
-Fork 后建议先自行生成一份 `AGENTS.md`，按照自己喜欢的流程开发。
+Fork 后建议先自行生成一份 `AGENTS.md`，按照自己喜欢的流程开发。比如：
+
+- 「帮我适配 Claude Code 的 hook 消息」
+- 「帮我适配到 macOS 15 以下系统」
+- 「帮我适配到 Linux 系统」
 
 ## 构建
 

@@ -48,18 +48,54 @@ private struct AboutIdentityHeader: View {
 }
 
 private struct AboutUpdatesSection: View {
+    private var updates = SoftwareUpdateController.shared
+
     var body: some View {
         Section {
             LabeledContent {
-                // Unpublished local builds have no update feed yet.
-                Button(String(localized: "Check")) {}
+                Button(String(localized: "Check")) {
+                    updates.checkForUpdates()
+                }
+                .disabled(!updates.hasUpdateFeed || !updates.canCheckForUpdates)
             } label: {
                 Text(String(localized: "Software Update"))
             }
+            .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
+
+            Toggle(isOn: automaticChecksBinding) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: "Automatically Check for Updates")
+                    Text(verbatim: "Check daily in the background.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .disabled(!updates.hasUpdateFeed)
+            .toggleStyle(VerticallyCenteredSwitchToggleStyle())
         } header: {
             Text(String(localized: "Updates"))
         }
-        .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
+    }
+
+    private var automaticChecksBinding: Binding<Bool> {
+        Binding(
+            get: { updates.automaticallyChecksForUpdates },
+            set: { updates.setAutomaticallyChecksForUpdates($0) }
+        )
+    }
+}
+
+/// Form `Toggle` aligns the switch to the title baseline, so a subtitle
+/// makes the control sit high. Center against the whole label instead.
+private struct VerticallyCenteredSwitchToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            configuration.label
+            Spacer(minLength: 8)
+            Toggle(configuration)
+                .labelsHidden()
+                .toggleStyle(.switch)
+        }
     }
 }
 
@@ -78,7 +114,7 @@ private struct VerticallyCenteredLabeledContentStyle: LabeledContentStyle {
 private struct AboutLinksSection: View {
     var body: some View {
         Section {
-            AboutLinkRow(title: String(localized: "Documentation"), url: nil)
+            AboutLinkRow(title: "Doc")
             AboutLinkRow(title: "GitHub", url: AboutLinks.github)
             AboutLinkRow(title: "X", url: AboutLinks.x)
         } header: {
@@ -104,6 +140,7 @@ private struct AboutLinkRow: View {
                 openURL(url)
             } label: {
                 rowLabel
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         } else {
@@ -116,11 +153,15 @@ private struct AboutLinkRow: View {
             Text(title)
                 .foregroundStyle(.primary)
             Spacer()
-            Image(systemName: "arrow.up.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
+            if url != nil {
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            } else {
+                Text(verbatim: "Coming Soon")
+                    .foregroundStyle(.secondary)
+            }
         }
-        .contentShape(Rectangle())
     }
 }

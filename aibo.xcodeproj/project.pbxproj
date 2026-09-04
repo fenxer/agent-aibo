@@ -17,6 +17,7 @@
 		A1B0P0W43017080000431C96 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = A1B0P0W23017080000431C96 /* Pow */; };
 		B2C0M3D13017310000431C96 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; };
 		B2C0M3D43017310000431C96 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		S2P0K0L43017080000431C96 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = S2P0K0L23017080000431C96 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -132,6 +133,7 @@
 				3A3091E53017080000431C96 /* AiboLLM in Frameworks */,
 				A1B0P0W43017080000431C96 /* Pow in Frameworks */,
 				B2C0M3D13017310000431C96 /* MediaRemoteAdapter in Frameworks */,
+				S2P0K0L43017080000431C96 /* Sparkle in Frameworks */,
 			);
 		};
 		3A3091F33017090000431C96 /* Frameworks */ = {
@@ -208,6 +210,7 @@
 				3A3091E23017080000431C96 /* AiboLLM */,
 				A1B0P0W23017080000431C96 /* Pow */,
 				B2C0M3D23017310000431C96 /* MediaRemoteAdapter */,
+				S2P0K0L23017080000431C96 /* Sparkle */,
 			);
 			productName = aibo;
 			productReference = 3A3091CD3017070E00431C96 /* aibo.app */;
@@ -251,6 +254,7 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
 			);
 			mainGroup = 3A3091C43017070E00431C96;
 			minimizedProjectReferenceProxies = 1;
@@ -258,6 +262,7 @@
 				3A3091E03017080000431C96 /* XCLocalSwiftPackageReference "AiboKit" */,
 				A1B0P0W13017080000431C96 /* XCRemoteSwiftPackageReference "Pow" */,
 				B2C0M3D03017310000431C96 /* XCLocalSwiftPackageReference "Vendor/MediaRemoteAdapter" */,
+				S2P0K0L13017080000431C96 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3A3091CE3017070E00431C96 /* Products */;
@@ -441,12 +446,13 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_FILE = "Config/Sparkle-Debug.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = work.fenx.aibo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -478,12 +484,13 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_FILE = "Config/Sparkle-Release.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = work.fenx.aibo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -579,6 +586,14 @@
 				minimumVersion = 1.0.5;
 			};
 		};
+		S2P0K0L13017080000431C96 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -601,6 +616,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B2C0M3D03017310000431C96 /* XCLocalSwiftPackageReference "Vendor/MediaRemoteAdapter" */;
 			productName = MediaRemoteAdapter;
+		};
+		S2P0K0L23017080000431C96 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = S2P0K0L13017080000431C96 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

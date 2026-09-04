@@ -4,6 +4,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        SoftwareUpdateController.shared.start()
         AiboPaths.migrateLegacyLibraryDirectoryIfNeeded()
         // Touch settings early so persisted theme applies before UI shows.
         _ = AppSettings.shared
