@@ -24,7 +24,10 @@ Stays perched on your desktop, broadcasting two types of info via speech bubbles
   - Music notes when the system is playing audio
   - Pixel-art sprite display optimization
   - Slice spritesheets to keep resident resources down
-- More coming soon…
+
+## Roadmap
+
+[View here](https://github.com/users/fenxer/projects/1/views/2)
 
 ## Skills
 

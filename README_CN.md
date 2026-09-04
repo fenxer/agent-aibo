@@ -24,7 +24,10 @@
   - 检测到系统播放音乐时，会飘出音符；
   - 像素风格的 sprite 图片展示优化；
   - 切割 sprite 图片以优化常驻资源；
-- 更新中……
+
+## 更新计划  
+
+[点此查看](https://github.com/users/fenxer/projects/1/views/2)
 
 ## Skills
 
