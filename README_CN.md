@@ -47,7 +47,7 @@ Scripts/    构建与启动
 
 ## 安装
 
-从 [Releases](https://github.com/fenxer/agent-aibo/releases/latest) 下载 `Aibo-*.zip`，解压后把 `aibo.app` 拖进 **应用程序**。不要长期放在「下载」里运行——应用内更新要求 app 在 `/Applications`。
+从 [Releases](https://github.com/fenxer/agent-aibo/releases/latest) 下载 `Aibo-*.dmg`，打开后把 `aibo.app` 拖进 **应用程序**。不要长期放在「下载」里运行——应用内更新要求 app 在 `/Applications`。
 
 ## 贡献
 

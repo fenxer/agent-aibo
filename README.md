@@ -47,7 +47,7 @@ macOS 26 or later.
 
 ## Install
 
-Download `Aibo-*.zip` from [Releases](https://github.com/fenxer/agent-aibo/releases/latest), unzip, and move `aibo.app` into **Applications**. Do not keep running it from Downloads — in-app updates need the app to live in `/Applications`.
+Download `Aibo-*.dmg` from [Releases](https://github.com/fenxer/agent-aibo/releases/latest), open it, and drag `aibo.app` into **Applications**. Do not keep running it from Downloads — in-app updates need the app to live in `/Applications`.
 
 ## Contributing
 
