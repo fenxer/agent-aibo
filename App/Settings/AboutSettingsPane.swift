@@ -52,19 +52,9 @@ private struct AboutUpdatesSection: View {
 
     var body: some View {
         Section {
-            LabeledContent {
-                Button(String(localized: "Check")) {
-                    updates.checkForUpdates()
-                }
-                .disabled(!updates.hasUpdateFeed || !updates.canCheckForUpdates)
-            } label: {
-                Text(String(localized: "Software Update"))
-            }
-            .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
-
             Toggle(isOn: automaticChecksBinding) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: "Automatically Check for Updates")
+                    Text(verbatim: "Auto-Check for Updates")
                     Text(verbatim: "Check daily in the background.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -72,9 +62,42 @@ private struct AboutUpdatesSection: View {
             }
             .disabled(!updates.hasUpdateFeed)
             .toggleStyle(VerticallyCenteredSwitchToggleStyle())
+
+            LabeledContent {
+                HStack(spacing: 8) {
+                    if let version = updates.availableUpdateDisplayVersion {
+                        Text(verbatim: "v\(version) New")
+                            .foregroundStyle(.red)
+                            .accessibilityLabel("Version \(version) is available")
+
+                        Button {
+                            updates.installAvailableUpdate()
+                        } label: {
+                            Text(verbatim: "Update Now")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .disabled(!canActOnUpdates)
+                    }
+
+                    Button {
+                        updates.checkForUpdates()
+                    } label: {
+                        Text(verbatim: (updates.isChecking && !updates.isInstalling) ? "Checking…" : "Check")
+                    }
+                    .disabled(!canActOnUpdates)
+                }
+            } label: {
+                Text(verbatim: "Aibo Update")
+            }
+            .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
         } header: {
             Text(String(localized: "Updates"))
         }
+    }
+
+    private var canActOnUpdates: Bool {
+        updates.hasUpdateFeed && updates.canCheckForUpdates && !updates.isChecking && !updates.isInstalling
     }
 
     private var automaticChecksBinding: Binding<Bool> {
