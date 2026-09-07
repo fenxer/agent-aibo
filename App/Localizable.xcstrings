@@ -403,6 +403,9 @@
     "Reset Capsule Color" : {
 
     },
+    "Reset Progress Color" : {
+
+    },
     "Reset to Defaults" : {
 
     },
@@ -479,6 +482,15 @@
 
     },
     "This file isn’t a supported image or Petdex pack" : {
+
+    },
+    "To-do" : {
+
+    },
+    "To-do Progress Animation" : {
+
+    },
+    "To-do Progress Color" : {
 
     },
     "Translucent" : {

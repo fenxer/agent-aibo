@@ -188,7 +188,10 @@ private struct AgentHookBubbleSection: View {
                         .toggleStyle(.switch)
                     }
                 }
+            }
+            .labeledContentStyle(AgentHookCenteredLabeledContentStyle())
 
+            Section {
                 LabeledContent(String(localized: "Capsule Color")) {
                     HStack(spacing: 8) {
                         if settings.agentCapsuleColor(for: agent) != nil {
@@ -208,6 +211,41 @@ private struct AgentHookBubbleSection: View {
                             supportsOpacity: false
                         )
                         .labelsHidden()
+                    }
+                }
+
+                if agent.supportsPlanProgress {
+                    LabeledContent(String(localized: "To-do Progress Animation")) {
+                        Toggle(
+                            String(localized: "To-do Progress Animation"),
+                            isOn: planShaderEnabledBinding
+                        )
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                    }
+
+                    if settings.planProgressShaderEnabled(for: agent) {
+                        LabeledContent(String(localized: "To-do Progress Color")) {
+                            HStack(spacing: 8) {
+                                if settings.planProgressShaderPrimary(for: agent) != nil {
+                                    Button {
+                                        settings.setPlanProgressShaderPrimary(nil, for: agent)
+                                    } label: {
+                                        Image(systemName: "arrow.counterclockwise")
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .help(String(localized: "Reset Progress Color"))
+                                    .accessibilityLabel(String(localized: "Reset Progress Color"))
+                                }
+
+                                ColorPicker(
+                                    String(localized: "To-do Progress Color"),
+                                    selection: planShaderPrimaryBinding,
+                                    supportsOpacity: false
+                                )
+                                .labelsHidden()
+                            }
+                        }
                     }
                 }
             }
@@ -251,11 +289,26 @@ private struct AgentHookBubbleSection: View {
             set: { settings.setAgentCapsuleColor($0, for: agent) }
         )
     }
+
+    private var planShaderEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.planProgressShaderEnabled(for: agent) },
+            set: { settings.setPlanProgressShaderEnabled($0, for: agent) }
+        )
+    }
+
+    private var planShaderPrimaryBinding: Binding<Color> {
+        Binding(
+            get: { settings.resolvedPlanProgressShaderPrimary(for: agent) },
+            set: { settings.setPlanProgressShaderPrimary($0, for: agent) }
+        )
+    }
 }
 
 private enum AgentHookBubblePreviewKind: Hashable {
     case agent
     case subagent
+    case todo
 }
 
 private struct AgentHookBubblePreview: View {
@@ -298,12 +351,16 @@ private struct AgentHookBubblePreview: View {
             Picker(selection: $previewKind) {
                 Text(String(localized: "Default")).tag(AgentHookBubblePreviewKind.agent)
                 Text(String(localized: "Subagent")).tag(AgentHookBubblePreviewKind.subagent)
+                if agent.supportsPlanProgress {
+                    Text(String(localized: "To-do")).tag(AgentHookBubblePreviewKind.todo)
+                }
             } label: {
                 EmptyView()
             }
             .labelsHidden()
             .modifier(AgentHookPreviewPickerStyle())
-            .frame(width: 180)
+            .environment(\.colorScheme, .light)
+            .frame(width: agent.supportsPlanProgress ? 252 : 180)
             .padding(.bottom, 8)
         }
         .accessibilityElement(children: .contain)
@@ -311,6 +368,10 @@ private struct AgentHookBubblePreview: View {
 
     private var previewItem: StatusBubbleItem {
         let isSubagent = previewKind == .subagent
+        let planProgress: AgentPlanProgress? = {
+            guard previewKind == .todo, agent.supportsPlanProgress else { return nil }
+            return AgentPlanProgress(current: 2, total: 3, completed: 1)
+        }()
         return StatusBubbleItem(
             id: "agent-hook-preview-\(agent.rawValue)",
             text: StatusCopy.statusPhrase(for: .thinking) ?? "is thinking",
@@ -321,7 +382,8 @@ private struct AgentHookBubblePreview: View {
             projectName: "PROJECT",
             modelName: "model-name",
             isSubagent: isSubagent,
-            agent: agent
+            agent: agent,
+            planProgress: planProgress
         )
     }
 }

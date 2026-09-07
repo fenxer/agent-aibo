@@ -10,6 +10,7 @@ import SwiftUI
 struct CapsulePlanShaderBackground: NSViewRepresentable {
     var progress: Double
     var track: Color
+    var primary: Color
 
     func makeNSView(context: Context) -> CapsulePlanMetalView {
         CapsulePlanMetalView()
@@ -18,12 +19,16 @@ struct CapsulePlanShaderBackground: NSViewRepresentable {
     func updateNSView(_ view: CapsulePlanMetalView, context: Context) {
         view.updateProgress(Float(progress))
         view.trackColor = CapsulePlanShaderStyle.simdColor(from: NSColor(track))
+        view.primaryColor = CapsulePlanShaderStyle.simdColor(from: NSColor(primary))
     }
 }
 
 final class CapsulePlanMetalView: NSView {
     var trackColor: SIMD3<Float> = .zero {
         didSet { if trackColor != oldValue { drawCurrent() } }
+    }
+    var primaryColor: SIMD3<Float> = CapsulePlanShaderStyle.defaultPrimary {
+        didSet { if primaryColor != oldValue { drawCurrent() } }
     }
 
     private let tickProxy = TickProxy()
@@ -186,6 +191,7 @@ final class CapsulePlanMetalView: NSView {
             time: Float(CACurrentMediaTime() - startedAt),
             progress: displayedProgress,
             track: trackColor,
+            primary: primaryColor,
             backingScale: window?.backingScaleFactor ?? metalLayer.contentsScale
         )
         renderer.draw(layer: metalLayer, uniforms: uniforms)

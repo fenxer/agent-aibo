@@ -327,10 +327,18 @@ struct StatusBubble: View {
 
     @ViewBuilder
     private func capsuleBackground(fill: Color) -> some View {
-        let hasPlan = item.planProgress.map { $0.total > 0 } ?? false
+        let plan = item.planProgress
+        let shaderAgent = item.agent.flatMap { $0.supportsPlanProgress ? $0 : nil } ?? .codex
+        let usesShader = plan.map { $0.total > 0 } == true
+            && (item.forcesPlanProgressShader
+                || item.agent.map { AppSettings.shared.planProgressShaderEnabled(for: $0) } == true)
         Group {
-            if hasPlan, let plan = item.planProgress {
-                CapsulePlanShaderBackground(progress: plan.fraction, track: fill)
+            if usesShader, let plan {
+                CapsulePlanShaderBackground(
+                    progress: plan.fraction,
+                    track: fill,
+                    primary: AppSettings.shared.resolvedPlanProgressShaderPrimary(for: shaderAgent)
+                )
             } else {
                 Capsule().fill(fill)
             }

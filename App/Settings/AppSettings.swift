@@ -37,6 +37,8 @@ final class AppSettings {
         static let cursorCapsuleColor = "settings.agentCapsuleColor.cursor"
         static let codexCapsuleColor = "settings.agentCapsuleColor.codex"
         static let deepseekCapsuleColor = "settings.agentCapsuleColor.deepseek"
+        static let codexPlanProgressShaderEnabled = "settings.planProgressShaderEnabled.codex"
+        static let codexPlanProgressShaderPrimary = "settings.planProgressShaderPrimary.codex"
         static let aiboScalePercent = "settings.aiboScalePercent"
         static let restoreLastAiboPosition = "settings.restoreLastAiboPosition"
         static let hideWhenFullscreen = "settings.hideWhenFullscreen"
@@ -64,6 +66,13 @@ final class AppSettings {
     static let pixelOptimizationScalePercents: [Double] = [50, 100, 150, 200, 250, 300]
     static let defaultWebhookAutoDismissSeconds = 12
     static let webhookAutoDismissSecondsRange = 1...600
+    /// Playground `Color.primary` `#0935E5`.
+    static let defaultPlanProgressShaderPrimary = Color(
+        .sRGB,
+        red: 9 / 255,
+        green: 53 / 255,
+        blue: 229 / 255
+    )
 
     /// Settings window content width (fixed; only height is user-resizable).
     static let settingsWindowWidth: CGFloat = 680
@@ -190,6 +199,30 @@ final class AppSettings {
         didSet {
             guard oldValue != deepseekCapsuleColor else { return }
             Self.persistColor(deepseekCapsuleColor, key: Keys.deepseekCapsuleColor)
+            AiboPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Codex plasma fill behind TODO progress. Default on.
+    var codexPlanProgressShaderEnabled: Bool {
+        didSet {
+            guard oldValue != codexPlanProgressShaderEnabled else { return }
+            UserDefaults.standard.set(
+                codexPlanProgressShaderEnabled,
+                forKey: Keys.codexPlanProgressShaderEnabled
+            )
+            AiboPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Custom Codex shader primary, or `nil` for `defaultPlanProgressShaderPrimary`.
+    var codexPlanProgressShaderPrimary: Color? {
+        didSet {
+            guard oldValue != codexPlanProgressShaderPrimary else { return }
+            Self.persistColor(
+                codexPlanProgressShaderPrimary,
+                key: Keys.codexPlanProgressShaderPrimary
+            )
             AiboPanelController.shared.refreshContent()
         }
     }
@@ -359,6 +392,14 @@ final class AppSettings {
         cursorCapsuleColor = Self.loadColor(key: Keys.cursorCapsuleColor)
         codexCapsuleColor = Self.loadColor(key: Keys.codexCapsuleColor)
         deepseekCapsuleColor = Self.loadColor(key: Keys.deepseekCapsuleColor)
+        if UserDefaults.standard.object(forKey: Keys.codexPlanProgressShaderEnabled) != nil {
+            codexPlanProgressShaderEnabled = UserDefaults.standard.bool(
+                forKey: Keys.codexPlanProgressShaderEnabled
+            )
+        } else {
+            codexPlanProgressShaderEnabled = true
+        }
+        codexPlanProgressShaderPrimary = Self.loadColor(key: Keys.codexPlanProgressShaderPrimary)
 
         if UserDefaults.standard.object(forKey: Keys.restoreLastAiboPosition) != nil {
             restoreLastAiboPosition = UserDefaults.standard.bool(forKey: Keys.restoreLastAiboPosition)
@@ -466,6 +507,39 @@ final class AppSettings {
         case .cursor: cursorCapsuleColor = color
         case .codex: codexCapsuleColor = color
         case .deepseek: deepseekCapsuleColor = color
+        }
+    }
+
+    func planProgressShaderEnabled(for agent: AgentKind) -> Bool {
+        guard agent.supportsPlanProgress else { return false }
+        switch agent {
+        case .codex: return codexPlanProgressShaderEnabled
+        case .cursor, .deepseek: return false
+        }
+    }
+
+    func setPlanProgressShaderEnabled(_ enabled: Bool, for agent: AgentKind) {
+        switch agent {
+        case .codex: codexPlanProgressShaderEnabled = enabled
+        case .cursor, .deepseek: break
+        }
+    }
+
+    func planProgressShaderPrimary(for agent: AgentKind) -> Color? {
+        switch agent {
+        case .codex: codexPlanProgressShaderPrimary
+        case .cursor, .deepseek: nil
+        }
+    }
+
+    func resolvedPlanProgressShaderPrimary(for agent: AgentKind) -> Color {
+        planProgressShaderPrimary(for: agent) ?? Self.defaultPlanProgressShaderPrimary
+    }
+
+    func setPlanProgressShaderPrimary(_ color: Color?, for agent: AgentKind) {
+        switch agent {
+        case .codex: codexPlanProgressShaderPrimary = color
+        case .cursor, .deepseek: break
         }
     }
 

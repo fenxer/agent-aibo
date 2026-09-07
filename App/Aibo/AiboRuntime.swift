@@ -724,7 +724,8 @@ final class AiboRuntime {
             modelName: (trimmedModel?.isEmpty == false) ? trimmedModel : nil,
             isSubagent: isSubagent && !isAwaitingApproval,
             agent: usesAgentCapsule ? agentKind : nil,
-            planProgress: planProgress
+            planProgress: planProgress,
+            forcesPlanProgressShader: shouldAnimatePlan
         )
         debugBubbleItems.append(item)
         refreshBubbleItems()

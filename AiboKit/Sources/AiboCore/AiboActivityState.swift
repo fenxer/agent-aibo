@@ -4,6 +4,11 @@ public enum AgentKind: String, Sendable, Codable, CaseIterable {
     case cursor
     case codex
     case deepseek
+
+    /// Agents that can show `update_plan` progress in the capsule.
+    public var supportsPlanProgress: Bool {
+        self == .codex
+    }
 }
 
 public enum AiboActivityState: Equatable, Sendable, Codable {

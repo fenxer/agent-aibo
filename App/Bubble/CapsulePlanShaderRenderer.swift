@@ -124,10 +124,7 @@ struct CapsulePlanUniforms {
 }
 
 enum CapsulePlanShaderStyle {
-    /// Playground `Color.primary`.
-    static let primary = simdColor(hex: 0x0935E5)
-    /// Playground `Tail.color`.
-    static let tail = simdColor(hex: 0x2222E7)
+    static let defaultPrimary = simdColor(hex: 0x0935E5)
 
     static let speed: Float = 1
     static let churn: Float = 1
@@ -148,16 +145,15 @@ enum CapsulePlanShaderStyle {
     /// Playground `Size.width` in CSS pixels; demo draws at `width * min(dpr, 2)`.
     static let playgroundBarWidth: CGFloat = 200
 
-    private static let derived = derivedPalette(from: primary)
-
     static func uniforms(
         resolution: SIMD2<Float>,
         time: Float,
         progress: Float,
         track: SIMD3<Float>,
+        primary: SIMD3<Float>,
         backingScale: CGFloat
     ) -> CapsulePlanUniforms {
-        let colors = derived
+        let colors = derivedPalette(from: primary)
         let track4 = SIMD4<Float>(track.x, track.y, track.z, 1)
         let scale = min(max(backingScale, 1), 2)
         return CapsulePlanUniforms(
@@ -182,14 +178,14 @@ enum CapsulePlanShaderStyle {
             tailLength: tailLength,
             refBarWidth: Float(playgroundBarWidth * scale),
             trackColor: track4,
-            deepColor: SIMD4<Float>(tail.x, tail.y, tail.z, 1),
+            deepColor: colors.deep,
             midColor: colors.mid,
             glowColor: colors.glow,
             brightColor: colors.bright,
             coreColor: colors.core,
             trailColor: colors.trail,
             trailHotColor: colors.trailHot,
-            tailColor: SIMD4<Float>(tail.x, tail.y, tail.z, 1)
+            tailColor: colors.deep
         )
     }
 
@@ -213,6 +209,7 @@ enum CapsulePlanShaderStyle {
     }
 
     private struct DerivedPalette {
+        var deep: SIMD4<Float>
         var mid: SIMD4<Float>
         var glow: SIMD4<Float>
         var bright: SIMD4<Float>
@@ -223,10 +220,12 @@ enum CapsulePlanShaderStyle {
 
     private static func derivedPalette(from primary: SIMD3<Float>) -> DerivedPalette {
         let hsl = rgbToHsl(primary)
+        let deep = hslToRgb(h: hsl.h + 12, s: max(hsl.s * 0.9, 0.6), l: 0.06)
         let mid = hslToRgb(h: hsl.h + 8, s: max(hsl.s * 0.95, 0.7), l: 0.16)
         let glow = hslToRgb(h: hsl.h + 4, s: max(hsl.s, 0.85), l: 0.38)
         let core = hslToRgb(h: hsl.h - 6, s: min(hsl.s * 0.6, 0.45), l: 0.88)
         return DerivedPalette(
+            deep: SIMD4<Float>(deep.x, deep.y, deep.z, 1),
             mid: SIMD4<Float>(mid.x, mid.y, mid.z, 1),
             glow: SIMD4<Float>(glow.x, glow.y, glow.z, 1),
             bright: SIMD4<Float>(primary.x, primary.y, primary.z, 1),

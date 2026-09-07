@@ -39,4 +39,7 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
     var agent: AgentKind? = nil
     /// Codex `update_plan` checklist (`current/total` in the agent capsule). Nil hides it.
     var planProgress: AgentPlanProgress? = nil
+    /// When true, draw the plasma fill even if this agent has no To-do shader setting
+    /// (DEBUG preview keeps whatever Agent Name is typed).
+    var forcesPlanProgressShader: Bool = false
 }
