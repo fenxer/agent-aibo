@@ -1,3 +1,4 @@
+import AiboCore
 import Testing
 @testable import AiboIngest
 
@@ -26,6 +27,36 @@ import Testing
         ]
     )
     #expect(detail == "update_plan steps=2 [completed] A | [in_progress] B")
+}
+
+@Test func codexUpdatePlanProgressUsesInProgressStep() {
+    let progress = HookPayloadFields.codexUpdatePlanProgress(
+        toolName: "update_plan",
+        payload: [
+            "tool_input": [
+                "plan": [
+                    ["step": "A", "status": "completed"],
+                    ["step": "B", "status": "in_progress"],
+                    ["step": "C", "status": "pending"],
+                ],
+            ] as [String: Any],
+        ]
+    )
+    #expect(progress == AgentPlanProgress(current: 2, total: 3, completed: 1))
+}
+
+@Test func codexUpdatePlanProgressIgnoresOtherTools() {
+    let progress = HookPayloadFields.codexUpdatePlanProgress(
+        toolName: "Bash",
+        payload: [
+            "tool_input": [
+                "plan": [
+                    ["step": "A", "status": "in_progress"],
+                ],
+            ] as [String: Any],
+        ]
+    )
+    #expect(progress == nil)
 }
 
 @Test func codexUpdatePlanIngestDetailIgnoresOtherTools() {

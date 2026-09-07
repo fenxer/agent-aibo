@@ -289,13 +289,14 @@ struct StatusBubble: View {
 
     @ViewBuilder
     private func agentCapsule(fill: Color, content: Color) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             if let iconAssetName = item.iconAssetName {
                 Image(iconAssetName)
                     .resizable()
                     .renderingMode(.template)
                     .frame(width: capsuleIconSize, height: capsuleIconSize)
                     .foregroundStyle(content)
+                    .padding(.trailing, 4)
             }
             if !item.agentName.isEmpty {
                 Text(item.agentName)
@@ -303,12 +304,22 @@ struct StatusBubble: View {
                     .foregroundStyle(content)
                     .lineLimit(1)
             }
+            if let progress = item.planProgress, progress.total > 0 {
+                CapsulePlanProgressView(
+                    current: progress.current,
+                    total: progress.total,
+                    completed: progress.completed,
+                    color: content
+                )
+            }
         }
         .padding(.top, 2)
         .padding(.bottom, 2)
         .padding(.leading, 4)
         .padding(.trailing, 8)
         .frame(minHeight: capsuleHeight)
+        .fixedSize(horizontal: true, vertical: false)
+        .layoutPriority(1)
         .background(Capsule().fill(fill))
     }
 
@@ -566,6 +577,25 @@ struct StatusBubble: View {
     .background(Color.secondary.opacity(0.25))
 }
 
+#Preview("plan progress") {
+    StatusBubble(
+        item: StatusBubbleItem(
+            id: "plan",
+            text: "is thinking",
+            lastEventAt: .now,
+            agentName: "Codex",
+            iconAssetName: "codex",
+            projectName: "design-fragments",
+            modelName: "Grok 4.5 High Fast",
+            agent: .codex,
+            planProgress: AgentPlanProgress(current: 1, total: 3, completed: 0)
+        ),
+        placement: .top
+    )
+    .padding(40)
+    .background(Color.secondary.opacity(0.25))
+}
+
 #Preview("webhook") {
     StatusBubble(
         item: StatusBubbleItem(
@@ -597,6 +627,55 @@ struct StatusBubble: View {
     )
     .padding(40)
     .background(Color.secondary.opacity(0.25))
+}
+
+/// Codex checklist inside the agent capsule: bar + ring + `current/total`.
+/// Leading 8pt is owned here so the parent HStack can use spacing 0 after the name.
+private struct CapsulePlanProgressView: View {
+    let current: Int
+    let total: Int
+    let completed: Int
+    let color: Color
+
+    private let barHeight: CGFloat = 10
+    private let ringSize: CGFloat = 12
+    private let ringLineWidth: CGFloat = 1.5
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Rectangle()
+                .fill(color.opacity(0.3))
+                .frame(width: 1, height: barHeight)
+                .padding(.horizontal, 8)
+            ZStack {
+                Circle()
+                    .stroke(color.opacity(0.3), lineWidth: ringLineWidth)
+                if fraction > 0 {
+                    Circle()
+                        .trim(from: 0, to: fraction)
+                        .stroke(
+                            color,
+                            style: StrokeStyle(lineWidth: ringLineWidth, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                }
+            }
+            .frame(width: ringSize, height: ringSize)
+            Text(verbatim: "\(current)/\(total)")
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(color)
+                .monospacedDigit()
+                .fixedSize()
+                .padding(.leading, 4)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityLabel(Text(verbatim: "\(current)/\(total)"))
+    }
+
+    private var fraction: CGFloat {
+        guard total > 0 else { return 0 }
+        return min(1, CGFloat(completed) / CGFloat(total))
+    }
 }
 
 /// High-priority tap for activate and/or dismiss (wins over any residual drag gestures).

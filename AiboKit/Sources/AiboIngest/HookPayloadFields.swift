@@ -1,3 +1,4 @@
+import AiboCore
 import Foundation
 
 enum HookPayloadFields {
@@ -25,6 +26,25 @@ enum HookPayloadFields {
         return nil
     }
 
+    /// Capsule `current/total` from Codex `update_plan`. Nil when this isn't that tool
+    /// or the plan array is missing/empty (don't clear sticky session progress).
+    static func codexUpdatePlanProgress(
+        toolName: String?,
+        payload: [String: Any]
+    ) -> AgentPlanProgress? {
+        guard let toolName, isUpdatePlanTool(toolName) else { return nil }
+        switch parseUpdatePlanInput(from: payload) {
+        case .missing, .unparsed:
+            return nil
+        case let .some(input):
+            guard let plan = input["plan"] as? [[String: Any]], !plan.isEmpty else {
+                return nil
+            }
+            let statuses = plan.map { ($0["status"] as? String) ?? "" }
+            return AgentPlanProgress.fromPlanStatuses(statuses)
+        }
+    }
+
     /// Compact ingest-log line for Codex `update_plan` (TODO/checklist tool).
     ///
     /// Official shape: `tool_input = { explanation?, plan: [{ step, status }] }` where
@@ -35,20 +55,14 @@ enum HookPayloadFields {
     ) -> String? {
         guard let toolName, isUpdatePlanTool(toolName) else { return nil }
 
-        guard let rawInput = payload["tool_input"] ?? payload["toolInput"] else {
-            return "update_plan tool_input=missing"
-        }
-
         let inputObject: [String: Any]
-        if let dict = rawInput as? [String: Any] {
-            inputObject = dict
-        } else if let text = rawInput as? String,
-                  let data = text.data(using: .utf8),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        {
-            inputObject = object
-        } else {
+        switch parseUpdatePlanInput(from: payload) {
+        case .missing:
+            return "update_plan tool_input=missing"
+        case .unparsed:
             return "update_plan tool_input=unparsed"
+        case let .some(input):
+            inputObject = input
         }
 
         var parts: [String] = ["update_plan"]
@@ -80,6 +94,28 @@ enum HookPayloadFields {
     /// Cursor nests Task/subagent transcripts under `…/subagents/<id>.jsonl`.
     static func isSubagentTranscript(_ path: String?) -> Bool {
         subagentID(fromTranscriptPath: path) != nil
+    }
+
+    private enum UpdatePlanInputParse {
+        case missing
+        case unparsed
+        case some([String: Any])
+    }
+
+    private static func parseUpdatePlanInput(from payload: [String: Any]) -> UpdatePlanInputParse {
+        guard let rawInput = payload["tool_input"] ?? payload["toolInput"] else {
+            return .missing
+        }
+        if let dict = rawInput as? [String: Any] {
+            return .some(dict)
+        }
+        if let text = rawInput as? String,
+           let data = text.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            return .some(object)
+        }
+        return .unparsed
     }
 
     private static func isUpdatePlanTool(_ toolName: String) -> Bool {

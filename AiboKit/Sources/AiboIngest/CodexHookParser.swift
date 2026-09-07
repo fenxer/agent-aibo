@@ -57,6 +57,10 @@ public enum CodexHookParser {
             ingestDetail: HookPayloadFields.codexUpdatePlanIngestDetail(
                 toolName: toolName,
                 payload: payload
+            ),
+            planProgress: HookPayloadFields.codexUpdatePlanProgress(
+                toolName: toolName,
+                payload: payload
             )
         )
     }

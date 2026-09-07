@@ -37,4 +37,6 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
     var isSubagent: Bool = false
     /// Local hook agent; used to activate the source app on tap. Nil for webhook/debug.
     var agent: AgentKind? = nil
+    /// Codex `update_plan` checklist (`current/total` in the agent capsule). Nil hides it.
+    var planProgress: AgentPlanProgress? = nil
 }

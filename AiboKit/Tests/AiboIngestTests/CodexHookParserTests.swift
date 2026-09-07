@@ -54,6 +54,7 @@ import Testing
     #expect(parsed?.transition == .apply(.thinking))
     #expect(parsed?.prefersPlanningCopy == true)
     #expect(parsed?.ingestDetail == "update_plan explanation=track work steps=3 [completed] Parse hooks | [in_progress] Log todos | [pending] Show bubble")
+    #expect(parsed?.planProgress == AgentPlanProgress(current: 2, total: 3, completed: 1))
 }
 
 @Test func parserLogsMissingUpdatePlanToolInput() throws {

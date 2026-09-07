@@ -15,6 +15,8 @@ public struct ParsedHookLine: Sendable, Equatable {
     public var prefersPlanningCopy: Bool = false
     /// Compact DEBUG ingest-log detail (e.g. Codex `update_plan` steps). Not shown in bubbles.
     public var ingestDetail: String? = nil
+    /// Codex `update_plan` checklist progress for the agent capsule. Sticky in session meta.
+    public var planProgress: AgentPlanProgress? = nil
 }
 
 public enum CursorHookParser {

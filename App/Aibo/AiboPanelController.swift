@@ -61,6 +61,8 @@ final class AiboPanelController {
     private let bubbleSectionSpacing: CGFloat = 12
     private let bubbleStatusLineHeight: CGFloat = 24
     private let bubbleCapsuleWidthEstimate: CGFloat = 88
+    /// Extra width when the Codex checklist (`1/3`) is inside the capsule.
+    private let bubbleCapsulePlanProgressExtra: CGFloat = 64
     private let bubbleArrowSlack: CGFloat = 6
     private let bubbleRowSpacing: CGFloat = 8
 
@@ -583,7 +585,9 @@ final class AiboPanelController {
     private func estimatedBubbleHeight(for item: StatusBubbleItem) -> CGFloat {
         let contentWidth = bubbleMaxWidth - bubbleContentPadding * 2 - bubbleArrowSlack
         let trailingReserve: CGFloat = item.isAwaitingApproval ? 24 : 0
-        let textWidth = contentWidth - bubbleCapsuleWidthEstimate - bubbleRowSpacing - trailingReserve
+        let capsuleWidth = bubbleCapsuleWidthEstimate
+            + (item.planProgress == nil ? 0 : bubbleCapsulePlanProgressExtra)
+        let textWidth = contentWidth - capsuleWidth - bubbleRowSpacing - trailingReserve
         let font = NSFont.systemFont(ofSize: 14)
         let textHeight = ceil(
             (item.text as NSString).boundingRect(

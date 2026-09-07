@@ -121,6 +121,8 @@ final class AiboRuntime {
         var isSubagent: Bool = false
         /// Codex plan mode / update_plan — show “is planning” while `.thinking`.
         var prefersPlanningCopy: Bool = false
+        /// Codex `update_plan` checklist. Sticky until the session goes idle.
+        var planProgress: AgentPlanProgress? = nil
     }
 
     private enum HookIngestSource: String {
@@ -907,7 +909,8 @@ final class AiboRuntime {
                 projectName: parsed.projectName,
                 modelName: parsed.modelName,
                 isSubagent: parsed.isSubagent,
-                prefersPlanningCopy: parsed.prefersPlanningCopy
+                prefersPlanningCopy: parsed.prefersPlanningCopy,
+                planProgress: parsed.planProgress
             )
             if case .removeSession = parsed.transition {
                 sessionDisplayMeta.removeValue(forKey: parsed.session)
@@ -958,7 +961,8 @@ final class AiboRuntime {
         projectName: String?,
         modelName: String?,
         isSubagent: Bool = false,
-        prefersPlanningCopy: Bool = false
+        prefersPlanningCopy: Bool = false,
+        planProgress: AgentPlanProgress? = nil
     ) {
         var meta = sessionDisplayMeta[session] ?? SessionDisplayMeta()
         if let projectName { meta.projectName = projectName }
@@ -966,6 +970,8 @@ final class AiboRuntime {
         // Sticky: once marked a subagent, keep the outline capsule for the session.
         if isSubagent { meta.isSubagent = true }
         meta.prefersPlanningCopy = prefersPlanningCopy
+        // Sticky: keep the last checklist until a newer `update_plan` replaces it.
+        if let planProgress { meta.planProgress = planProgress }
         sessionDisplayMeta[session] = meta
     }
 
@@ -1023,7 +1029,8 @@ final class AiboRuntime {
                     projectName: meta?.projectName,
                     modelName: meta?.modelName,
                     isSubagent: isSubagent,
-                    agent: key.agent
+                    agent: key.agent,
+                    planProgress: isSubagent ? nil : meta?.planProgress
                 )
             )
         }
