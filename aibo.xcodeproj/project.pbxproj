@@ -13,8 +13,8 @@
 		3A3091F53017090000431C96 /* AiboHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3091F43017090000431C96 /* AiboHook.swift */; };
 		3A3091F83017090000431C96 /* aibo-hook in Copy Helpers */ = {isa = PBXBuildFile; fileRef = 3A3091F03017090000431C96 /* aibo-hook */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A1B0D5H13017090000431CB1 /* dsh-aibo in Copy DeepSeek Plugin */ = {isa = PBXBuildFile; fileRef = A1B0D5H13017090000431CA1 /* dsh-aibo */; };
-		A2D0A1B03017090000431DA2 /* default-aibo in Copy Default Aibo */ = {isa = PBXBuildFile; fileRef = A2D0A1B03017090000431DA1 /* default-aibo */; };
 		A1B0P0W43017080000431C96 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = A1B0P0W23017080000431C96 /* Pow */; };
+		A2D0A1B03017090000431DA2 /* default-aibo in Copy Default Aibo */ = {isa = PBXBuildFile; fileRef = A2D0A1B03017090000431DA1 /* default-aibo */; };
 		B2C0M3D13017310000431C96 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; };
 		B2C0M3D43017310000431C96 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		S2P0K0L43017080000431C96 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = S2P0K0L23017080000431C96 /* Sparkle */; };
@@ -82,33 +82,33 @@
 		A2D0A1B03017090000431DA4 /* Exceptions for "App" folder in "aibo" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Aibo/default-aibo/aibo.json,
-				Aibo/default-aibo/pet.json,
-				Aibo/default-aibo/clips/failed.png,
-				Aibo/default-aibo/clips/idle.png,
-				Aibo/default-aibo/clips/jumping.png,
-				Aibo/default-aibo/clips/look-00.png,
-				Aibo/default-aibo/clips/look-01.png,
-				Aibo/default-aibo/clips/look-02.png,
-				Aibo/default-aibo/clips/look-03.png,
-				Aibo/default-aibo/clips/look-04.png,
-				Aibo/default-aibo/clips/look-05.png,
-				Aibo/default-aibo/clips/look-06.png,
-				Aibo/default-aibo/clips/look-07.png,
-				Aibo/default-aibo/clips/look-08.png,
-				Aibo/default-aibo/clips/look-09.png,
-				Aibo/default-aibo/clips/look-10.png,
-				Aibo/default-aibo/clips/look-11.png,
-				Aibo/default-aibo/clips/look-12.png,
-				Aibo/default-aibo/clips/look-13.png,
-				Aibo/default-aibo/clips/look-14.png,
-				Aibo/default-aibo/clips/look-15.png,
-				Aibo/default-aibo/clips/review.png,
-				Aibo/default-aibo/clips/running-left.png,
-				Aibo/default-aibo/clips/running-right.png,
-				Aibo/default-aibo/clips/running.png,
-				Aibo/default-aibo/clips/waiting.png,
-				Aibo/default-aibo/clips/waving.png,
+				"Aibo/default-aibo/aibo.json",
+				"Aibo/default-aibo/clips/failed.png",
+				"Aibo/default-aibo/clips/idle.png",
+				"Aibo/default-aibo/clips/jumping.png",
+				"Aibo/default-aibo/clips/look-00.png",
+				"Aibo/default-aibo/clips/look-01.png",
+				"Aibo/default-aibo/clips/look-02.png",
+				"Aibo/default-aibo/clips/look-03.png",
+				"Aibo/default-aibo/clips/look-04.png",
+				"Aibo/default-aibo/clips/look-05.png",
+				"Aibo/default-aibo/clips/look-06.png",
+				"Aibo/default-aibo/clips/look-07.png",
+				"Aibo/default-aibo/clips/look-08.png",
+				"Aibo/default-aibo/clips/look-09.png",
+				"Aibo/default-aibo/clips/look-10.png",
+				"Aibo/default-aibo/clips/look-11.png",
+				"Aibo/default-aibo/clips/look-12.png",
+				"Aibo/default-aibo/clips/look-13.png",
+				"Aibo/default-aibo/clips/look-14.png",
+				"Aibo/default-aibo/clips/look-15.png",
+				"Aibo/default-aibo/clips/review.png",
+				"Aibo/default-aibo/clips/running-left.png",
+				"Aibo/default-aibo/clips/running-right.png",
+				"Aibo/default-aibo/clips/running.png",
+				"Aibo/default-aibo/clips/waiting.png",
+				"Aibo/default-aibo/clips/waving.png",
+				"Aibo/default-aibo/pet.json",
 			);
 			target = 3A3091CC3017070E00431C96 /* aibo */;
 		};
@@ -442,11 +442,11 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Sparkle-Debug.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Aibo;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_FILE = "Config/Sparkle-Debug.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -480,11 +480,11 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Sparkle-Release.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Aibo;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_FILE = "Config/Sparkle-Release.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
