@@ -5,7 +5,8 @@ public enum CodexEventMapper {
     public static func transition(
         eventName: String,
         toolName: String? = nil,
-        permissionMode: String? = nil
+        permissionMode: String? = nil,
+        agent: AgentKind = .codex
     ) -> StateTransition? {
         let isPlanMode = Self.isPlanMode(permissionMode)
         switch eventName {
@@ -15,6 +16,10 @@ public enum CodexEventMapper {
         case "UserPromptSubmit", "SubagentStart":
             return .apply(.thinking)
         case "PreToolUse":
+            // Codex network / filesystem grant UI — not “is using request_permissions”.
+            if agent == .codex, isRequestPermissionsTool(toolName) {
+                return .apply(.waiting)
+            }
             // Plan-mode checklist tool — show as planning, not “is using update_plan”.
             if isPlanMode || isUpdatePlanTool(toolName) {
                 return .apply(.thinking)
@@ -57,5 +62,11 @@ public enum CodexEventMapper {
     private static func isUpdatePlanTool(_ toolName: String?) -> Bool {
         guard let toolName else { return false }
         return toolName == "update_plan" || toolName == "UpdatePlan"
+    }
+
+    private static func isRequestPermissionsTool(_ toolName: String?) -> Bool {
+        guard let toolName else { return false }
+        return toolName.caseInsensitiveCompare("request_permissions") == .orderedSame
+            || toolName.caseInsensitiveCompare("RequestPermissions") == .orderedSame
     }
 }

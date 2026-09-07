@@ -76,3 +76,7 @@ xcodebuild -project aibo.xcodeproj -scheme aibo -configuration Debug build
 # Build and launch
 ./Scripts/run.sh
 ```
+
+## Acknowledgments
+
+This project is inspired by [AgentPet](https://github.com/ntd4996/agentpet), an excellent native desktop pet app that includes some online services.

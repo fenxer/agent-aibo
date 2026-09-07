@@ -107,7 +107,7 @@ private struct AgentHookAdvancedHeaderSection: View {
         case .cursor:
             String(localized: "Cursor does not support approval or prompt-waiting hook events yet.")
         case .codex:
-            String(localized: "Codex PermissionRequest starts as “is reviewing”, then escalates to “got stuck?” after a few seconds.")
+            String(localized: "Codex permission prompts show “request permission”. Click the bubble to open Codex.")
         case .deepseek:
             String(localized: "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Clicking the bubble does not switch apps yet.")
         }

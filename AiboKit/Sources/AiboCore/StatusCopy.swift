@@ -12,7 +12,13 @@ public enum StatusCopy {
     }
 
     /// Status text shown beside the agent capsule (no agent name prefix).
-    public static func statusPhrase(for activity: AiboActivityState) -> String? {
+    ///
+    /// `waitingToolName` is unused for Codex live copy (see `requestPermissionPhrase`).
+    /// DeepSeek keeps the generic “is reviewing” phrase and may still escalate later.
+    public static func statusPhrase(
+        for activity: AiboActivityState,
+        waitingToolName: String? = nil
+    ) -> String? {
         switch activity {
         case .idle:
             return nil
@@ -25,8 +31,11 @@ public enum StatusCopy {
         case .responding:
             return "is responding"
         case .waiting:
-            // Initial copy while Codex Auto-review (or a pending prompt) may still
-            // resolve without the user. Escalates later — see `needsYourApprovalPhrase`.
+            let trimmed = waitingToolName?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty {
+                return "is reviewing \(trimmed)"
+            }
             return "is reviewing"
         case .done:
             return "finished"
@@ -37,10 +46,13 @@ public enum StatusCopy {
         }
     }
 
+    /// Codex `.waiting` (PermissionRequest / `request_permissions`). Verb, not “is using”.
+    public static let requestPermissionPhrase = "request permission"
+
     /// Escalated `.waiting` copy after silence (see `WaitingApprovalEscalationHint`).
     ///
-    /// Same wording as the Cursor stall hint: Codex Auto-review and real prompts share
-    /// `PermissionRequest`, so we avoid “needs your approval” which over-promises.
+    /// DeepSeek still shares a generic `PermissionRequest`. Codex shows
+    /// `requestPermissionPhrase` plus the arrow instead of escalating.
     public static let needsYourApprovalPhrase = stuckPhrase
 
     /// Attention CTA after silence (Cursor `.usingTool` stall, or escalated `.waiting`).
@@ -78,6 +90,9 @@ public enum StatusCopy {
 
         switch transition {
         case .apply(let activity):
+            if activity == .waiting, agent == .codex {
+                return requestPermissionPhrase
+            }
             guard let phrase = statusPhrase(for: activity) else { return nil }
             if activity == .waiting {
                 return "\(phrase) · \(stuckPhrase)"
@@ -136,6 +151,9 @@ public enum StatusCopy {
             case "PostToolUse":
                 return "Tool finished; still thinking" // 工具跑完，继续思考
             case "PermissionRequest":
+                if agent == .codex {
+                    return "Waiting on a permission prompt (e.g. request permission)" // 等待权限确认。比如 request permission
+                }
                 return "Waiting for approval or auto-review (e.g. is reviewing, then got stuck?)" // 等待审批或自动审查。比如 is reviewing，沉默几秒后变成 got stuck?
             case "SubagentStart":
                 return "Subagent started" // 子任务开始
@@ -153,7 +171,7 @@ public enum StatusCopy {
         switch agent {
         case .cursor: "Cursor"
         case .codex: "Codex"
-        case .deepseek: "DeepSeek"
+        case .deepseek: "DeepSeek Harness"
         }
     }
 }

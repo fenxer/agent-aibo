@@ -8,6 +8,17 @@ import Testing
         CodexEventMapper.transition(eventName: "PreToolUse", toolName: "Bash")
             == .apply(.usingTool("Bash"))
     )
+    #expect(
+        CodexEventMapper.transition(eventName: "PreToolUse", toolName: "request_permissions")
+            == .apply(.waiting)
+    )
+    #expect(
+        CodexEventMapper.transition(
+            eventName: "PreToolUse",
+            toolName: "request_permissions",
+            agent: .deepseek
+        ) == .apply(.usingTool("request_permissions"))
+    )
     #expect(CodexEventMapper.transition(eventName: "PostToolUse") == .apply(.thinking))
     #expect(CodexEventMapper.transition(eventName: "SubagentStart") == .apply(.thinking))
     #expect(CodexEventMapper.transition(eventName: "PermissionRequest") == .apply(.waiting))
@@ -28,6 +39,13 @@ import Testing
     #expect(
         CodexEventMapper.transition(eventName: "PreToolUse", toolName: "update_plan")
             == .apply(.thinking)
+    )
+    #expect(
+        CodexEventMapper.transition(
+            eventName: "PreToolUse",
+            toolName: "request_permissions",
+            permissionMode: "plan"
+        ) == .apply(.waiting)
     )
     #expect(
         CodexEventMapper.transition(

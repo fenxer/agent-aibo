@@ -219,11 +219,12 @@ import Testing
     )
 }
 
-@Test func waitingApprovalEscalationHintOnlyAfterDelay() {
+@Test func waitingApprovalEscalationHintSkipsCodexAndDelaysOthers() {
     let t0 = Date(timeIntervalSince1970: 4_000)
     #expect(AiboStateMachine.waitingApprovalEscalationDelay == 5)
     #expect(
         WaitingApprovalEscalationHint.isDue(
+            agent: .deepseek,
             activity: .waiting,
             lastEventAt: t0,
             now: t0.addingTimeInterval(4.9)
@@ -231,6 +232,7 @@ import Testing
     )
     #expect(
         WaitingApprovalEscalationHint.isDue(
+            agent: .deepseek,
             activity: .waiting,
             lastEventAt: t0,
             now: t0.addingTimeInterval(5)
@@ -238,6 +240,15 @@ import Testing
     )
     #expect(
         WaitingApprovalEscalationHint.isDue(
+            agent: .codex,
+            activity: .waiting,
+            lastEventAt: t0,
+            now: t0.addingTimeInterval(30)
+        ) == false
+    )
+    #expect(
+        WaitingApprovalEscalationHint.isDue(
+            agent: .deepseek,
             activity: .thinking,
             lastEventAt: t0,
             now: t0.addingTimeInterval(30)

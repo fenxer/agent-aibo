@@ -19,6 +19,33 @@ import Testing
     """
     let parsed = try CodexHookParser.parse(jsonLine: line)
     #expect(parsed?.transition == .apply(.waiting))
+    #expect(parsed?.waitingToolName == "Bash")
+}
+
+@Test func parserMapsCodexPermissionRequestWithoutToolName() throws {
+    let line = """
+    {"session_id":"thr_123","hook_event_name":"PermissionRequest"}
+    """
+    let parsed = try CodexHookParser.parse(jsonLine: line)
+    #expect(parsed?.transition == .apply(.waiting))
+    #expect(parsed?.waitingToolName == nil)
+}
+
+@Test func parserMapsCodexRequestPermissionsPreToolUseToWaiting() throws {
+    let line = """
+    {"session_id":"thr_123","hook_event_name":"PreToolUse","tool_name":"request_permissions"}
+    """
+    let parsed = try CodexHookParser.parse(jsonLine: line)
+    #expect(parsed?.transition == .apply(.waiting))
+}
+
+@Test func parserKeepsDeepSeekRequestPermissionsAsUsingTool() throws {
+    let line = """
+    {"aibo_agent":"deepseek","session_id":"ses_1","hook_event_name":"PreToolUse","tool_name":"request_permissions"}
+    """
+    let parsed = try HookLineParser.parse(jsonLine: line)
+    #expect(parsed?.session.agent == .deepseek)
+    #expect(parsed?.transition == .apply(.usingTool("request_permissions")))
 }
 
 @Test func parserMapsCodexSubagentStopToDone() throws {
@@ -110,6 +137,16 @@ import Testing
     #expect(parsed?.session == SessionKey(agent: .deepseek, conversationID: "ses_1"))
     #expect(parsed?.transition == .apply(.usingTool("bash")))
     #expect(parsed?.projectName == "aibo")
+}
+
+@Test func hookLineParserDoesNotAttachWaitingToolNameForDeepSeek() throws {
+    let line = """
+    {"aibo_agent":"deepseek","session_id":"ses_1","hook_event_name":"PermissionRequest","tool_name":"bash"}
+    """
+    let parsed = try HookLineParser.parse(jsonLine: line)
+    #expect(parsed?.session.agent == .deepseek)
+    #expect(parsed?.transition == .apply(.waiting))
+    #expect(parsed?.waitingToolName == nil)
 }
 
 @Test func hookLineParserDoesNotTreatUnmarkedPascalCaseAsDeepSeek() throws {

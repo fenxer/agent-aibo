@@ -17,6 +17,8 @@ public struct ParsedHookLine: Sendable, Equatable {
     public var ingestDetail: String? = nil
     /// Codex `update_plan` checklist progress for the agent capsule. Sticky in session meta.
     public var planProgress: AgentPlanProgress? = nil
+    /// Codex `PermissionRequest` `tool_name` for bubble copy. Nil for other agents/events.
+    public var waitingToolName: String? = nil
 }
 
 public enum CursorHookParser {

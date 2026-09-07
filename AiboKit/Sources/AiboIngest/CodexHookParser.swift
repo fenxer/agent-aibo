@@ -36,7 +36,8 @@ public enum CodexHookParser {
         guard let transition = CodexEventMapper.transition(
             eventName: eventName,
             toolName: toolName,
-            permissionMode: permissionMode
+            permissionMode: permissionMode,
+            agent: agent
         ) else {
             return nil
         }
@@ -46,6 +47,13 @@ public enum CodexHookParser {
             toolName: toolName,
             permissionMode: permissionMode
         )
+
+        // Codex only: surface the tool under review. DeepSeek keeps generic waiting copy.
+        let waitingToolName: String? = {
+            guard agent == .codex, eventName == "PermissionRequest" else { return nil }
+            let trimmed = toolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trimmed.isEmpty ? nil : trimmed
+        }()
 
         return ParsedHookLine(
             session: SessionKey(agent: agent, conversationID: sessionID),
@@ -61,7 +69,8 @@ public enum CodexHookParser {
             planProgress: HookPayloadFields.codexUpdatePlanProgress(
                 toolName: toolName,
                 payload: payload
-            )
+            ),
+            waitingToolName: waitingToolName
         )
     }
 }

@@ -118,7 +118,7 @@
     "Click to switch to app and dismiss" : {
 
     },
-    "Codex PermissionRequest starts as “is reviewing”, then escalates to “got stuck?” after a few seconds." : {
+    "Codex permission prompts show “request permission”. Click the bubble to open Codex." : {
 
     },
     "Connectivity" : {

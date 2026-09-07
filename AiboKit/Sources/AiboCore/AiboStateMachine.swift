@@ -30,8 +30,8 @@ public enum AiboStateMachine {
     /// to click the bubble and check Cursor.
     public static let cursorUsingToolStallDelay: TimeInterval = 10
     /// Silence on `.waiting` before escalating from “is reviewing” to the
-    /// “got stuck?” CTA. Covers Codex Auto-review (same `PermissionRequest`
-    /// hook, no distinct payload) without immediately nagging the user.
+    /// “got stuck?” CTA. Codex no longer uses this: `PermissionRequest`
+    /// carries `tool_name`. DeepSeek still shares a generic waiting state.
     public static let waitingApprovalEscalationDelay: TimeInterval = 5
     /// Default silence timeout before a session is forced to `.idle`.
     public static let defaultWatchdogTimeout: TimeInterval = 120
@@ -131,17 +131,19 @@ public enum CursorUsingToolStallHint {
 
 /// UI hint when `.waiting` stays silent — escalate “is reviewing” → “got stuck?”.
 ///
-/// Codex Auto-review and real user prompts share `PermissionRequest` → `.waiting`;
-/// a short delay avoids flashing the attention CTA while the reviewer may still act.
+/// Codex is excluded: `PermissionRequest` already names the tool, and replacing
+/// that with “got stuck?” would throw the detail away. DeepSeek still uses this.
 public enum WaitingApprovalEscalationHint {
     public static var delay: TimeInterval { AiboStateMachine.waitingApprovalEscalationDelay }
 
     /// Whether the bubble should show the attention CTA / “got stuck?” copy.
     public static func isDue(
+        agent: AgentKind,
         activity: AiboActivityState,
         lastEventAt: Date,
         now: Date = Date()
     ) -> Bool {
+        guard agent != .codex else { return false }
         guard activity == .waiting else { return false }
         return now.timeIntervalSince(lastEventAt) >= delay
     }

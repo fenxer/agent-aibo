@@ -33,10 +33,15 @@ import Testing
     )
     #expect(
         StatusCopy.exampleBubblePhrase(agent: .codex, hookEventName: "PermissionRequest")
-            == "is reviewing · got stuck?"
+            == "request permission"
     )
     #expect(
         StatusCopy.statusPhrase(for: .waiting) == "is reviewing"
+    )
+    #expect(StatusCopy.requestPermissionPhrase == "request permission")
+    #expect(
+        StatusCopy.exampleBubblePhrase(agent: .deepseek, hookEventName: "PermissionRequest")
+            == "is reviewing · got stuck?"
     )
     #expect(StatusCopy.needsYourApprovalPhrase == "got stuck?")
     #expect(StatusCopy.stuckPhrase == "got stuck?")
@@ -69,6 +74,10 @@ import Testing
     )
     #expect(
         StatusCopy.hookSettingDescription(agent: .codex, hookEventName: "PermissionRequest")
+            == "Waiting on a permission prompt (e.g. request permission)"
+    )
+    #expect(
+        StatusCopy.hookSettingDescription(agent: .deepseek, hookEventName: "PermissionRequest")
             == "Waiting for approval or auto-review (e.g. is reviewing, then got stuck?)"
     )
     #expect(

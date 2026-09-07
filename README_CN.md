@@ -76,3 +76,7 @@ xcodebuild -project aibo.xcodeproj -scheme aibo -configuration Debug build
 # 构建并启动
 ./Scripts/run.sh
 ```
+
+## 参考
+
+本项目受[AgentPet](https://github.com/ntd4996/agentpet)项目启发，这是一款优秀的原生桌宠应用，加入了一些在线服务。

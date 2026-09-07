@@ -124,6 +124,8 @@ final class AiboRuntime {
         var prefersPlanningCopy: Bool = false
         /// Codex `update_plan` checklist. Sticky until the session goes idle.
         var planProgress: AgentPlanProgress? = nil
+        /// Codex `PermissionRequest` tool name. Cleared on any other event.
+        var waitingToolName: String? = nil
     }
 
     private enum HookIngestSource: String {
@@ -970,7 +972,8 @@ final class AiboRuntime {
                 modelName: parsed.modelName,
                 isSubagent: parsed.isSubagent,
                 prefersPlanningCopy: parsed.prefersPlanningCopy,
-                planProgress: parsed.planProgress
+                planProgress: parsed.planProgress,
+                waitingToolName: parsed.waitingToolName
             )
             if case .removeSession = parsed.transition {
                 sessionDisplayMeta.removeValue(forKey: parsed.session)
@@ -1022,7 +1025,8 @@ final class AiboRuntime {
         modelName: String?,
         isSubagent: Bool = false,
         prefersPlanningCopy: Bool = false,
-        planProgress: AgentPlanProgress? = nil
+        planProgress: AgentPlanProgress? = nil,
+        waitingToolName: String? = nil
     ) {
         var meta = sessionDisplayMeta[session] ?? SessionDisplayMeta()
         if let projectName { meta.projectName = projectName }
@@ -1032,6 +1036,7 @@ final class AiboRuntime {
         meta.prefersPlanningCopy = prefersPlanningCopy
         // Sticky: keep the last checklist until a newer `update_plan` replaces it.
         if let planProgress { meta.planProgress = planProgress }
+        meta.waitingToolName = waitingToolName
         sessionDisplayMeta[session] = meta
     }
 
@@ -1052,6 +1057,7 @@ final class AiboRuntime {
                 continue
             }
             let isEscalatedWaiting = WaitingApprovalEscalationHint.isDue(
+                agent: key.agent,
                 activity: snapshot.activity,
                 lastEventAt: snapshot.lastEventAt,
                 now: now
@@ -1062,14 +1068,20 @@ final class AiboRuntime {
                 lastEventAt: snapshot.lastEventAt,
                 now: now
             )
-            let showsAttentionCTA = isEscalatedWaiting || isStalledUsingTool
-            guard let phrase = StatusCopy.statusPhrase(for: snapshot.activity) else { continue }
+            let isCodexWaiting = key.agent == .codex && snapshot.activity == .waiting
+            let showsAttentionCTA = isEscalatedWaiting || isStalledUsingTool || isCodexWaiting
             let meta = sessionDisplayMeta[key]
+            guard let phrase = StatusCopy.statusPhrase(
+                for: snapshot.activity,
+                waitingToolName: key.agent == .codex ? nil : meta?.waitingToolName
+            ) else { continue }
             let text: String
             if isStalledUsingTool {
                 text = StatusCopy.stuckPhrase
             } else if isEscalatedWaiting {
                 text = StatusCopy.stuckPhrase
+            } else if isCodexWaiting {
+                text = StatusCopy.requestPermissionPhrase
             } else if snapshot.activity == .thinking, meta?.prefersPlanningCopy == true {
                 text = StatusCopy.planningPhrase
             } else {
@@ -1130,7 +1142,8 @@ final class AiboRuntime {
     }
 
     /// Terminal statuses keep static copy — no loading-dot cycle.
-    /// `.waiting` starts as “is reviewing” (ellipsis on); escalated CTA turns it off.
+    /// Codex `.waiting` uses the arrow CTA (no ellipsis); DeepSeek keeps
+    /// ellipsis until the delayed “got stuck?” CTA.
     private static func animatesEllipsis(for activity: AiboActivityState) -> Bool {
         switch activity {
         case .done, .interrupted: false
@@ -1221,12 +1234,14 @@ final class AiboRuntime {
         cursorUsingToolStallTasks[key] = nil
     }
 
-    /// One-shot wake-ups so `.waiting` escalates to the approval CTA without polling.
+    /// One-shot wake-ups so non-Codex `.waiting` escalates to the approval CTA
+    /// without polling. Codex keeps the tool name on the bubble instead.
     private func syncWaitingApprovalEscalationTimers() {
         let now = Date()
         var active = Set<SessionKey>()
         for (key, snapshot) in world.sessions {
             guard snapshot.activity == .waiting else { continue }
+            guard key.agent != .codex else { continue }
             active.insert(key)
             let fireAt = snapshot.lastEventAt.addingTimeInterval(WaitingApprovalEscalationHint.delay)
             let delay = fireAt.timeIntervalSince(now)
