@@ -320,7 +320,22 @@ struct StatusBubble: View {
         .frame(minHeight: capsuleHeight)
         .fixedSize(horizontal: true, vertical: false)
         .layoutPriority(1)
-        .background(Capsule().fill(fill))
+        .background {
+            capsuleBackground(fill: fill)
+        }
+    }
+
+    @ViewBuilder
+    private func capsuleBackground(fill: Color) -> some View {
+        let hasPlan = item.planProgress.map { $0.total > 0 } ?? false
+        Group {
+            if hasPlan, let plan = item.planProgress {
+                CapsulePlanShaderBackground(progress: plan.fraction, track: fill)
+            } else {
+                Capsule().fill(fill)
+            }
+        }
+        .clipShape(Capsule())
     }
 
     /// Outline capsule: 1pt dashed border (marching ants), no fill, label “Subagent”.

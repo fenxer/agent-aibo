@@ -100,6 +100,7 @@ final class AiboRuntime {
     private var sessionHookEvents: [SessionKey: String] = [:]
     #if DEBUG
     private var debugBubbleItems: [StatusBubbleItem] = []
+    private var debugPlanProgressTask: Task<Void, Never>?
     /// When true, every hook line (queue drain + live socket) is appended to ingest-log.jsonl.
     private(set) var ingestLoggingEnabled: Bool
     private(set) var ingestLogEntryCount = 0
@@ -663,6 +664,8 @@ final class AiboRuntime {
     ///
     /// - Parameter stack: When true, appends; when false, replaces any existing debug bubbles.
     /// - Parameter isAwaitingApproval: Renders the approval CTA row (arrow + localized prompt).
+    /// - Parameter showsPlanProgress: Animates a 3-step checklist from `1/3` through a full `3/3`.
+    /// - Parameter planProgressIntervalSeconds: Delay between steps (default 5; clamped 1...60).
     func showDebugBubble(
         text: String,
         agentName: String = "Cursor",
@@ -671,7 +674,9 @@ final class AiboRuntime {
         showCursorIcon: Bool = true,
         isSubagent: Bool = false,
         stack: Bool = false,
-        isAwaitingApproval: Bool = false
+        isAwaitingApproval: Bool = false,
+        showsPlanProgress: Bool = false,
+        planProgressIntervalSeconds: Int = 5
     ) {
         let trimmedAgent = agentName.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayAgent = isSubagent
@@ -689,17 +694,26 @@ final class AiboRuntime {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedModel = modelName?
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let usesAgentCapsule = isAwaitingApproval || showsPlanProgress
+        let shouldAnimatePlan = showsPlanProgress && !isSubagent
+        let planProgress: AgentPlanProgress? = shouldAnimatePlan
+            ? Self.debugPlanProgressSteps[0]
+            : nil
         let iconAssetName: String? = {
-            if isAwaitingApproval {
+            if usesAgentCapsule {
                 return Self.iconAssetName(for: agentKind)
             }
             return showCursorIcon ? "cursor" : nil
         }()
         if !stack {
+            cancelDebugPlanProgress()
             debugBubbleItems = []
+        } else if shouldAnimatePlan {
+            cancelDebugPlanProgress()
+            debugBubbleItems.removeAll { $0.id == Self.debugPlanProgressID }
         }
         let item = StatusBubbleItem(
-            id: "debug-\(UUID().uuidString)",
+            id: shouldAnimatePlan ? Self.debugPlanProgressID : "debug-\(UUID().uuidString)",
             text: trimmedText,
             lastEventAt: Date.distantFuture.addingTimeInterval(TimeInterval(debugBubbleItems.count)),
             animatesEllipsis: !isAwaitingApproval,
@@ -709,19 +723,63 @@ final class AiboRuntime {
             projectName: (trimmedProject?.isEmpty == false) ? trimmedProject : nil,
             modelName: (trimmedModel?.isEmpty == false) ? trimmedModel : nil,
             isSubagent: isSubagent && !isAwaitingApproval,
-            agent: isAwaitingApproval ? agentKind : nil
+            agent: usesAgentCapsule ? agentKind : nil,
+            planProgress: planProgress
         )
         debugBubbleItems.append(item)
         refreshBubbleItems()
         AiboPanelController.shared.refreshContent()
+        if shouldAnimatePlan {
+            startDebugPlanProgress(intervalSeconds: planProgressIntervalSeconds)
+        }
     }
 
     func clearDebugBubble() {
+        cancelDebugPlanProgress()
         debugBubbleItems = []
         cancelDeferredTunnelWarning()
         clearTunnelWarningBubble(resetDetectionClock: true)
         refreshBubbleItems()
         AiboPanelController.shared.refreshContent()
+    }
+
+    private static let debugPlanProgressID = "debug-plan-progress"
+
+    /// Realistic `update_plan` walk: step 1 in progress → … → last step in progress → all completed.
+    private static let debugPlanProgressSteps: [AgentPlanProgress] = [
+        AgentPlanProgress(current: 1, total: 3, completed: 0),
+        AgentPlanProgress(current: 2, total: 3, completed: 1),
+        AgentPlanProgress(current: 3, total: 3, completed: 2),
+        AgentPlanProgress(current: 3, total: 3, completed: 3),
+    ]
+
+    private func startDebugPlanProgress(intervalSeconds: Int) {
+        let interval = min(60, max(1, intervalSeconds))
+        let steps = Self.debugPlanProgressSteps
+        debugPlanProgressTask = Task { [weak self] in
+            for index in 1..<steps.count {
+                try? await Task.sleep(for: .seconds(interval))
+                guard !Task.isCancelled else { return }
+                self?.applyDebugPlanProgress(steps[index])
+            }
+            self?.debugPlanProgressTask = nil
+        }
+    }
+
+    private func applyDebugPlanProgress(_ progress: AgentPlanProgress) {
+        guard let index = debugBubbleItems.firstIndex(where: { $0.id == Self.debugPlanProgressID })
+        else {
+            cancelDebugPlanProgress()
+            return
+        }
+        debugBubbleItems[index].planProgress = progress
+        refreshBubbleItems()
+        AiboPanelController.shared.refreshContent()
+    }
+
+    private func cancelDebugPlanProgress() {
+        debugPlanProgressTask?.cancel()
+        debugPlanProgressTask = nil
     }
 
     private static func debugAgentKind(from agentName: String) -> AgentKind {
@@ -902,6 +960,7 @@ final class AiboRuntime {
                 return
             }
             #if DEBUG
+            cancelDebugPlanProgress()
             debugBubbleItems = []
             #endif
             mergeDisplayMeta(

@@ -12,6 +12,8 @@ struct DevelopmentSettingsPane: View {
     @State private var isSubagent = false
     @State private var stackBubbles = false
     @State private var isAwaitingApproval = false
+    @State private var showsPlanProgress = false
+    @State private var planProgressIntervalSeconds = 5
     @State private var message = "is thinking"
     @State private var webhookJSON = """
         {
@@ -63,11 +65,25 @@ struct DevelopmentSettingsPane: View {
             TextField(String(localized: "Agent Name"), text: $agentName)
                 .disabled(isSubagent)
             Toggle(String(localized: "Show Cursor Icon"), isOn: $showCursorIcon)
-                .disabled(isAwaitingApproval)
+                .disabled(isAwaitingApproval || showsPlanProgress)
             Toggle(String(localized: "Subagent Capsule"), isOn: $isSubagent)
-                .disabled(isAwaitingApproval)
+                .disabled(isAwaitingApproval || showsPlanProgress)
             Toggle(String(localized: "Stack Bubbles"), isOn: $stackBubbles)
             Toggle(String(localized: "Approval Bubble"), isOn: $isAwaitingApproval)
+            Toggle(String(localized: "TODO Progress"), isOn: $showsPlanProgress)
+                .disabled(isSubagent)
+            if showsPlanProgress {
+                LabeledContent(String(localized: "Step Interval")) {
+                    TextField(
+                        String(localized: "Seconds"),
+                        value: $planProgressIntervalSeconds,
+                        format: .number
+                    )
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 64)
+                }
+            }
             TextField(String(localized: "Status Text"), text: $message, axis: .vertical)
                 .lineLimit(2...5)
                 .disabled(isAwaitingApproval)
@@ -82,7 +98,9 @@ struct DevelopmentSettingsPane: View {
                         showCursorIcon: showCursorIcon,
                         isSubagent: isSubagent,
                         stack: stackBubbles,
-                        isAwaitingApproval: isAwaitingApproval
+                        isAwaitingApproval: isAwaitingApproval,
+                        showsPlanProgress: showsPlanProgress,
+                        planProgressIntervalSeconds: planProgressIntervalSeconds
                     )
                 }
                 .disabled(!canShow)
