@@ -24,6 +24,9 @@ DerivedData/
 # Local xcodebuild output used by Scripts/run.sh
 .derivedData/
 
+# Local Xcode SPM pins (Sparkle/Pow binaries live in DerivedData)
+**/xcshareddata/swiftpm/
+
 # Local packaged app copies (not source)
 .product/
 

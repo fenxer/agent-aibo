@@ -1,7 +1,534 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "—" : {
 
+    },
+    "“%@” is already in your library. Choose a different name to install this aibo." : {
+
+    },
+    "“%@” is already in your library. Choose a different name." : {
+
+    },
+    "“%@” was not found on Petdex" : {
+
+    },
+    "%@ used" : {
+
+    },
+    "About" : {
+
+    },
+    "Actions" : {
+
+    },
+    "Active Aibo" : {
+
+    },
+    "Agent Hook" : {
+
+    },
+    "aibo" : {
+
+    },
+    "Aibo" : {
+
+    },
+    "Aibo Accent Color" : {
+
+    },
+    "Aibo Actions" : {
+
+    },
+    "Aibo Already Exists" : {
+
+    },
+    "Aibo Size" : {
+
+    },
+    "All Aibos" : {
+
+    },
+    "All Sources" : {
+
+    },
+    "Appearance" : {
+
+    },
+    "Are you sure you want to delete “%@”?" : {
+
+    },
+    "Are you sure you want to delete %lld aibos?" : {
+
+    },
+    "Auto" : {
+
+    },
+    "Auto-dismiss" : {
+
+    },
+    "Back" : {
+
+    },
+    "Background Material" : {
+
+    },
+    "Background Tint Color" : {
+
+    },
+    "Bubble" : {
+
+    },
+    "Built-in" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Capsule Color" : {
+
+    },
+    "Change Aibo" : {
+
+    },
+    "Check" : {
+
+    },
+    "Checking…" : {
+
+    },
+    "Choose which Petdex animation plays when each hook fires. Applies when a Petdex aibo is selected. Hover a row to preview it." : {
+
+    },
+    "Clear" : {
+
+    },
+    "Clear all received logs?" : {
+
+    },
+    "Click to dismiss" : {
+
+    },
+    "Click to Dismiss" : {
+
+    },
+    "Click to switch to app" : {
+
+    },
+    "Click to switch to app and dismiss" : {
+
+    },
+    "Codex PermissionRequest starts as “is reviewing”, then escalates to “got stuck?” after a few seconds." : {
+
+    },
+    "Connectivity" : {
+
+    },
+    "Copy" : {
+
+    },
+    "Couldn't Install Aibo" : {
+
+    },
+    "Cursor does not support approval or prompt-waiting hook events yet." : {
+
+    },
+    "Custom" : {
+
+    },
+    "Dark" : {
+
+    },
+    "Date Added" : {
+
+    },
+    "Default" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete %@" : {
+
+    },
+    "Delete Aibo?" : {
+
+    },
+    "Delete Aibos?" : {
+
+    },
+    "Desktop aibo" : {
+
+    },
+    "Disable Mouse Tracking" : {
+
+    },
+    "Dismiss Bubble" : {
+
+    },
+    "Distance" : {
+
+    },
+    "Done" : {
+
+    },
+    "Down" : {
+
+    },
+    "Drag Left" : {
+
+    },
+    "Drag Right" : {
+
+    },
+    "Enter a Petdex slug or page URL" : {
+
+    },
+    "Enter PetDex URL or slug to download." : {
+
+    },
+    "Export" : {
+
+    },
+    "Extra Action" : {
+
+    },
+    "Failed" : {
+
+    },
+    "Failed to clear received log" : {
+
+    },
+    "Failed to download aibo assets" : {
+
+    },
+    "Failed to export received log" : {
+
+    },
+    "Failed to import image" : {
+
+    },
+    "Failed to install aibo" : {
+
+    },
+    "Failed to install Codex hooks" : {
+
+    },
+    "Failed to install Cursor hooks" : {
+
+    },
+    "Failed to install DeepSeek plugin" : {
+
+    },
+    "Failed to save aibo files" : {
+
+    },
+    "Failed to save aibo library" : {
+
+    },
+    "Failed to start hook listener" : {
+
+    },
+    "Failed to start webhook listener" : {
+
+    },
+    "Failed to uninstall Codex hooks" : {
+
+    },
+    "Failed to uninstall Cursor hooks" : {
+
+    },
+    "Failed to uninstall DeepSeek plugin" : {
+
+    },
+    "Failed to write export file" : {
+
+    },
+    "Failed to write received log" : {
+
+    },
+    "Float notes while playing music or video" : {
+
+    },
+    "Follow Mouse" : {
+
+    },
+    "Forward" : {
+
+    },
+    "General" : {
+
+    },
+    "Hide Aibo" : {
+
+    },
+    "Hide When Fullscreen" : {
+
+    },
+    "Hook and style settings" : {
+
+    },
+    "https://…/webhook" : {
+
+    },
+    "Idle" : {
+
+    },
+    "Install" : {
+
+    },
+    "Install from Local File" : {
+
+    },
+    "Install from PetDex" : {
+
+    },
+    "Install or select a Petdex aibo in Aibo to preview animations." : {
+
+    },
+    "Installed" : {
+
+    },
+    "Jumping" : {
+
+    },
+    "just now" : {
+
+    },
+    "Keep at Least One Aibo" : {
+
+    },
+    "Light" : {
+
+    },
+    "Links" : {
+
+    },
+    "Listen on localhost" : {
+
+    },
+    "Listen on localhost to receive incoming webhooks" : {
+
+    },
+    "Listener" : {
+
+    },
+    "Listener stopped" : {
+
+    },
+    "Local" : {
+
+    },
+    "Local URL" : {
+
+    },
+    "Logs" : {
+
+    },
+    "More" : {
+
+    },
+    "Music" : {
+
+    },
+    "Music Notes" : {
+
+    },
+    "Name" : {
+
+    },
+    "New Aibo" : {
+
+    },
+    "No Petdex Aibo" : {
+
+    },
+    "Note: Turn off for non-pixel-art images" : {
+
+    },
+    "Notes Color" : {
+
+    },
+    "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Clicking the bubble does not switch apps yet." : {
+
+    },
+    "OK" : {
+
+    },
+    "PetDex" : {
+
+    },
+    "Petdex API error" : {
+
+    },
+    "PetDex URL or slug" : {
+
+    },
+    "Pixel Optimization" : {
+
+    },
+    "Port" : {
+
+    },
+    "Position" : {
+
+    },
+    "Preview" : {
+
+    },
+    "PREVIEW" : {
+
+    },
+    "Quit Aibo" : {
+
+    },
+    "Receive local agent hook events" : {
+
+    },
+    "Received Logs" : {
+
+    },
+    "Regenerate Secret" : {
+
+    },
+    "Regular" : {
+
+    },
+    "Rename" : {
+
+    },
+    "Rename Aibo" : {
+
+    },
+    "Reset Capsule Color" : {
+
+    },
+    "Reset to Defaults" : {
+
+    },
+    "Restore Last Position" : {
+
+    },
+    "Review" : {
+
+    },
+    "Run Left" : {
+
+    },
+    "Run Right" : {
+
+    },
+    "Running" : {
+
+    },
+    "Search" : {
+
+    },
+    "Seconds" : {
+
+    },
+    "Secret" : {
+
+    },
+    "Select Aibos" : {
+
+    },
+    "Settings…" : {
+
+    },
+    "Setup Guide" : {
+
+    },
+    "Show %@ in Finder" : {
+
+    },
+    "Show Aibo" : {
+
+    },
+    "Show in Finder" : {
+
+    },
+    "Showing up to %lld items" : {
+
+    },
+    "Shows all installed aibos" : {
+
+    },
+    "Size" : {
+
+    },
+    "Software Update" : {
+
+    },
+    "Sort" : {
+
+    },
+    "Status" : {
+
+    },
+    "Stopped" : {
+
+    },
+    "Subagent" : {
+
+    },
+    "Theme" : {
+
+    },
+    "This archive isn’t a valid Petdex pack" : {
+
+    },
+    "This file isn’t a supported image or Petdex pack" : {
+
+    },
+    "Translucent" : {
+
+    },
+    "Tunnel is down, take a look!" : {
+
+    },
+    "Tunnel URL" : {
+
+    },
+    "Uninstalled" : {
+
+    },
+    "Unknown" : {
+
+    },
+    "Unsupported image file" : {
+
+    },
+    "Updates" : {
+
+    },
+    "V2" : {
+
+    },
+    "V2 assets only" : {
+
+    },
+    "Waiting" : {
+
+    },
+    "Warning" : {
+
+    },
+    "Waving" : {
+
+    },
+    "Webhook" : {
+
+    },
+    "Webhook Connectivity" : {
+
+    },
+    "Webhook deliveries show up here with timestamp and sender. The list shows the newest %lld; export includes everything on disk." : {
+
+    },
+    "You must keep at least one aibo." : {
+
+    }
   },
   "version" : "1.0"
 }
