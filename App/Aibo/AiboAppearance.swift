@@ -42,16 +42,28 @@ struct AiboContentInsets: Equatable, Sendable {
     static let musicOverflowTop: CGFloat = 72
     static let musicOverflowTrailing: CGFloat = 48
 
-    static func current(musicNotesEnabled: Bool) -> Self {
+    static func current(
+        musicNotesEnabled: Bool,
+        launchPortal: AiboLaunchPortalTimeline.Layout? = nil
+    ) -> Self {
+        var insets: Self
         if musicNotesEnabled {
-            return Self(
+            insets = Self(
                 top: base + musicOverflowTop,
                 leading: base,
                 bottom: base,
                 trailing: base + musicOverflowTrailing
             )
+        } else {
+            insets = Self(top: base, leading: base, bottom: base, trailing: base)
         }
-        return Self(top: base, leading: base, bottom: base, trailing: base)
+        if let launchPortal {
+            insets.top += launchPortal.extraTop
+            insets.leading += launchPortal.extraLeading
+            insets.bottom += launchPortal.extraBottom
+            insets.trailing += launchPortal.extraTrailing
+        }
+        return insets
     }
 
     var horizontal: CGFloat { leading + trailing }

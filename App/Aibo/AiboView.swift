@@ -100,6 +100,21 @@ struct AiboView: View {
         max(aiboLayoutSize.width, aiboLayoutSize.height)
     }
 
+    private var launchPortalLayout: AiboLaunchPortalTimeline.Layout {
+        AiboLaunchPortalTimeline.layout(aiboSize: aiboLayoutSize)
+    }
+
+    private var contentInsets: AiboContentInsets {
+        AiboContentInsets.current(
+            musicNotesEnabled: AppSettings.shared.musicNotesEnabled,
+            launchPortal: panelController.isLaunchPortalPlaying ? launchPortalLayout : nil
+        )
+    }
+
+    private var showsBubbles: Bool {
+        panelController.isContentPresented && !panelController.isLaunchPortalPlaying
+    }
+
     private func glassStyle(for item: StatusBubbleItem) -> BubbleGlassStyle {
         AppSettings.shared.bubbleGlassStyle(for: item.kind == .agent ? item.agent : nil)
     }
@@ -112,6 +127,7 @@ struct AiboView: View {
         AppSettings.shared.musicNotesEnabled
             && musicMonitor.isPlaying
             && panelController.isContentPresented
+            && !panelController.isLaunchPortalPlaying
     }
 
     private var musicNoteColor: Color {
@@ -127,8 +143,13 @@ struct AiboView: View {
         // empty layout) steal clicks. Pet drag is AppKit mouse tracking on opaque
         // pixels only (PassThroughHostingView); bubbles keep their own taps.
         positionedContent
-            .padding(AiboContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled).edgeInsets)
-            .padding(.bottom, onboarding.showsActionPills ? OnboardingChrome.actionPillsStackHeight : 0)
+            .padding(contentInsets.edgeInsets)
+            .padding(
+                .bottom,
+                !panelController.isLaunchPortalPlaying && onboarding.showsActionPills
+                    ? OnboardingChrome.actionPillsStackHeight
+                    : 0
+            )
             .allowsWindowActivationEvents()
             .onChange(of: shouldEmitMusicNotes, initial: true) { _, active in
                 syncMusicNotePulse(active: active)
@@ -145,29 +166,34 @@ struct AiboView: View {
         switch placement {
         case .top:
             VStack(spacing: aiboBubbleSpacing) {
-                fadingBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                if showsBubbles {
+                    fadingBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                }
                 aiboImage
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         case .bottom:
             VStack(spacing: aiboBubbleSpacing) {
                 aiboImage
-                // Oldest nearest pet (arrow); newer grow downward.
-                fadingBubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0)
+                if showsBubbles {
+                    fadingBubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         case .left:
             HStack(alignment: .center, spacing: aiboBubbleSpacing) {
-                // Layout height = near-aibo bubble only; older bubbles grow upward.
-                fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                if showsBubbles {
+                    fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                }
                 aiboImage
             }
-            // Bottom-align so upward bubble stack doesn't force empty panel below.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         case .right:
             HStack(alignment: .center, spacing: aiboBubbleSpacing) {
                 aiboImage
-                fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                if showsBubbles {
+                    fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
@@ -357,6 +383,7 @@ struct AiboView: View {
         let squash = min(max(0.72 + clamped * 0.28, 0.55), 1.2)
         let widen = min(max(1.18 - clamped * 0.18, 0.9), 1.25)
         let noteColor = musicNoteColor
+        let playingPortal = panelController.isLaunchPortalPlaying
 
         return ZStack {
             // Keep layout size while the sprite is removed for Pow vanish.
@@ -364,7 +391,7 @@ struct AiboView: View {
                 .frame(width: aiboLayoutSize.width, height: aiboLayoutSize.height)
                 .allowsHitTesting(false)
 
-            if panelController.isContentPresented {
+            if panelController.isContentPresented, !playingPortal {
                 AiboSwitchingSpriteView(
                     record: library.selectedRecord,
                     activity: displayActivity,
@@ -398,6 +425,7 @@ struct AiboView: View {
                     .allowsHitTesting(false)
             }
         }
+        .frame(width: aiboLayoutSize.width, height: aiboLayoutSize.height)
         .accessibilityLabel(String(localized: "Desktop aibo"))
     }
 

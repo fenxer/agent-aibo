@@ -12,6 +12,10 @@ final class AiboPanelController {
     private(set) var isContentPresented = true
     /// 0 = above / squashed, 1 = settled. Explicit show motion (not Pow boing).
     private(set) var aiboAppearProgress: CGFloat = 1
+    /// First-launch (and Development replay) portal jump. Display-link Metal, not SwiftUI.
+    private(set) var isLaunchPortalPlaying = false
+    private(set) var launchPortalGeneration = 0
+    private var hasPlayedLaunchPortal = false
     /// V2 idle look cell toward the pointer; `nil` in the deadzone or on V1.
     private(set) var lookDirection: PetdexLookDirection?
     /// True while the user is dragging the aibo from an opaque pixel.
@@ -25,6 +29,7 @@ final class AiboPanelController {
     private var panel: AiboPanel?
     private var rootView: AiboPanelRootView?
     private var hostingView: PassThroughHostingView<AiboView>?
+    private var launchPortalView: AiboLaunchPortalMetalView?
     #if DEBUG
     private var hitRegionDebugOverlay: HitRegionDebugOverlay?
     /// Development → Hit Regions: paint panel / padding / aiboHitRect / opaque drag mask.
@@ -44,6 +49,13 @@ final class AiboPanelController {
     private var laidOutBubbleCount = 0
     private var laidOutPlacement: BubblePlacement = .top
     private var laidOutAiboSize: CGSize = CGSize(width: 96, height: 96)
+    /// Committed slot in bottom-left panel coordinates. Never reconstruct an old
+    /// slot from current settings: portal padding may already have changed.
+    private var laidOutAiboFrame: CGRect = .zero
+    private var laidOutLaunchPortalPlaying = false
+    private var laidOutAiboCenter: CGPoint {
+        CGPoint(x: laidOutAiboFrame.midX, y: laidOutAiboFrame.midY)
+    }
     private var laidOutOnboardingLayoutID = ""
     private var laidOutAiboBubbleSpacing: CGFloat = 6
 
@@ -75,13 +87,23 @@ final class AiboPanelController {
     private let bubbleRowSpacing: CGFloat = 8
 
     private var onboardingActionPillsHeight: CGFloat {
-        OnboardingController.shared.showsActionPills
+        if isLaunchPortalPlaying { return 0 }
+        return OnboardingController.shared.showsActionPills
             ? OnboardingChrome.actionPillsStackHeight
             : 0
     }
 
     private var contentInsets: AiboContentInsets {
-        AiboContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled)
+        AiboContentInsets.current(
+            musicNotesEnabled: AppSettings.shared.musicNotesEnabled,
+            launchPortal: isLaunchPortalPlaying
+                ? AiboLaunchPortalTimeline.layout(aiboSize: currentAiboSize)
+                : nil
+        )
+    }
+
+    private func effectiveBubbleCount(_ items: [StatusBubbleItem]) -> Int {
+        isLaunchPortalPlaying ? 0 : items.count
     }
 
     private init() {
@@ -108,13 +130,16 @@ final class AiboPanelController {
         if !hasPlacedInitially {
             placeInitially()
             hasPlacedInitially = true
+            beginLaunchPortalIfNeeded()
         } else {
             clampToVisibleScreen()
         }
 
         // First launch: already presented. After hide: re-insert with identity, then
         // spring aiboAppearProgress (Pow `.boing` GeometryEffect collapses this panel).
-        let shouldBoing = !isContentPresented
+        // Portal owns the first-show motion — do not also boing, or the live sprite
+        // would pop from the landing pose into a falling squash.
+        let shouldBoing = !isContentPresented && !isLaunchPortalPlaying
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -178,6 +203,8 @@ final class AiboPanelController {
             withTransaction(transaction) {
                 aiboAppearProgress = 0
             }
+            isLaunchPortalPlaying = false
+            detachLaunchPortalView()
             // Keep isContentPresented == false so the next show can animate in.
             hideTask = nil
         }
@@ -189,6 +216,88 @@ final class AiboPanelController {
         } else {
             show()
         }
+    }
+
+    /// Development: play the cold-launch portal again without quitting.
+    func replayLaunchPortal() {
+        guard isVisible, isContentPresented, !isSuppressedForFullscreen else { return }
+        hideTask?.cancel()
+        hideTask = nil
+        startLaunchPortal()
+    }
+
+    func finishLaunchPortal() {
+        guard isLaunchPortalPlaying else { return }
+        // Metal completes outside the layout pass. Commit the normal panel
+        // geometry with the reveal so no frame uses normal padding in a portal-sized window.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isLaunchPortalPlaying = false
+            applyGeometryNow()
+            detachLaunchPortalView()
+        }
+    }
+
+    private func beginLaunchPortalIfNeeded() {
+        guard !hasPlayedLaunchPortal else { return }
+        hasPlayedLaunchPortal = true
+        startLaunchPortal()
+    }
+
+    private func startLaunchPortal() {
+        guard AiboLaunchPortalRenderer.shared != nil,
+              AiboSpriteCache.shared.previewImage(
+                  for: AiboLibraryStore.shared.selectedRecord
+              ) != nil
+        else { return }
+        isLaunchPortalPlaying = true
+        launchPortalGeneration += 1
+        applyGeometryNow()
+        attachLaunchPortalView()
+    }
+
+    private func attachLaunchPortalView() {
+        guard let rootView,
+              let hostingView,
+              let image = AiboSpriteCache.shared.previewImage(
+                  for: AiboLibraryStore.shared.selectedRecord
+              )
+        else { return }
+        let record = AiboLibraryStore.shared.selectedRecord
+        let view = launchPortalView ?? AiboLaunchPortalMetalView()
+        launchPortalView = view
+        if view.superview !== rootView {
+            rootView.addSubview(view, positioned: .above, relativeTo: hostingView)
+        }
+        layoutLaunchPortalView()
+        view.apply(
+            image: image,
+            aiboSize: laidOutAiboSize,
+            usesNearest: record.pixelOptimizationEnabled && record.kind != .builtInDefault,
+            generation: launchPortalGeneration,
+            onCompleted: { [weak self] in
+                self?.finishLaunchPortal()
+            }
+        )
+    }
+
+    private func layoutLaunchPortalView() {
+        guard isLaunchPortalPlaying, let view = launchPortalView else { return }
+        let aiboSize = laidOutAiboSize
+        let canvas = AiboLaunchPortalTimeline.layout(aiboSize: aiboSize).canvas
+        let center = laidOutAiboCenter
+        view.frame = CGRect(
+            x: center.x - canvas.width / 2,
+            y: center.y - canvas.height / 2,
+            width: canvas.width,
+            height: canvas.height
+        )
+    }
+
+    private func detachLaunchPortalView() {
+        launchPortalView?.removeFromSuperview()
+        launchPortalView = nil
     }
 
     /// Start/stop fullscreen detection (presentationOptions `.fullScreen` + Spaces type 4).
@@ -397,16 +506,11 @@ final class AiboPanelController {
         let items = AiboRuntime.shared.bubbleItems
         let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
         let aiboSize = currentAiboSize
-        let bubbleCount = items.count
+        let bubbleCount = effectiveBubbleCount(items)
         let pinBubble = shouldPinOnboardingBubble
 
         let oldFrame = panel.frame
-        let oldAiboCenter = aiboCenter(
-            in: oldFrame.size,
-            aiboSize: laidOutAiboSize,
-            placement: laidOutPlacement,
-            bubbleCount: laidOutBubbleCount
-        )
+        let oldAiboCenter = laidOutAiboCenter
         let aiboOnScreen = CGPoint(
             x: oldFrame.origin.x + oldAiboCenter.x,
             y: oldFrame.origin.y + oldAiboCenter.y
@@ -420,21 +524,24 @@ final class AiboPanelController {
             width: max(newSize.width, minSize.width),
             height: max(newSize.height, minSize.height)
         )
-        if NSEqualSizes(safeSize, oldFrame.size),
-           NSEqualSizes(aiboSize, laidOutAiboSize),
-           placement == laidOutPlacement,
-           bubbleCount == laidOutBubbleCount,
-           onboardingLayoutID == laidOutOnboardingLayoutID,
-           aiboBubbleSpacing == laidOutAiboBubbleSpacing
-        {
-            return pinBubble
-        }
         let newAiboCenter = aiboCenter(
             in: safeSize,
             aiboSize: aiboSize,
             placement: placement,
             bubbleCount: bubbleCount
         )
+        if NSEqualSizes(safeSize, oldFrame.size),
+           NSEqualSizes(aiboSize, laidOutAiboSize),
+           placement == laidOutPlacement,
+           bubbleCount == laidOutBubbleCount,
+           onboardingLayoutID == laidOutOnboardingLayoutID,
+           aiboBubbleSpacing == laidOutAiboBubbleSpacing,
+           newAiboCenter == laidOutAiboCenter,
+           isLaunchPortalPlaying == laidOutLaunchPortalPlaying
+        {
+            layoutLaunchPortalView()
+            return pinBubble
+        }
 
         var newFrame = oldFrame
         newFrame.size = safeSize
@@ -489,12 +596,14 @@ final class AiboPanelController {
             bubbleCount: bubbleCount
         )
         refreshLookDirection()
+        layoutLaunchPortalView()
         return pinBubble
     }
 
     /// Same tour card, already laid out: keep that bubble on screen while size / gap change.
     private var shouldPinOnboardingBubble: Bool {
-        OnboardingController.shared.pinsBubbleDuringLayout
+        !isLaunchPortalPlaying && !laidOutLaunchPortalPlaying
+            && OnboardingController.shared.pinsBubbleDuringLayout
             && onboardingLayoutID == laidOutOnboardingLayoutID
     }
 
@@ -561,6 +670,7 @@ final class AiboPanelController {
         let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
         let items = AiboRuntime.shared.bubbleItems
         let aiboSize = currentAiboSize
+        let bubbleCount = effectiveBubbleCount(items)
         let initialSize = panelSize(items: items, aiboSize: aiboSize, placement: placement)
         let minSize = aiboBlockMinimum(aiboSize: aiboSize)
         let safeInitial = NSSize(
@@ -595,14 +705,14 @@ final class AiboPanelController {
         self.rootView = rootView
         self.hostingView = hostingView
         pinContentSize(safeInitial)
-        laidOutBubbleCount = items.count
+        laidOutBubbleCount = bubbleCount
         laidOutPlacement = placement
         laidOutAiboSize = aiboSize
         updatePetHitRect(
             panelSize: safeInitial,
             aiboSize: aiboSize,
             placement: placement,
-            bubbleCount: items.count
+            bubbleCount: bubbleCount
         )
         applyFullscreenCollectionBehavior(to: panel)
         return panel
@@ -616,7 +726,7 @@ final class AiboPanelController {
         let insets = contentInsets
         let aiboBlockWidth = aiboSize.width + insets.horizontal
         let aiboBlockHeight = aiboSize.height + insets.vertical
-        let bubbleCount = items.count
+        let bubbleCount = effectiveBubbleCount(items)
         guard bubbleCount > 0 else {
             return NSSize(width: max(aiboBlockWidth, 1), height: max(aiboBlockHeight, 1))
         }
@@ -739,7 +849,9 @@ final class AiboPanelController {
             placement: placement,
             bubbleCount: bubbleCount
         )
-        hostingView?.aiboHitRect = CGRect(origin: origin, size: aiboSize)
+        laidOutAiboFrame = CGRect(origin: origin, size: aiboSize)
+        laidOutLaunchPortalPlaying = isLaunchPortalPlaying
+        hostingView?.aiboHitRect = laidOutAiboFrame
         hostingView?.bubbleHitRects = bubbleHitRects(
             panelSize: panelSize,
             aiboSize: aiboSize,
@@ -1095,12 +1207,7 @@ final class AiboPanelController {
             x: visible.minX + CGFloat(xPercent) * visible.width,
             y: visible.minY + CGFloat(yPercent) * visible.height
         )
-        let centerInPanel = aiboCenter(
-            in: panel.frame.size,
-            aiboSize: laidOutAiboSize,
-            placement: laidOutPlacement,
-            bubbleCount: laidOutBubbleCount
-        )
+        let centerInPanel = laidOutAiboCenter
 
         var frame = panel.frame
         frame.origin.x = aiboOnScreen.x - centerInPanel.x
@@ -1120,12 +1227,7 @@ final class AiboPanelController {
         frame.size.width = max(frame.size.width, 1)
         frame.size.height = max(frame.size.height, 1)
 
-        let centerInPanel = aiboCenter(
-            in: frame.size,
-            aiboSize: laidOutAiboSize,
-            placement: laidOutPlacement,
-            bubbleCount: laidOutBubbleCount
-        )
+        let centerInPanel = laidOutAiboCenter
         var aiboOnScreen = CGPoint(
             x: frame.origin.x + centerInPanel.x,
             y: frame.origin.y + centerInPanel.y
@@ -1179,7 +1281,7 @@ final class AiboPanelController {
     /// `origin + delta`). Sprite swaps drain `.default` and can shift the frame;
     /// re-pinning after that keeps the cursor on the same pixel.
     func performPetDrag(with startEvent: NSEvent) {
-        guard let panel else { return }
+        guard let panel, !isLaunchPortalPlaying else { return }
         beginPetDrag()
         let grabOffset = grabOffsetFromAibo(for: startEvent)
         var lastMouseX = NSEvent.mouseLocation.x
@@ -1216,12 +1318,7 @@ final class AiboPanelController {
 
     private func aiboScreenCenter() -> CGPoint {
         guard let panel else { return .zero }
-        let center = aiboCenter(
-            in: panel.frame.size,
-            aiboSize: laidOutAiboSize,
-            placement: laidOutPlacement,
-            bubbleCount: laidOutBubbleCount
-        )
+        let center = laidOutAiboCenter
         return CGPoint(
             x: panel.frame.origin.x + center.x,
             y: panel.frame.origin.y + center.y
@@ -1237,12 +1334,7 @@ final class AiboPanelController {
 
     private func moveAiboScreenCenter(to point: CGPoint) {
         guard let panel else { return }
-        let center = aiboCenter(
-            in: panel.frame.size,
-            aiboSize: laidOutAiboSize,
-            placement: laidOutPlacement,
-            bubbleCount: laidOutBubbleCount
-        )
+        let center = laidOutAiboCenter
         let origin = snappedPanelFrame(
             NSRect(
                 origin: NSPoint(x: point.x - center.x, y: point.y - center.y),
@@ -1262,12 +1354,7 @@ final class AiboPanelController {
         let visible = screen.visibleFrame
         guard visible.width > 0, visible.height > 0 else { return }
 
-        let centerInPanel = aiboCenter(
-            in: panel.frame.size,
-            aiboSize: laidOutAiboSize,
-            placement: laidOutPlacement,
-            bubbleCount: laidOutBubbleCount
-        )
+        let centerInPanel = laidOutAiboCenter
         let aiboOnScreen = CGPoint(
             x: panel.frame.origin.x + centerInPanel.x,
             y: panel.frame.origin.y + centerInPanel.y
@@ -1294,12 +1381,7 @@ final class AiboPanelController {
         }
 
         let mouse = NSEvent.mouseLocation
-        let centerInPanel = aiboCenter(
-            in: panel.frame.size,
-            aiboSize: laidOutAiboSize,
-            placement: laidOutPlacement,
-            bubbleCount: laidOutBubbleCount
-        )
+        let centerInPanel = laidOutAiboCenter
         let aiboOnScreen = CGPoint(
             x: panel.frame.origin.x + centerInPanel.x,
             y: panel.frame.origin.y + centerInPanel.y
