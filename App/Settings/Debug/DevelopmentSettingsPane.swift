@@ -42,6 +42,7 @@ struct DevelopmentSettingsPane: View {
         Form {
             bubblePreviewSection
             onboardingSection
+            launchEntranceSection
             SoftwareUpdateDebugSection()
             webhookPreviewSection
             hookIngestLogSection
@@ -62,36 +63,57 @@ struct DevelopmentSettingsPane: View {
 
     private var bubblePreviewSection: some View {
         Section {
-            TextField(String(localized: "Project Name"), text: $projectName)
-            TextField(String(localized: "Model Name"), text: $modelName)
-            TextField(String(localized: "Agent Name"), text: $agentName)
-                .disabled(isSubagent)
-            Toggle(String(localized: "Show Cursor Icon"), isOn: $showCursorIcon)
-                .disabled(isAwaitingApproval || showsPlanProgress)
-            Toggle(String(localized: "Subagent Capsule"), isOn: $isSubagent)
-                .disabled(isAwaitingApproval || showsPlanProgress)
-            Toggle(String(localized: "Stack Bubbles"), isOn: $stackBubbles)
-            Toggle(String(localized: "Approval Bubble"), isOn: $isAwaitingApproval)
-            Toggle(String(localized: "TODO Progress"), isOn: $showsPlanProgress)
-                .disabled(isSubagent)
+            TextField(text: $projectName) {
+                Text(verbatim: "Project Name")
+            }
+            TextField(text: $modelName) {
+                Text(verbatim: "Model Name")
+            }
+            TextField(text: $agentName) {
+                Text(verbatim: "Agent Name")
+            }
+            .disabled(isSubagent)
+            Toggle(isOn: $showCursorIcon) {
+                Text(verbatim: "Show Cursor Icon")
+            }
+            .disabled(isAwaitingApproval || showsPlanProgress)
+            Toggle(isOn: $isSubagent) {
+                Text(verbatim: "Subagent Capsule")
+            }
+            .disabled(isAwaitingApproval || showsPlanProgress)
+            Toggle(isOn: $stackBubbles) {
+                Text(verbatim: "Stack Bubbles")
+            }
+            Toggle(isOn: $isAwaitingApproval) {
+                Text(verbatim: "Approval Bubble")
+            }
+            Toggle(isOn: $showsPlanProgress) {
+                Text(verbatim: "TODO Progress")
+            }
+            .disabled(isSubagent)
             if showsPlanProgress {
-                LabeledContent(String(localized: "Step Interval")) {
+                LabeledContent {
                     TextField(
-                        String(localized: "Seconds"),
                         value: $planProgressIntervalSeconds,
                         format: .number
-                    )
+                    ) {
+                        Text(verbatim: "Seconds")
+                    }
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 64)
+                } label: {
+                    Text(verbatim: "Step Interval")
                 }
             }
-            TextField(String(localized: "Status Text"), text: $message, axis: .vertical)
-                .lineLimit(2...5)
-                .disabled(isAwaitingApproval)
+            TextField(text: $message, axis: .vertical) {
+                Text(verbatim: "Status Text")
+            }
+            .lineLimit(2...5)
+            .disabled(isAwaitingApproval)
 
             HStack {
-                Button(String(localized: "Show Bubble")) {
+                Button {
                     runtime.showDebugBubble(
                         text: message,
                         agentName: agentName,
@@ -104,37 +126,60 @@ struct DevelopmentSettingsPane: View {
                         showsPlanProgress: showsPlanProgress,
                         planProgressIntervalSeconds: planProgressIntervalSeconds
                     )
+                } label: {
+                    Text(verbatim: "Show Bubble")
                 }
                 .disabled(!canShow)
 
-                Button(String(localized: "Show Warning Bubble")) {
+                Button {
                     runtime.showDebugTunnelWarningBubble()
+                } label: {
+                    Text(verbatim: "Show Warning Bubble")
                 }
 
-                Button(String(localized: "Clear Bubble")) {
+                Button {
                     runtime.clearDebugBubble()
+                } label: {
+                    Text(verbatim: "Clear Bubble")
                 }
             }
 
-            Text(String(localized: "Leave Project / Model empty to hide the header row. Cleared by the next real agent event."))
+            Text(verbatim: "Leave Project / Model empty to hide the header row. Cleared by the next real agent event.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
-            Text(String(localized: "Bubble Preview"))
+            Text(verbatim: "Bubble Preview")
         }
     }
 
     private var onboardingSection: some View {
         Section {
-            Button(String(localized: "Replay Onboarding")) {
+            Button {
                 runtime.clearDebugBubble()
                 OnboardingController.shared.replay()
+            } label: {
+                Text(verbatim: "Replay Onboarding")
             }
-            Text(String(localized: "Moves aibo slightly left and down from center and starts the first-launch tour. Skip or finish restores the previous position. Ordinary launches still skip the tour after the first time."))
+            Text(verbatim: "Moves aibo slightly left and down from center and starts the first-launch tour. Skip or finish restores the previous position. Ordinary launches still skip the tour after the first time.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
-            Text(String(localized: "Onboarding"))
+            Text(verbatim: "Onboarding")
+        }
+    }
+
+    private var launchEntranceSection: some View {
+        Section {
+            Button {
+                AiboPanelController.shared.replayLaunchPortal()
+            } label: {
+                Text(verbatim: "Replay Launch Entrance")
+            }
+            Text(verbatim: "Plays the portal jump used when Aibo.app opens. Does not change onboarding.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text(verbatim: "Launch Entrance")
         }
     }
 
@@ -145,110 +190,112 @@ struct DevelopmentSettingsPane: View {
                 .frame(minHeight: 140)
 
             HStack {
-                Button(String(localized: "Inject Webhook Bubble")) {
-                    injectWebhook()
+                Button(action: injectWebhook) {
+                    Text(verbatim: "Inject Webhook Bubble")
                 }
                 .disabled(!canSendWebhook)
 
-                Button(String(localized: "POST to Local Listener")) {
+                Button {
                     Task { await postWebhook() }
+                } label: {
+                    Text(verbatim: "POST to Local Listener")
                 }
                 .disabled(!canSendWebhook)
             }
 
             if let webhookStatus {
-                Text(webhookStatus)
+                Text(verbatim: webhookStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Text(String(localized: "Inject skips HTTP and stacks a bubble from the payload text. POST signs the body and hits the localhost listener (enable it in Webhook settings first). Neither writes to Received Logs."))
+            Text(verbatim: "Inject skips HTTP and stacks a bubble from the payload text. POST signs the body and hits the localhost listener (enable it in Webhook settings first). Neither writes to Received Logs.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
-            Text(String(localized: "Webhook Preview"))
+            Text(verbatim: "Webhook Preview")
         }
     }
 
     private var hookIngestLogSection: some View {
         Section {
-            Toggle(
-                String(localized: "Record Hook Ingest"),
-                isOn: ingestLoggingBinding
-            )
+            Toggle(isOn: ingestLoggingBinding) {
+                Text(verbatim: "Record Hook Ingest")
+            }
 
-            Text(ingestLogStatusText)
+            Text(verbatim: ingestLogStatusText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
 
             HStack {
-                Button(String(localized: "Copy Log")) {
-                    copyIngestLog()
+                Button(action: copyIngestLog) {
+                    Text(verbatim: "Copy Log")
                 }
                 .disabled(runtime.ingestLogEntryCount == 0)
 
-                Button(String(localized: "Clear"), role: .destructive) {
+                Button(role: .destructive) {
                     confirmClearIngest = true
+                } label: {
+                    Text(verbatim: "Clear")
                 }
                 .disabled(runtime.ingestLogEntryCount == 0)
             }
 
             if let ingestStatus {
-                Text(ingestStatus)
+                Text(verbatim: ingestStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Text(String(localized: "Writes ~/Library/Application Support/aibo/ingest-log.jsonl. Each line has source (queue/socket), queuedAt, event, conversation, project, activity; Codex update_plan also fills detail with plan steps. Default on in DEBUG — turn off if noisy."))
+            Text(verbatim: "Writes ~/Library/Application Support/aibo/ingest-log.jsonl. Each line has source (queue/socket), queuedAt, event, conversation, project, activity; Codex update_plan also fills detail with plan steps. Default on in DEBUG — turn off if noisy.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
-            Text(String(localized: "Hook Ingest Log"))
+            Text(verbatim: "Hook Ingest Log")
         }
         .confirmationDialog(
-            String(localized: "Clear hook ingest log?"),
+            "Clear hook ingest log?" as String,
             isPresented: $confirmClearIngest,
             titleVisibility: .visible
         ) {
-            Button(String(localized: "Clear"), role: .destructive) {
+            Button(role: .destructive) {
                 runtime.clearIngestLog()
-                ingestStatus = String(localized: "Cleared")
+                ingestStatus = "Cleared"
+            } label: {
+                Text(verbatim: "Clear")
             }
-            Button(String(localized: "Cancel"), role: .cancel) {}
+            Button(role: .cancel) {
+            } label: {
+                Text(verbatim: "Cancel")
+            }
         }
     }
 
     private var musicNotesSection: some View {
         Section {
-            Toggle(
-                String(localized: "Simulate Music Playing"),
-                isOn: debugMusicPlayingBinding
-            )
+            Toggle(isOn: debugMusicPlayingBinding) {
+                Text(verbatim: "Simulate Music Playing")
+            }
 
-            Text(String(localized: "Forces the music-note rise overlay without a real player. General → Music Notes must stay on (default)."))
+            Text(verbatim: "Forces the music-note rise overlay without a real player. General → Music Notes must stay on (default).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
-            Text(String(localized: "Music Notes"))
+            Text(verbatim: "Music Notes")
         }
     }
 
     private var hitRegionDebugSection: some View {
         Section {
-            Toggle(
-                String(localized: "Show Hit Regions"),
-                isOn: hitRegionDebugBinding
-            )
-            Text(
-                String(
-                    localized: "Purple = panel · Orange = base pad · Yellow = music overflow · Blue = aiboHitRect · Green = opaque drag · Cyan = bubble hit."
-                )
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            Toggle(isOn: hitRegionDebugBinding) {
+                Text(verbatim: "Show Hit Regions")
+            }
+            Text(verbatim: "Purple = panel · Orange = base pad · Yellow = music overflow · Blue = aiboHitRect · Green = opaque drag · Cyan = bubble hit.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         } header: {
-            Text(String(localized: "Hit Testing"))
+            Text(verbatim: "Hit Testing")
         }
     }
 
@@ -277,15 +324,15 @@ struct DevelopmentSettingsPane: View {
         let count = runtime.ingestLogEntryCount
         let path = AiboPaths.ingestLogURL.path
         if count == 0 {
-            return String(localized: "Empty — \(path)")
+            return "Empty — \(path)"
         }
-        return String(localized: "\(count) lines — \(path)")
+        return "\(count) lines — \(path)"
     }
 
     private func injectWebhook() {
         guard let data = webhookJSON.data(using: .utf8) else { return }
         runtime.ingestWebhookBody(data)
-        webhookStatus = String(localized: "Injected into bubble stack")
+        webhookStatus = "Injected into bubble stack"
     }
 
     private func postWebhook() async {
@@ -293,22 +340,22 @@ struct DevelopmentSettingsPane: View {
         if let error = await runtime.postTestWebhook(body: data) {
             webhookStatus = error
         } else {
-            webhookStatus = String(localized: "POST succeeded")
+            webhookStatus = "POST succeeded"
         }
     }
 
     private func copyIngestLog() {
         guard let text = runtime.copyIngestLogJSONL() else {
-            ingestStatus = String(localized: "Copy failed")
+            ingestStatus = "Copy failed"
             return
         }
         if text.isEmpty {
-            ingestStatus = String(localized: "Log is empty")
+            ingestStatus = "Log is empty"
             return
         }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        ingestStatus = String(localized: "Copied \(runtime.ingestLogEntryCount) lines")
+        ingestStatus = "Copied \(runtime.ingestLogEntryCount) lines"
     }
 }
 #endif

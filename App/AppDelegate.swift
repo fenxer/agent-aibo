@@ -4,10 +4,10 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        SoftwareUpdateController.shared.start()
         AiboPaths.migrateLegacyLibraryDirectoryIfNeeded()
-        // Touch settings early so persisted theme applies before UI shows.
+        // Theme + language before Sparkle / UI copy.
         _ = AppSettings.shared
+        SoftwareUpdateController.shared.start()
         SettingsNavigator.shared.start()
         OnboardingController.shared.startIfNeeded()
         AiboRuntime.shared.start()

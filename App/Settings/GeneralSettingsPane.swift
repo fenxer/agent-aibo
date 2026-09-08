@@ -14,7 +14,10 @@ struct GeneralSettingsPane: View {
                 record: library.selectedRecord
             )
 
-            GeneralThemeSection(themeMode: $settings.themeMode)
+            GeneralThemeSection(
+                themeMode: $settings.themeMode,
+                languageMode: $settings.languageMode
+            )
 
             GeneralBubbleSection(
                 placement: Binding(
@@ -315,6 +318,7 @@ private struct GeneralPreviewBubble: View {
 
 private struct GeneralThemeSection: View {
     @Binding var themeMode: AppThemeMode
+    @Binding var languageMode: AppLanguageMode
 
     var body: some View {
         Section {
@@ -324,6 +328,13 @@ private struct GeneralThemeSection: View {
                 }
             }
             .pickerStyle(.radioGroup)
+
+            Picker(String(localized: "Language"), selection: $languageMode) {
+                ForEach(AppLanguageMode.settingsCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.menu)
         } header: {
             Text(String(localized: "Appearance"))
         }

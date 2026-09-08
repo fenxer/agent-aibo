@@ -6,11 +6,14 @@ struct aiboApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
+        // AppleLanguages only — constructing AppSettings here crashes:
+        // `NSApp` is still nil, and `applyAppearance` unwraps it.
+        AppSettings.applyStoredLanguageAtLaunch()
         _ = AiboIngest.moduleName
     }
 
     var body: some Scene {
-        MenuBarExtra(String(localized: "aibo"), image: "HeartMenu") {
+        MenuBarExtra(String(localized: "Aibo"), image: "HeartMenu") {
             AiboAppMenu()
         }
 

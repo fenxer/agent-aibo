@@ -22,7 +22,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: String(localized: "General")
         case .about: String(localized: "About")
         #if DEBUG
-        case .development: String(localized: "Development")
+        case .development: "Development"
         #endif
         }
     }

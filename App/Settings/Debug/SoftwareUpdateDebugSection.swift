@@ -7,28 +7,30 @@ struct SoftwareUpdateDebugSection: View {
     var body: some View {
         Section {
             HStack {
-                Button(String(localized: "Show Update Available")) {
+                Button {
                     updates.debugShowAvailableUpdate()
+                } label: {
+                    Text(verbatim: "Show Update Available")
                 }
 
-                Button(String(localized: "Show Up to Date")) {
+                Button {
                     updates.debugShowUpToDate()
+                } label: {
+                    Text(verbatim: "Show Up to Date")
                 }
 
-                Button(String(localized: "Clear Pending Update")) {
+                Button {
                     updates.debugClearPreview()
+                } label: {
+                    Text(verbatim: "Clear Pending Update")
                 }
             }
 
-            Text(
-                String(
-                    localized: "Stand-in dialogs, not a real Sparkle download. Skip or Remind Later leaves v9.9.9 New and Update Now on the About page. Install does nothing."
-                )
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            Text(verbatim: "Stand-in dialogs, not a real Sparkle download. Skip or Remind Later leaves v9.9.9 New and Update Now on the About page. Install does nothing.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         } header: {
-            Text(String(localized: "Software Update"))
+            Text(verbatim: "Software Update")
         }
     }
 }

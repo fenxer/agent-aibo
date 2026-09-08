@@ -26,6 +26,7 @@ final class AppSettings {
 
     private enum Keys {
         static let themeMode = "settings.themeMode"
+        static let languageMode = "settings.languageMode"
         static let bubbleGlassStyle = "settings.bubbleGlassStyle"
         static let bubbleGlassTint = "settings.bubbleGlassTint"
         static let cursorBubbleGlassStyle = "settings.agentBubbleGlassStyle.cursor"
@@ -86,6 +87,16 @@ final class AppSettings {
             UserDefaults.standard.set(themeMode.rawValue, forKey: Keys.themeMode)
             Self.applyAppearance(themeMode)
             AiboPanelController.shared.refreshContent()
+        }
+    }
+
+    /// UI language: follow system (default), or pin English / Simplified Chinese.
+    var languageMode: AppLanguageMode {
+        didSet {
+            guard oldValue != languageMode else { return }
+            UserDefaults.standard.set(languageMode.rawValue, forKey: Keys.languageMode)
+            Self.applyLanguage(languageMode)
+            Self.relaunchToApplyLanguage()
         }
     }
 
@@ -352,6 +363,12 @@ final class AppSettings {
 
     private init() {
         Self.migrateLegacyPetKeys()
+
+        let languageRaw = UserDefaults.standard.string(forKey: Keys.languageMode)
+            ?? AppLanguageMode.system.rawValue
+        let resolvedLanguage = AppLanguageMode(rawValue: languageRaw) ?? .system
+        languageMode = resolvedLanguage
+        Self.applyLanguage(resolvedLanguage)
 
         let themeRaw = UserDefaults.standard.string(forKey: Keys.themeMode)
             ?? AppThemeMode.system.rawValue
@@ -627,7 +644,40 @@ final class AppSettings {
     }
 
     private static func applyAppearance(_ mode: AppThemeMode) {
-        NSApp.appearance = mode.nsAppearance
+        guard let app = NSApp else { return }
+        app.appearance = mode.nsAppearance
+    }
+
+    /// Per-app `AppleLanguages` before any `String(localized:)`. Must not touch `NSApp`.
+    static func applyStoredLanguageAtLaunch() {
+        let raw = UserDefaults.standard.string(forKey: Keys.languageMode)
+            ?? AppLanguageMode.system.rawValue
+        applyLanguage(AppLanguageMode(rawValue: raw) ?? .system)
+    }
+
+    /// Per-app `AppleLanguages`. Removing the key restores system-following.
+    private static func applyLanguage(_ mode: AppLanguageMode) {
+        if let languages = mode.appleLanguages {
+            UserDefaults.standard.set(languages, forKey: "AppleLanguages")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        }
+    }
+
+    /// `String(localized:)` reads the main bundle’s language at process start.
+    private static func relaunchToApplyLanguage() {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.activates = false
+        NSWorkspace.shared.openApplication(
+            at: Bundle.main.bundleURL,
+            configuration: configuration
+        ) { _, error in
+            Task { @MainActor in
+                guard error == nil else { return }
+                NSApp.terminate(nil)
+            }
+        }
     }
 
     nonisolated static func snapAiboScalePercentToPixelSteps(

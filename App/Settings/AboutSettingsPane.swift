@@ -54,8 +54,8 @@ private struct AboutUpdatesSection: View {
         Section {
             Toggle(isOn: automaticChecksBinding) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: "Auto-Check for Updates")
-                    Text(verbatim: "Check daily in the background.")
+                    Text(String(localized: "Auto-Check for Updates"))
+                    Text(String(localized: "Check daily in the background."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -66,14 +66,14 @@ private struct AboutUpdatesSection: View {
             LabeledContent {
                 HStack(spacing: 8) {
                     if let version = updates.availableUpdateDisplayVersion {
-                        Text(verbatim: "v\(version) New")
+                        Text(String(localized: "v\(version) New"))
                             .foregroundStyle(.red)
-                            .accessibilityLabel("Version \(version) is available")
+                            .accessibilityLabel(String(localized: "Version \(version) is available"))
 
                         Button {
                             updates.checkForUpdates()
                         } label: {
-                            Text(verbatim: "Update Now")
+                            Text(String(localized: "Update Now"))
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.red)
@@ -83,12 +83,12 @@ private struct AboutUpdatesSection: View {
                     Button {
                         updates.checkForUpdates()
                     } label: {
-                        Text(verbatim: "Check")
+                        Text(String(localized: "Check"))
                     }
                     .disabled(!canActOnUpdates)
                 }
             } label: {
-                Text(verbatim: "Aibo Update")
+                Text(String(localized: "Aibo Update"))
             }
             .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
         } header: {
