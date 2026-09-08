@@ -41,6 +41,7 @@ struct DevelopmentSettingsPane: View {
     var body: some View {
         Form {
             bubblePreviewSection
+            onboardingSection
             webhookPreviewSection
             hookIngestLogSection
             hitRegionDebugSection
@@ -119,6 +120,20 @@ struct DevelopmentSettingsPane: View {
                 .foregroundStyle(.secondary)
         } header: {
             Text(String(localized: "Bubble Preview"))
+        }
+    }
+
+    private var onboardingSection: some View {
+        Section {
+            Button(String(localized: "Replay Onboarding")) {
+                runtime.clearDebugBubble()
+                OnboardingController.shared.replay()
+            }
+            Text(String(localized: "Moves aibo slightly left and down from center and starts the first-launch tour. Skip or finish restores the previous position. Ordinary launches still skip the tour after the first time."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text(String(localized: "Onboarding"))
         }
     }
 

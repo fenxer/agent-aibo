@@ -14,6 +14,8 @@ final class AiboRuntime {
     private(set) var cursorHooksInstalled = false
     private(set) var codexHooksInstalled = false
     private(set) var deepseekPluginInstalled = false
+    private(set) var cursorHostAppInstalled = false
+    private(set) var codexHostAppInstalled = false
     private(set) var webhookListening = false
     private(set) var lastErrorMessage: String?
     /// Last tunnel probe result for Webhook settings (Unknown / OK / Down / …).
@@ -149,6 +151,7 @@ final class AiboRuntime {
         cursorHooksInstalled = (try? CursorHooksFile.isInstalled()) ?? false
         codexHooksInstalled = (try? CodexHooksFile.isInstalled()) ?? false
         deepseekPluginInstalled = (try? DshAiboPluginFile.isInstalled()) ?? false
+        refreshHostAppPresence()
         reloadReceiveLog()
 
         do {
@@ -645,7 +648,21 @@ final class AiboRuntime {
         }
     }
 
+    func isHostAppInstalled(for agent: AgentKind) -> Bool {
+        switch agent {
+        case .cursor: cursorHostAppInstalled
+        case .codex: codexHostAppInstalled
+        case .deepseek: true
+        }
+    }
+
+    func refreshHostAppPresence() {
+        cursorHostAppInstalled = SourceAppActivator.isHostAppInstalled(.cursor)
+        codexHostAppInstalled = SourceAppActivator.isHostAppInstalled(.codex)
+    }
+
     func installHooks(for agent: AgentKind) {
+        guard isHostAppInstalled(for: agent) else { return }
         switch agent {
         case .cursor: installCursorHooks()
         case .codex: installCodexHooks()
@@ -1048,7 +1065,19 @@ final class AiboRuntime {
         AiboPanelController.shared.refreshContent()
     }
 
+    func reloadPresentedBubbles() {
+        refreshBubbleItems()
+        AiboPanelController.shared.refreshContent()
+    }
+
     private func refreshBubbleItems() {
+        if OnboardingController.shared.isActive {
+            let items = OnboardingController.shared.currentBubbleItems
+            if !items.isEmpty {
+                assignBubbleItems(items)
+                return
+            }
+        }
         let now = Date()
         var items: [StatusBubbleItem] = []
         for (key, snapshot) in world.sessions {
@@ -1114,6 +1143,10 @@ final class AiboRuntime {
         items.append(contentsOf: debugBubbleItems)
         #endif
         let next = items.sorted { $0.lastEventAt > $1.lastEventAt }
+        assignBubbleItems(next)
+    }
+
+    private func assignBubbleItems(_ next: [StatusBubbleItem]) {
         let oldIDs = Set(bubbleItems.map(\.id))
         let newIDs = Set(next.map(\.id))
         guard oldIDs != newIDs else {

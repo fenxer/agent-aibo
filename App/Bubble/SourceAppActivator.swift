@@ -10,13 +10,19 @@ enum SourceAppActivator {
             // Cursor (ToDesktop packaging).
             ["com.todesktop.230313mzl4w4u92"]
         case .codex:
-            // ChatGPT Desktop now ships as `com.openai.codex` (Info shows ChatGPT.app).
-            // Keep Classic as a fallback for older installs.
+            // ChatGPT Desktop (Codex); older builds used `com.openai.chat`.
             ["com.openai.codex", "com.openai.chat"]
         case .deepseek:
             // DeepSeek Harness is a local Web UI / `dsh` process, not a .app.
             []
         }
+    }
+
+    /// Launch Services lookup by bundle ID. Does not enumerate installed apps.
+    static func isHostAppInstalled(_ agent: AgentKind) -> Bool {
+        let ids = bundleIDs(for: agent)
+        if ids.isEmpty { return true }
+        return ids.contains { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil }
     }
 
     static func activate(_ agent: AgentKind) {

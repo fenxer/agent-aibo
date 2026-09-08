@@ -47,13 +47,17 @@ public enum AiboActionMapping {
         return newestSession(in: sessions, matching: { _ in true })
     }
 
-    /// Outcome > latest hook > drag > follow-mouse > idle.
+    /// Overlay (onboarding, etc.) > outcome hooks > latest hook > drag > follow-mouse > idle.
     public static func presentation(
         sessions: [SessionKey: SessionSnapshot],
         spriteFor: (SessionKey, SessionSnapshot) -> PetdexSpriteState,
         dragSprite: PetdexSpriteState?,
-        lookDirection: PetdexLookDirection?
+        lookDirection: PetdexLookDirection?,
+        overlaySprite: PetdexSpriteState? = nil
     ) -> AiboDisplayPresentation {
+        if let overlaySprite {
+            return .sprite(overlaySprite, activity: .idle)
+        }
         if let pair = preferredHookSession(in: sessions) {
             return .sprite(spriteFor(pair.key, pair.snapshot), activity: pair.snapshot.activity)
         }

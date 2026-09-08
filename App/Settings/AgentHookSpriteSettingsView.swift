@@ -54,6 +54,7 @@ struct AgentHookSpriteSettingsView: View {
         .animation(.easeInOut(duration: 0.22), value: isAiboPreviewStuck)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .settingsDetailChrome(title: StatusCopy.displayName(agent), canGoBack: true, onBack: onBack)
+        .onAppear { AiboRuntime.shared.refreshHostAppPresence() }
     }
 }
 
@@ -77,12 +78,17 @@ private struct AgentHookAdvancedHeaderSection: View {
 
                 Spacer(minLength: 8)
 
-                Toggle(
-                    String(localized: "Installed"),
-                    isOn: installedBinding
-                )
-                .labelsHidden()
-                .toggleStyle(.switch)
+                if runtime.isHookInstalled(for: agent) || runtime.isHostAppInstalled(for: agent) {
+                    Toggle(
+                        String(localized: "Installed"),
+                        isOn: installedBinding
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                } else {
+                    Text(String(localized: "Not Installed on This Mac"))
+                        .foregroundStyle(.secondary)
+                }
             }
         } footer: {
             Text(agentFooter)

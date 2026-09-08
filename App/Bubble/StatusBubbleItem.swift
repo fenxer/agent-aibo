@@ -10,6 +10,8 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
         case webhook
         /// Local health alert (e.g. tunnel down): fixed Warning header + red icon capsule.
         case warning
+        /// First-launch tour: project/companion header + wrapping body, no capsule.
+        case onboarding
     }
 
     var id: String

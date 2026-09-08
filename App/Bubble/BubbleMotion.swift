@@ -29,6 +29,8 @@ struct AnimatedStatusBubble: View {
     let item: StatusBubbleItem
     let placement: BubblePlacement
     var showsArrow: Bool = true
+    /// See `StatusBubble.reservesArrowSlot`.
+    var reservesArrowSlot: Bool = false
     var onActivate: (() -> Void)? = nil
     var onDismiss: (() -> Void)? = nil
     var glassStyle: BubbleGlassStyle = AppSettings.shared.bubbleGlassStyle
@@ -42,6 +44,7 @@ struct AnimatedStatusBubble: View {
             item: item,
             placement: placement,
             showsArrow: showsArrow,
+            reservesArrowSlot: reservesArrowSlot,
             onActivate: onActivate,
             onDismiss: onDismiss,
             glassStyle: glassStyle,

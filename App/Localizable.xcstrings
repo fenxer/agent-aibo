@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+
+    },
     "—" : {
 
     },
@@ -15,6 +18,16 @@
     },
     "%@ used" : {
 
+    },
+    "%lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld %2$@"
+          }
+        }
+      }
     },
     "About" : {
 
@@ -44,6 +57,12 @@
 
     },
     "Aibo Size" : {
+
+    },
+    "Aibo supports local static images (.png), or Codex-compatible desktop pet formats (spritesheet + pet.json)." : {
+
+    },
+    "Aibo mainly uses bubbles to show status." : {
 
     },
     "All Aibos" : {
@@ -79,7 +98,13 @@
     "Bubble" : {
 
     },
+    "Bubble Distance" : {
+
+    },
     "Built-in" : {
+
+    },
+    "Can be set later in the menu" : {
 
     },
     "Cancel" : {
@@ -106,6 +131,9 @@
     "Clear all received logs?" : {
 
     },
+    "Click bubble to continue" : {
+
+    },
     "Click to dismiss" : {
 
     },
@@ -122,6 +150,9 @@
 
     },
     "Connectivity" : {
+
+    },
+    "Continue" : {
 
     },
     "Copy" : {
@@ -179,6 +210,9 @@
 
     },
     "Drag Right" : {
+
+    },
+    "Enter a PetDex link" : {
 
     },
     "Enter a Petdex slug or page URL" : {
@@ -253,10 +287,19 @@
     "Follow Mouse" : {
 
     },
+    "For example, that's Cursor's status above. ↑" : {
+
+    },
     "Forward" : {
 
     },
     "General" : {
+
+    },
+    "Get" : {
+
+    },
+    "Hello, welcome to Aibo.\nAibo is a desktop pet-style app that displays local Agent hook information and remote Webhook information." : {
 
     },
     "Hide Aibo" : {
@@ -298,6 +341,9 @@
     "Keep at Least One Aibo" : {
 
     },
+    "Let's set up the local Agent hook now!" : {
+
+    },
     "Light" : {
 
     },
@@ -316,7 +362,13 @@
     "Listener stopped" : {
 
     },
+    "Loaded successfully. Give your new aibo a name." : {
+
+    },
     "Local" : {
+
+    },
+    "Local Upload" : {
 
     },
     "Local URL" : {
@@ -326,6 +378,9 @@
 
     },
     "More" : {
+
+    },
+    "More Agents will be supported later." : {
 
     },
     "Music" : {
@@ -340,10 +395,16 @@
     "New Aibo" : {
 
     },
+    "Nice.\nYou can fine-tune the details later in Settings." : {
+
+    },
+    "Nice, you're all set.\nYou can open Settings later to explore more!" : {
+
+    },
     "No Petdex Aibo" : {
 
     },
-    "Note: Turn off for non-pixel-art images" : {
+    "Not Installed on This Mac" : {
 
     },
     "Notes Color" : {
@@ -388,6 +449,9 @@
     "Received Logs" : {
 
     },
+    "Recommended only for pixel-art images" : {
+
+    },
     "Regenerate Secret" : {
 
     },
@@ -422,6 +486,9 @@
 
     },
     "Running" : {
+
+    },
+    "Save" : {
 
     },
     "Search" : {
@@ -460,7 +527,10 @@
     "Size" : {
 
     },
-    "Software Update" : {
+    "Skip" : {
+
+    },
+    "Skip, set in the menu later" : {
 
     },
     "Sort" : {
@@ -473,6 +543,9 @@
 
     },
     "Subagent" : {
+
+    },
+    "That name is already used." : {
 
     },
     "Theme" : {
@@ -514,10 +587,19 @@
     "Updates" : {
 
     },
+    "Use Default" : {
+
+    },
     "V2" : {
 
     },
     "V2 assets only" : {
+
+    },
+    "Version %@ is available" : {
+
+    },
+    "Visit PetDex" : {
 
     },
     "Waiting" : {
@@ -527,6 +609,9 @@
 
     },
     "Waving" : {
+
+    },
+    "Welcome" : {
 
     },
     "Webhook" : {

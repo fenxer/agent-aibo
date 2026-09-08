@@ -129,6 +129,19 @@ import Testing
     )
 }
 
+@Test func aiboLibraryNamingKeepsUniqueDisplayName() {
+    let poli = AiboLibraryRecord(
+        id: "petdex.poli",
+        kind: .petdex,
+        displayName: "POLI",
+        relativePath: "petdex/poli",
+        slug: "poli"
+    )
+    #expect(AiboLibraryNaming.uniqueDisplayName("Nova", in: [poli]) == "Nova")
+    #expect(AiboLibraryNaming.uniqueDisplayName("POLI", in: [poli]) == "POLI-2")
+    #expect(AiboLibraryNaming.uniqueDisplayName("POLI", in: [poli], excludingID: poli.id) == "POLI")
+}
+
 @Test func aiboLibrarySnapshotAppliesRenamedBuiltIn() {
     var builtIn = AiboLibraryRecord.builtInDefault
     builtIn.displayName = "Home"
@@ -612,13 +625,35 @@ private func actionMappingSprite(_ key: SessionKey, _ snapshot: SessionSnapshot)
 private func actionMappingPresentation(
     sessions: [SessionKey: SessionSnapshot] = [:],
     dragSprite: PetdexSpriteState? = nil,
-    lookDirection: PetdexLookDirection? = nil
+    lookDirection: PetdexLookDirection? = nil,
+    overlaySprite: PetdexSpriteState? = nil
 ) -> AiboDisplayPresentation {
     AiboActionMapping.presentation(
         sessions: sessions,
         spriteFor: actionMappingSprite,
         dragSprite: dragSprite,
-        lookDirection: lookDirection
+        lookDirection: lookDirection,
+        overlaySprite: overlaySprite
+    )
+}
+
+@Test func aiboActionOverlaySpriteBeatsHooksAndDrag() throws {
+    let thinking = [
+        SessionKey(agent: .cursor, conversationID: "c1"):
+            SessionSnapshot(activity: .thinking, lastEventAt: Date(timeIntervalSince1970: 1)),
+    ]
+    let look = try #require(PetdexLookDirection(index: 4))
+    #expect(
+        actionMappingPresentation(
+            sessions: thinking,
+            dragSprite: .runningLeft,
+            overlaySprite: .waving
+        )
+            == .sprite(.waving, activity: .idle)
+    )
+    #expect(
+        actionMappingPresentation(lookDirection: look, overlaySprite: .waving)
+            == .sprite(.waving, activity: .idle)
     )
 }
 

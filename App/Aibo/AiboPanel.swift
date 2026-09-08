@@ -2,7 +2,10 @@ import AppKit
 
 /// Borderless, non-activating desktop pet window.
 final class AiboPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
+    /// Onboarding URL / name fields need a key window; keep false otherwise.
+    var allowsBecomingKey = false
+
+    override var canBecomeKey: Bool { allowsBecomingKey }
     override var canBecomeMain: Bool { false }
 
     init(contentRect: NSRect) {

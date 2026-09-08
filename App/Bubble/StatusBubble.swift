@@ -5,8 +5,11 @@ import SwiftUI
 struct StatusBubble: View {
     let item: StatusBubbleItem
     let placement: BubblePlacement
-    /// Only the bubble nearest the aibo keeps the popover arrow.
+    /// Only the bubble nearest the aibo draws the popover triangle.
     var showsArrow: Bool = true
+    /// Keep the arrow's layout slot so stacked rounded-rects share a width
+    /// even when this bubble hides the triangle.
+    var reservesArrowSlot: Bool = false
     /// When set, a tap activates the source app (local agent bubbles).
     var onActivate: (() -> Void)? = nil
     /// When set, a tap clears this bubble (e.g. `.failed`).
@@ -26,6 +29,10 @@ struct StatusBubble: View {
     private let capsuleIconSize: CGFloat = 18
     private let capsuleHeight: CGFloat = 22
     private let statusLineHeight: CGFloat = 22
+
+    private var arrowSlotHeight: CGFloat {
+        (showsArrow || reservesArrowSlot) ? arrowHeight : 0
+    }
 
     var body: some View {
         let edge = placement.arrowEdge
@@ -54,10 +61,11 @@ struct StatusBubble: View {
             capsuleFill: agentCapsule.fill,
             capsuleContent: agentCapsule.content,
             webhookCapsuleFill: defaultCapsuleFill,
-            webhookCapsuleContent: defaultCapsuleContent
+            webhookCapsuleContent: defaultCapsuleContent,
+            fillIsLight: prefersLightLabel
         )
             .padding(contentPadding)
-            .padding(showsArrow ? Edge.Set(edge) : [], arrowHeight)
+            .padding(arrowSlotHeight > 0 ? Edge.Set(edge) : [], arrowSlotHeight)
             .background {
                 bubbleBackground(edge: edge)
             }
@@ -72,10 +80,14 @@ struct StatusBubble: View {
             .fixedSize(horizontal: false, vertical: true)
             // Stack left/right on the body edge, not the arrow tip.
             .alignmentGuide(.trailing) { d in
-                showsArrow && placement == .left ? d[.trailing] - arrowHeight : d[.trailing]
+                arrowSlotHeight > 0 && placement == .left
+                    ? d[.trailing] - arrowSlotHeight
+                    : d[.trailing]
             }
             .alignmentGuide(.leading) { d in
-                showsArrow && placement == .right ? d[.leading] + arrowHeight : d[.leading]
+                arrowSlotHeight > 0 && placement == .right
+                    ? d[.leading] + arrowSlotHeight
+                    : d[.leading]
             }
             .contentShape(Rectangle())
             .modifier(BubbleTapModifier(onActivate: onActivate, onDismiss: onDismiss))
@@ -87,7 +99,8 @@ struct StatusBubble: View {
         capsuleFill: Color,
         capsuleContent: Color,
         webhookCapsuleFill: Color,
-        webhookCapsuleContent: Color
+        webhookCapsuleContent: Color,
+        fillIsLight: Bool
     ) -> some View {
         switch item.kind {
         case .agent:
@@ -100,6 +113,8 @@ struct StatusBubble: View {
             )
         case .warning:
             warningBubbleContent(ink: ink)
+        case .onboarding:
+            onboardingBubbleContent(ink: ink, fillIsLight: fillIsLight)
         }
     }
 
@@ -187,6 +202,46 @@ struct StatusBubble: View {
                 }
                 statusText(ink: ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func onboardingBubbleContent(ink: Color, fillIsLight: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if hasAgentHeader {
+                HStack(spacing: headerSpacing) {
+                    if let projectName = item.projectName, !projectName.isEmpty {
+                        Text(projectName)
+                            .font(.system(size: 12))
+                            .foregroundStyle(ink)
+                            .lineLimit(1)
+                    }
+                    if let modelName = item.modelName, !modelName.isEmpty {
+                        Text(modelName)
+                            .font(.system(size: 12))
+                            .foregroundStyle(ink.opacity(0.6))
+                            .lineLimit(1)
+                    }
+                }
+            }
+
+            Text(item.text)
+                .font(.system(size: 14, weight: .regular))
+                .lineHeight(.exact(points: statusLineHeight))
+                .foregroundStyle(ink)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if OnboardingController.shared.step == .chooseAibo {
+                OnboardingChooseAiboContent(
+                    ink: ink,
+                    onInk: fillIsLight ? Color.black : Color.white,
+                    fillIsLight: fillIsLight
+                )
+            } else if OnboardingController.shared.step == .agentHook {
+                OnboardingAgentHookContent(ink: ink)
             }
         }
     }
@@ -413,7 +468,7 @@ struct StatusBubble: View {
             arrowEdge: edge,
             cornerRadius: cornerRadius,
             arrowWidth: showsArrow ? arrowWidth : 0,
-            arrowHeight: showsArrow ? arrowHeight : 0
+            arrowHeight: arrowSlotHeight
         )
         // Keep text outside glassEffect — Liquid Glass foreground treatment
         // over glyphs causes heavy aliasing on a transparent NSPanel.
@@ -436,21 +491,29 @@ struct StatusBubble: View {
     }
 
     private var configuredGlass: Glass {
-        glassStyle.glass.tint(glassTint).interactive()
+        Self.configuredGlass(style: glassStyle, tint: glassTint)
     }
 
     private var behindFill: Color {
-        if let glassTint {
-            switch glassStyle {
+        Self.behindFill(style: glassStyle, tint: glassTint)
+    }
+
+    static func configuredGlass(style: BubbleGlassStyle, tint: Color?) -> Glass {
+        style.glass.tint(tint).interactive()
+    }
+
+    static func behindFill(style: BubbleGlassStyle, tint: Color?) -> Color {
+        if let tint {
+            switch style {
             case .identity:
-                return glassTint.opacity(0.35)
+                return tint.opacity(0.35)
             case .regular:
-                return glassTint.opacity(0.45)
+                return tint.opacity(0.45)
             case .clear:
                 return Color.white.opacity(0.15)
             }
         }
-        switch glassStyle {
+        switch style {
         case .identity:
             return Color.primary.opacity(0.12)
         case .clear, .regular:
@@ -468,7 +531,7 @@ struct StatusBubble: View {
     }
 
     /// White label on dark glass / dark tinted fill; black ink otherwise.
-    private static func prefersLightLabel(
+    static func prefersLightLabel(
         tint: Color?,
         style: BubbleGlassStyle,
         colorScheme: ColorScheme

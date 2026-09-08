@@ -44,12 +44,20 @@ final class AiboPanelController {
     private var laidOutBubbleCount = 0
     private var laidOutPlacement: BubblePlacement = .top
     private var laidOutAiboSize: CGSize = CGSize(width: 96, height: 96)
+    private var laidOutOnboardingLayoutID = ""
+    private var laidOutAiboBubbleSpacing: CGFloat = 6
 
     private let baseAiboSize: CGFloat = 96
     private let screenPadding: CGFloat = 24
     private let bubbleMaxWidth: CGFloat = 320
     private let bubbleEstimatedHeight: CGFloat = 88
-    private let bubbleStackSpacing: CGFloat = 4
+    private var bubbleStackSpacing: CGFloat {
+        let items = AiboRuntime.shared.bubbleItems
+        if items.contains(where: { $0.kind == .onboarding }), items.count > 1 {
+            return OnboardingChrome.stackedBubbleSpacing
+        }
+        return 4
+    }
     /// Matches `AiboView.aiboBubbleSpacing` (aibo ↔ bubble stack gap).
     private var aiboBubbleSpacing: CGFloat {
         CGFloat(AiboLibraryStore.shared.selectedRecord.bubbleDistance)
@@ -65,6 +73,12 @@ final class AiboPanelController {
     private let bubbleCapsulePlanProgressExtra: CGFloat = 64
     private let bubbleArrowSlack: CGFloat = 6
     private let bubbleRowSpacing: CGFloat = 8
+
+    private var onboardingActionPillsHeight: CGFloat {
+        OnboardingController.shared.showsActionPills
+            ? OnboardingChrome.actionPillsStackHeight
+            : 0
+    }
 
     private var contentInsets: AiboContentInsets {
         AiboContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled)
@@ -332,11 +346,25 @@ final class AiboPanelController {
         applyGeometryNow()
     }
 
+    /// URL / name fields in the tour need the floating panel to become key.
+    func updateOnboardingKeyWindow() {
+        guard let panel else { return }
+        let allowed = OnboardingController.shared.allowsKeyWindow
+        panel.allowsBecomingKey = allowed
+        if allowed {
+            panel.makeKeyAndOrderFront(nil)
+        } else if panel.isKeyWindow {
+            panel.resignKey()
+        }
+    }
+
     private func applyGeometryNow() {
         pendingGeometryTask?.cancel()
         pendingGeometryTask = nil
-        applyGeometryPreservingPetCenter()
-        clampToVisibleScreen()
+        let pinBubble = applyGeometryPreservingPetCenter()
+        if !pinBubble {
+            clampToVisibleScreen()
+        }
     }
 
     private var pendingGeometryTask: Task<Void, Never>?
@@ -353,19 +381,24 @@ final class AiboPanelController {
                 try? await Task.sleep(for: delay)
             }
             guard !Task.isCancelled, panel != nil else { return }
-            applyGeometryPreservingPetCenter()
-            clampToVisibleScreen()
+            let pinBubble = applyGeometryPreservingPetCenter()
+            if !pinBubble {
+                clampToVisibleScreen()
+            }
             pendingGeometryTask = nil
         }
     }
 
-    private func applyGeometryPreservingPetCenter() {
-        guard let panel, !isPetDragging else { return }
+    /// Returns `true` when the onboarding bubble was pinned (do not clamp — that would drag it).
+    @discardableResult
+    private func applyGeometryPreservingPetCenter() -> Bool {
+        guard let panel, !isPetDragging else { return false }
 
         let items = AiboRuntime.shared.bubbleItems
         let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
         let aiboSize = currentAiboSize
         let bubbleCount = items.count
+        let pinBubble = shouldPinOnboardingBubble
 
         let oldFrame = panel.frame
         let oldAiboCenter = aiboCenter(
@@ -390,9 +423,11 @@ final class AiboPanelController {
         if NSEqualSizes(safeSize, oldFrame.size),
            NSEqualSizes(aiboSize, laidOutAiboSize),
            placement == laidOutPlacement,
-           bubbleCount == laidOutBubbleCount
+           bubbleCount == laidOutBubbleCount,
+           onboardingLayoutID == laidOutOnboardingLayoutID,
+           aiboBubbleSpacing == laidOutAiboBubbleSpacing
         {
-            return
+            return pinBubble
         }
         let newAiboCenter = aiboCenter(
             in: safeSize,
@@ -403,24 +438,50 @@ final class AiboPanelController {
 
         var newFrame = oldFrame
         newFrame.size = safeSize
-        newFrame.origin.x = aiboOnScreen.x - newAiboCenter.x
-        newFrame.origin.y = aiboOnScreen.y - newAiboCenter.y
+        if pinBubble,
+           let oldAnchor = bubbleStackAnchor(
+            panelSize: oldFrame.size,
+            aiboSize: laidOutAiboSize,
+            placement: laidOutPlacement,
+            items: items,
+            spacing: laidOutAiboBubbleSpacing
+           ),
+           let newAnchor = bubbleStackAnchor(
+            panelSize: safeSize,
+            aiboSize: aiboSize,
+            placement: placement,
+            items: items,
+            spacing: aiboBubbleSpacing
+           )
+        {
+            newFrame.origin.x = oldFrame.origin.x + oldAnchor.x - newAnchor.x
+            newFrame.origin.y = oldFrame.origin.y + oldAnchor.y - newAnchor.y
+        } else {
+            newFrame.origin.x = aiboOnScreen.x - newAiboCenter.x
+            newFrame.origin.y = aiboOnScreen.y - newAiboCenter.y
+        }
 
-        // `display: false` avoids forcing layoutSubtreeIfNeeded inside an active layout pass.
-        panel.setFrame(
-            snappedPanelFrame(
+        let frameToApply: NSRect
+        if pinBubble {
+            frameToApply = newFrame
+        } else {
+            frameToApply = snappedPanelFrame(
                 newFrame,
                 aiboSize: aiboSize,
                 placement: placement,
                 bubbleCount: bubbleCount
-            ),
-            display: false
-        )
+            )
+        }
+
+        // `display: false` avoids forcing layoutSubtreeIfNeeded inside an active layout pass.
+        panel.setFrame(frameToApply, display: false)
         applyContentFrame(safeSize)
         pinContentSize(safeSize)
         laidOutBubbleCount = bubbleCount
         laidOutPlacement = placement
         laidOutAiboSize = aiboSize
+        laidOutOnboardingLayoutID = onboardingLayoutID
+        laidOutAiboBubbleSpacing = aiboBubbleSpacing
         updatePetHitRect(
             panelSize: safeSize,
             aiboSize: aiboSize,
@@ -428,6 +489,13 @@ final class AiboPanelController {
             bubbleCount: bubbleCount
         )
         refreshLookDirection()
+        return pinBubble
+    }
+
+    /// Same tour card, already laid out: keep that bubble on screen while size / gap change.
+    private var shouldPinOnboardingBubble: Bool {
+        OnboardingController.shared.pinsBubbleDuringLayout
+            && onboardingLayoutID == laidOutOnboardingLayoutID
     }
 
     private func aiboBlockMinimum(aiboSize: CGSize) -> NSSize {
@@ -562,7 +630,11 @@ final class AiboPanelController {
         case .top, .bottom:
             return NSSize(
                 width: max(aiboBlockWidth, bubbleMaxWidth + insets.horizontal),
-                height: max(aiboBlockHeight + stackHeight + aiboBubbleSpacing + panelBubbleSlack, 1)
+                height: max(
+                    aiboBlockHeight + stackHeight + aiboBubbleSpacing + panelBubbleSlack
+                        + onboardingActionPillsHeight,
+                    1
+                )
             )
         case .left, .right:
             // Near-pet bubble centered with pet; older bubbles grow upward.
@@ -574,15 +646,19 @@ final class AiboPanelController {
                 aboveHeights.reduce(0, +)
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
             let rowHeight = max(aiboSize.height, nearHeight)
+            let pills = onboardingActionPillsHeight
             return NSSize(
                 width: max(aiboBlockWidth + bubbleMaxWidth + aiboBubbleSpacing + panelBubbleSlack, 1),
-                height: max(insets.vertical + rowHeight + stackAbove, 1)
+                height: max(insets.vertical + rowHeight + stackAbove + pills, 1)
             )
         }
     }
 
     /// Approximate rendered bubble height for panel sizing (header + capsule/CTA row).
     private func estimatedBubbleHeight(for item: StatusBubbleItem) -> CGFloat {
+        if item.kind == .onboarding {
+            return estimatedOnboardingClusterHeight(for: item)
+        }
         let contentWidth = bubbleMaxWidth - bubbleContentPadding * 2 - bubbleArrowSlack
         let trailingReserve: CGFloat = item.isAwaitingApproval ? 24 : 0
         let capsuleWidth = bubbleCapsuleWidthEstimate
@@ -603,11 +679,52 @@ final class AiboPanelController {
             true
         case .agent:
             !(item.projectName ?? "").isEmpty || !(item.modelName ?? "").isEmpty
+        case .onboarding:
+            true
         }
         if hasHeader {
             height += bubbleHeaderLineHeight + bubbleSectionSpacing
         }
         return max(bubbleEstimatedHeight, height + bubbleArrowSlack)
+    }
+
+    /// Welcome copy wraps, and action pills sit 8pt under the bubble.
+    private func estimatedOnboardingClusterHeight(for item: StatusBubbleItem) -> CGFloat {
+        let contentWidth = bubbleMaxWidth - bubbleContentPadding * 2 - bubbleArrowSlack
+        let font = NSFont.systemFont(ofSize: 14)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.minimumLineHeight = bubbleStatusLineHeight
+        paragraph.maximumLineHeight = bubbleStatusLineHeight
+        let textHeight = ceil(
+            (item.text as NSString).boundingRect(
+                with: NSSize(width: max(1, contentWidth), height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [
+                    .font: font,
+                    .paragraphStyle: paragraph,
+                ]
+            ).height
+        )
+        var height = bubbleContentPadding * 2 + max(bubbleStatusLineHeight, textHeight)
+        height += bubbleHeaderLineHeight + bubbleSectionSpacing
+        height += bubbleArrowSlack
+        let tour = OnboardingController.shared
+        if tour.step == .chooseAibo {
+            height += OnboardingChrome.chooseAiboExtraHeight(
+                phase: tour.choosePhase,
+                hasError: tour.errorMessage != nil
+            )
+        } else if tour.step == .agentHook {
+            height += OnboardingChrome.agentHookExtraHeight(hasError: tour.errorMessage != nil)
+        }
+        return max(bubbleEstimatedHeight, height)
+    }
+
+    private var onboardingLayoutID: String {
+        let tour = OnboardingController.shared
+        guard tour.isActive else { return "" }
+        let hooks = AiboRuntime.shared
+        return "\(tour.step.rawValue).\(tour.choosePhase.rawValue).\(tour.errorMessage != nil).\(hooks.cursorHooksInstalled).\(hooks.codexHooksInstalled)"
     }
 
     private func updatePetHitRect(
@@ -635,14 +752,33 @@ final class AiboPanelController {
         refreshClickThroughState()
     }
 
+    /// Bottom-left of the near-aibo bubble stack in panel coords (AppKit origin).
+    private func bubbleStackAnchor(
+        panelSize: NSSize,
+        aiboSize: CGSize,
+        placement: BubblePlacement,
+        items: [StatusBubbleItem],
+        spacing: CGFloat
+    ) -> CGPoint? {
+        bubbleHitRects(
+            panelSize: panelSize,
+            aiboSize: aiboSize,
+            placement: placement,
+            items: items,
+            spacing: spacing
+        ).first.map(\.origin)
+    }
+
     /// Bottom-left union rects for bubble stacks so empty panel chrome can click through.
     private func bubbleHitRects(
         panelSize: NSSize,
         aiboSize: CGSize,
         placement: BubblePlacement,
-        items: [StatusBubbleItem]
+        items: [StatusBubbleItem],
+        spacing: CGFloat? = nil
     ) -> [CGRect] {
         guard !items.isEmpty else { return [] }
+        let gap = spacing ?? aiboBubbleSpacing
         let insets = contentInsets
         let origin = aiboOrigin(
             in: panelSize,
@@ -660,36 +796,64 @@ final class AiboPanelController {
         case .top:
             let width = min(bubbleMaxWidth, contentWidth)
             let x = insets.leading + (contentWidth - width) / 2
-            let y = origin.y + aiboSize.height + aiboBubbleSpacing
+            let y = origin.y + aiboSize.height + gap
             return [CGRect(x: x, y: y, width: width, height: stackHeight)]
         case .bottom:
             let width = min(bubbleMaxWidth, contentWidth)
             let x = insets.leading + (contentWidth - width) / 2
-            let y = origin.y - aiboBubbleSpacing - stackHeight
+            let y = origin.y - gap - stackHeight
             return [CGRect(x: x, y: y, width: width, height: stackHeight)]
         case .right:
-            let x = origin.x + aiboSize.width + aiboBubbleSpacing
+            let x = origin.x + aiboSize.width + gap
             let width = min(bubbleMaxWidth, max(0, panelSize.width - x - insets.trailing))
             let nearHeight = heights.last ?? bubbleEstimatedHeight
             let aboveHeights = heights.dropLast()
             let stackAbove =
                 aboveHeights.reduce(0, +)
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
-            let aiboCenterY = origin.y + aiboSize.height / 2
-            let nearBottom = aiboCenterY - nearHeight / 2
-            return [CGRect(x: x, y: nearBottom, width: width, height: nearHeight + stackAbove)]
+            let nearBottom = sideBubbleNearBottom(
+                aiboOriginY: origin.y,
+                aiboHeight: aiboSize.height,
+                nearHeight: nearHeight
+            )
+            let pills = onboardingActionPillsHeight
+            return [CGRect(
+                x: x,
+                y: nearBottom - pills,
+                width: width,
+                height: nearHeight + stackAbove + pills
+            )]
         case .left:
-            let width = min(bubbleMaxWidth, max(0, origin.x - aiboBubbleSpacing - insets.leading))
-            let x = origin.x - aiboBubbleSpacing - width
+            let width = min(bubbleMaxWidth, max(0, origin.x - gap - insets.leading))
+            let x = origin.x - gap - width
             let nearHeight = heights.last ?? bubbleEstimatedHeight
             let aboveHeights = heights.dropLast()
             let stackAbove =
                 aboveHeights.reduce(0, +)
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
-            let aiboCenterY = origin.y + aiboSize.height / 2
-            let nearBottom = aiboCenterY - nearHeight / 2
-            return [CGRect(x: x, y: nearBottom, width: width, height: nearHeight + stackAbove)]
+            let nearBottom = sideBubbleNearBottom(
+                aiboOriginY: origin.y,
+                aiboHeight: aiboSize.height,
+                nearHeight: nearHeight
+            )
+            let pills = onboardingActionPillsHeight
+            return [CGRect(
+                x: x,
+                y: nearBottom - pills,
+                width: width,
+                height: nearHeight + stackAbove + pills
+            )]
         }
+    }
+
+    /// Side row is vertically centered: near-bubble midpoint matches aibo midpoint.
+    private func sideBubbleNearBottom(
+        aiboOriginY: CGFloat,
+        aiboHeight: CGFloat,
+        nearHeight: CGFloat
+    ) -> CGFloat {
+        let aiboCenterY = aiboOriginY + aiboHeight / 2
+        return aiboCenterY - nearHeight / 2
     }
 
     #if DEBUG
@@ -770,11 +934,13 @@ final class AiboPanelController {
                 y: panelSize.height - insets.top - aiboSize.height
             )
         case .left, .right:
-            // Bottom-aligned row: pet shares a vertical center with the near bubble.
+            // Vertically center the pet with the near bubble. Skip / Continue
+            // hang below the bubble and take extra panel space, not this row.
             let items = AiboRuntime.shared.bubbleItems
             let nearHeight = items.last.map(estimatedBubbleHeight(for:)) ?? bubbleEstimatedHeight
             let rowHeight = max(aiboSize.height, nearHeight)
-            let y = insets.bottom + (rowHeight - aiboSize.height) / 2
+            let y = insets.bottom + onboardingActionPillsHeight
+                + (rowHeight - aiboSize.height) / 2
             if placement == .left {
                 return CGPoint(x: panelSize.width - insets.trailing - aiboSize.width, y: y)
             }
@@ -877,6 +1043,10 @@ final class AiboPanelController {
     }
 
     private func placeInitially() {
+        if OnboardingController.shared.isActive {
+            placeAiboForOnboarding()
+            return
+        }
         let settings = AppSettings.shared
         if settings.restoreLastAiboPosition,
            let x = settings.savedAiboCenterXPercent,
@@ -898,6 +1068,18 @@ final class AiboPanelController {
         frame.origin.x = visible.maxX - frame.width - screenPadding
         frame.origin.y = visible.minY + screenPadding
         panel.setFrame(snappedPanelFrame(frame), display: false)
+    }
+
+    func placeAiboForOnboarding() {
+        placeAiboAtRelativePosition(
+            xPercent: OnboardingChrome.aiboCenterXPercent,
+            yPercent: OnboardingChrome.aiboCenterYPercent
+        )
+    }
+
+    func placeAiboAtRelativePosition(xPercent: Double, yPercent: Double) {
+        placeAtRelativePosition(xPercent: xPercent, yPercent: yPercent)
+        clampToVisibleScreen()
     }
 
     /// Place so the aibo center lands at `(xPercent, yPercent)` of the screen visible frame.

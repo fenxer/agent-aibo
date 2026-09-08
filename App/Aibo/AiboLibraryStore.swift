@@ -111,7 +111,7 @@ final class AiboLibraryStore {
             persistedBuiltInRecord.bubbleDistance = clamped
         }
         persist()
-        AiboPanelController.shared.refreshContent()
+        refreshPanelGeometryAfterMetricChange()
     }
 
     func setScalePercent(_ percent: Double) {
@@ -131,7 +131,7 @@ final class AiboLibraryStore {
         }
         persist()
         AiboPanelController.shared.updateHitTestImage()
-        AiboPanelController.shared.refreshContent()
+        refreshPanelGeometryAfterMetricChange()
     }
 
     func setPixelOptimizationEnabled(_ enabled: Bool) {
@@ -215,23 +215,22 @@ final class AiboLibraryStore {
         return .renamed
     }
 
-    func installPetdex(from slugOrURL: String) async {
-        guard !isInstalling else { return }
+    @discardableResult
+    func installPetdex(from slugOrURL: String) async -> AiboLibraryRecord? {
+        guard !isInstalling else { return nil }
         isInstalling = true
         lastErrorMessage = nil
         defer { isInstalling = false }
 
         do {
             let record = try await installer.install(slugOrURL: slugOrURL)
-            upsert(record)
-            selectedID = record.id
-            persist()
-            notifyAppearanceChanged()
-            await convertPetdexClipsIfNeeded(record)
+            return commitInstalled(record)
         } catch let error as PetdexInstallError {
             lastErrorMessage = Self.message(for: error)
+            return nil
         } catch {
             lastErrorMessage = String(localized: "Failed to install aibo")
+            return nil
         }
     }
 
@@ -315,27 +314,19 @@ final class AiboLibraryStore {
 
     func importStaticImage(from sourceURL: URL, displayName: String? = nil) {
         lastErrorMessage = nil
+        let ext = sourceURL.pathExtension.lowercased()
+        guard LocalAiboImporter.imageExtensions.contains(ext) else {
+            lastErrorMessage = String(localized: "Unsupported image file")
+            return
+        }
+
+        let id = UUID().uuidString.lowercased()
         do {
-            try FileManager.default.createDirectory(
-                at: AiboPaths.staticDirectory,
-                withIntermediateDirectories: true
+            let fileName = try LocalAiboImporter.installCappedStaticImage(
+                from: sourceURL,
+                into: AiboPaths.staticDirectory,
+                id: id
             )
-
-            let ext = sourceURL.pathExtension.lowercased()
-            let allowed = ["png", "jpg", "jpeg", "webp", "heic", "tif", "tiff"]
-            guard allowed.contains(ext) else {
-                lastErrorMessage = String(localized: "Unsupported image file")
-                return
-            }
-
-            let id = UUID().uuidString.lowercased()
-            let fileName = "\(id).\(ext)"
-            let destination = AiboPaths.staticDirectory.appendingPathComponent(fileName)
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
-            }
-            try FileManager.default.copyItem(at: sourceURL, to: destination)
-
             let name = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
             let record = AiboLibraryRecord(
                 id: "static.\(id)",
@@ -344,10 +335,9 @@ final class AiboLibraryStore {
                 relativePath: "\(AiboPaths.staticDirectoryName)/\(fileName)",
                 installedAt: Date()
             )
-            upsert(record)
-            selectedID = record.id
-            persist()
-            notifyAppearanceChanged()
+            _ = commitInstalled(record)
+        } catch LocalAiboImportError.unsupportedFile {
+            lastErrorMessage = String(localized: "Unsupported image file")
         } catch {
             lastErrorMessage = String(localized: "Failed to import image")
         }
@@ -430,11 +420,22 @@ final class AiboLibraryStore {
         let record = try await Task.detached {
             try LocalAiboImporter.commit(payload, slug: slug, displayName: displayName)
         }.value
+        _ = commitInstalled(record)
+    }
+
+    /// Selects a newly installed aibo. Copies bubble *side* from the current
+    /// one so the desktop bubble does not jump to `.top`. Distance resets to
+    /// the default — the previous aibo's gap often looks wrong on a new sprite.
+    @discardableResult
+    private func commitInstalled(_ record: AiboLibraryRecord) -> AiboLibraryRecord {
         upsert(record)
-        selectedID = record.id
-        persist()
-        notifyAppearanceChanged()
-        await convertPetdexClipsIfNeeded(record)
+        if selectedID != record.id {
+            select(id: record.id)
+        } else {
+            persist()
+            notifyAppearanceChanged()
+        }
+        return records.first(where: { $0.id == record.id }) ?? record
     }
 
     private func upsert(_ record: AiboLibraryRecord) {
@@ -449,7 +450,10 @@ final class AiboLibraryStore {
             merged.pixelOptimizationEnabled = existing.pixelOptimizationEnabled
             records[index] = merged
         } else {
-            records.append(record)
+            var incoming = record
+            incoming.bubblePlacement = selectedRecord.bubblePlacement
+            incoming.bubbleDistance = AiboLibraryRecord.defaultBubbleDistance
+            records.append(incoming)
         }
     }
 
@@ -552,6 +556,16 @@ final class AiboLibraryStore {
             persist()
         }
         defaults.set(true, forKey: flag)
+    }
+
+    /// Naming sliders apply geometry in the same turn so the bubble does not
+    /// paint one frame at the old panel origin before catching up.
+    private func refreshPanelGeometryAfterMetricChange() {
+        if OnboardingController.shared.pinsBubbleDuringLayout {
+            AiboPanelController.shared.syncGeometryNow()
+        } else {
+            AiboPanelController.shared.refreshContent()
+        }
     }
 
     private func persist() {

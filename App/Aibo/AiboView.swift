@@ -18,6 +18,7 @@ struct AiboView: View {
     private var runtime = AiboRuntime.shared
     private var hookSprites = HookSpriteSettings.shared
     private var musicMonitor = MusicPlaybackMonitor.shared
+    @Bindable private var onboarding = OnboardingController.shared
 
     @Environment(\.displayScale) private var displayScale
 
@@ -30,7 +31,19 @@ struct AiboView: View {
         bubbleItemsOverride ?? runtime.bubbleItems
     }
 
+    /// Welcome and wrap-up use `waving` (arm wave), not `waiting` (Codex approval fidget).
+    /// Choose-aibo and Agent hook loop `idle`; success `jumping`; bubble-status / Cursor stack `review`.
+    private var onboardingOverlaySprite: PetdexSpriteState? {
+        guard onboarding.isActive || bubbleItems.contains(where: { $0.kind == .onboarding }) else {
+            return nil
+        }
+        return onboarding.step.sprite
+    }
+
     private var resolvedPresentation: AiboDisplayPresentation {
+        if let overlay = onboardingOverlaySprite {
+            return .sprite(overlay, activity: .registered)
+        }
         _ = hookSprites.file
         let look = AppSettings.shared.disableMouseTracking
             ? nil
@@ -115,6 +128,7 @@ struct AiboView: View {
         // pixels only (PassThroughHostingView); bubbles keep their own taps.
         positionedContent
             .padding(AiboContentInsets.current(musicNotesEnabled: AppSettings.shared.musicNotesEnabled).edgeInsets)
+            .padding(.bottom, onboarding.showsActionPills ? OnboardingChrome.actionPillsStackHeight : 0)
             .allowsWindowActivationEvents()
             .onChange(of: shouldEmitMusicNotes, initial: true) { _, active in
                 syncMusicNotePulse(active: active)
@@ -184,12 +198,9 @@ struct AiboView: View {
 
     @ViewBuilder
     private func bubbleStack(items: [StatusBubbleItem], nearPetIndex: Int) -> some View {
-        VStack(alignment: stackAlignment, spacing: stackSpacing) {
+        VStack(alignment: stackAlignment, spacing: resolvedStackSpacing) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                bubbleRow(
-                    item: item,
-                    showsArrow: index == nearPetIndex
-                )
+                bubbleRow(item: item, showsArrow: index == nearPetIndex)
             }
         }
         .animation(nil, value: items.map(\.id))
@@ -197,20 +208,20 @@ struct AiboView: View {
 
     @ViewBuilder
     private func bubbleRow(item: StatusBubbleItem, showsArrow: Bool) -> some View {
-        let bubble = AnimatedStatusBubble(
-            item: item,
-            placement: placement,
-            showsArrow: showsArrow,
-            onActivate: activateAction(for: item),
-            onDismiss: dismissAction(for: item),
-            glassStyle: glassStyle(for: item),
-            glassTint: glassTint(for: item)
-        )
-
-        // Warning must open Settings via SettingsLink (openSettings() warns on current SDKs).
-        if item.kind == .warning {
+        switch item.kind {
+        case .onboarding:
+            OnboardingBubbleCluster(
+                item: item,
+                placement: placement,
+                showsArrow: showsArrow,
+                reservesArrowSlot: onboardingStackUsesIntrinsicWidth,
+                glassStyle: glassStyle(for: item),
+                glassTint: glassTint(for: item)
+            )
+        case .warning:
+            // Warning must open Settings via SettingsLink (openSettings() warns on current SDKs).
             SettingsLink {
-                bubble
+                animatedBubble(item: item, showsArrow: showsArrow)
             }
             .buttonStyle(.plain)
             .simultaneousGesture(
@@ -219,9 +230,22 @@ struct AiboView: View {
                     AiboRuntime.shared.dismissBubble(id: item.id)
                 }
             )
-        } else {
-            bubble
+        case .agent, .webhook:
+            animatedBubble(item: item, showsArrow: showsArrow)
         }
+    }
+
+    private func animatedBubble(item: StatusBubbleItem, showsArrow: Bool) -> AnimatedStatusBubble {
+        AnimatedStatusBubble(
+            item: item,
+            placement: placement,
+            showsArrow: showsArrow,
+            reservesArrowSlot: onboardingStackUsesIntrinsicWidth,
+            onActivate: activateAction(for: item),
+            onDismiss: dismissAction(for: item),
+            glassStyle: glassStyle(for: item),
+            glassTint: glassTint(for: item)
+        )
     }
 
     private func dismissAction(for item: StatusBubbleItem) -> (() -> Void)? {
@@ -241,11 +265,16 @@ struct AiboView: View {
         sideAnchor(nearPetIndex: nearPetIndex)
             .hidden()
             .accessibilityHidden(true)
-            .overlay(alignment: .bottom) {
+            .overlay(alignment: sideStackOverlayAlignment) {
                 bubbleStack(nearPetIndex: nearPetIndex)
-                    // Overlay proposes the anchor's size; keep the stack's ideal height
-                    // so multi-line bubbles aren't crushed to one line.
-                    .fixedSize(horizontal: false, vertical: true)
+                    // Overlay proposes the anchor's size; keep the stack's ideal
+                    // height so multi-line bubbles aren't crushed to one line.
+                    // Onboarding stacks also keep ideal width so StatusBubble's
+                    // body-edge alignment guides (not the arrow tip) can apply.
+                    .fixedSize(
+                        horizontal: onboardingStackUsesIntrinsicWidth,
+                        vertical: true
+                    )
             }
     }
 
@@ -253,13 +282,25 @@ struct AiboView: View {
     @ViewBuilder
     private func sideAnchor(nearPetIndex: Int) -> some View {
         if bubbleItems.indices.contains(nearPetIndex) {
-            StatusBubble(
-                item: bubbleItems[nearPetIndex],
-                placement: placement,
-                showsArrow: true,
-                glassStyle: glassStyle(for: bubbleItems[nearPetIndex]),
-                glassTint: glassTint(for: bubbleItems[nearPetIndex])
-            )
+            let item = bubbleItems[nearPetIndex]
+            if item.kind == .onboarding {
+                OnboardingBubbleCluster(
+                    item: item,
+                    placement: placement,
+                    showsArrow: true,
+                    animates: false,
+                    glassStyle: glassStyle(for: item),
+                    glassTint: glassTint(for: item)
+                )
+            } else {
+                StatusBubble(
+                    item: item,
+                    placement: placement,
+                    showsArrow: true,
+                    glassStyle: glassStyle(for: item),
+                    glassTint: glassTint(for: item)
+                )
+            }
         } else {
             Color.clear.frame(width: 1, height: aiboLayoutSize.height)
         }
@@ -274,10 +315,32 @@ struct AiboView: View {
         }
     }
 
+    private var onboardingStackUsesIntrinsicWidth: Bool {
+        bubbleItems.contains(where: { $0.kind == .onboarding }) && bubbleItems.count > 1
+    }
+
+    private var sideStackOverlayAlignment: Alignment {
+        guard onboardingStackUsesIntrinsicWidth else { return .bottom }
+        switch placement {
+        case .right: return .bottomLeading
+        case .left: return .bottomTrailing
+        case .top, .bottom: return .bottom
+        }
+    }
+
+    private var resolvedStackSpacing: CGFloat {
+        onboardingStackUsesIntrinsicWidth
+            ? OnboardingChrome.stackedBubbleSpacing
+            : stackSpacing
+    }
+
     private func activateAction(for item: StatusBubbleItem) -> (() -> Void)? {
+        if onboarding.bubbleTapAdvances, item.kind == .agent || item.kind == .webhook {
+            return { onboarding.advance() }
+        }
         switch item.kind {
-        case .warning:
-            // Opened via SettingsLink wrapper — no programmatic openSettings.
+        case .warning, .onboarding:
+            // Warning opens via SettingsLink. Onboarding taps are owned by the cluster.
             return nil
         case .agent, .webhook:
             guard let agent = item.agent else { return nil }
@@ -305,8 +368,9 @@ struct AiboView: View {
                     activity: displayActivity,
                     spriteState: displaySpriteState,
                     size: aiboNominalSize,
-                    lookDirection: displayLookDirection,
+                    lookDirection: onboardingOverlaySprite == nil ? displayLookDirection : nil,
                     pixelLayout: .fillWidth,
+                    alwaysAnimates: onboardingOverlaySprite != nil,
                     usesPerAiboScale: true
                 )
                 .id("desktop-current-aibo")

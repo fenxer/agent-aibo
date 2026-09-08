@@ -1,4 +1,7 @@
+import CoreGraphics
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 public enum LocalAiboImportKind: Sendable, Equatable {
     case staticImage
@@ -27,6 +30,60 @@ public enum LocalAiboImporter: Sendable {
         "png", "jpg", "jpeg", "webp", "heic", "tif", "tiff",
     ]
     public static let archiveExtensions: Set<String> = ["zip"]
+    /// Longest stored edge for a local still. 280pt at 2x backing → 560px.
+    public static let maxStaticImagePixelDimension = 560
+
+    /// Writes `id.<ext>` into `directory`. Oversized stills are downsampled and saved as PNG.
+    public static func installCappedStaticImage(
+        from source: URL,
+        into directory: URL,
+        id: String,
+        maxPixelDimension: Int = maxStaticImagePixelDimension,
+        fileManager: FileManager = .default
+    ) throws -> String {
+        let ext = source.pathExtension.lowercased()
+        guard imageExtensions.contains(ext) else { throw LocalAiboImportError.unsupportedFile }
+        guard maxPixelDimension > 0 else { throw LocalAiboImportError.ioFailed }
+
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let source = source.standardizedFileURL
+        guard let imageSource = CGImageSourceCreateWithURL(
+            source as CFURL,
+            [kCGImageSourceShouldCache: false] as CFDictionary
+        ) else {
+            throw LocalAiboImportError.unsupportedFile
+        }
+        guard let pixelSize = pixelSize(of: imageSource) else {
+            throw LocalAiboImportError.unsupportedFile
+        }
+
+        if max(pixelSize.width, pixelSize.height) <= maxPixelDimension {
+            let fileName = "\(id).\(ext)"
+            let destination = directory.appendingPathComponent(fileName)
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.copyItem(at: source, to: destination)
+            return fileName
+        }
+
+        let fileName = "\(id).png"
+        let destination = directory.appendingPathComponent(fileName)
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+            imageSource,
+            0,
+            [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixelDimension,
+            ] as CFDictionary
+        ) else {
+            throw LocalAiboImportError.ioFailed
+        }
+        try writePNG(thumbnail, to: destination, fileManager: fileManager)
+        return fileName
+    }
 
     public static func classify(url: URL) -> LocalAiboImportKind? {
         let ext = url.pathExtension.lowercased()
@@ -256,6 +313,48 @@ public enum LocalAiboImporter: Sendable {
             return nil
         }
         return candidate
+    }
+
+    private static func pixelSize(of source: CGImageSource) -> (width: Int, height: Int)? {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = intValue(properties[kCGImagePropertyPixelWidth]),
+              let height = intValue(properties[kCGImagePropertyPixelHeight]),
+              width > 0, height > 0
+        else { return nil }
+        return (width, height)
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        if let number = value as? Int { return number }
+        if let number = value as? Double { return Int(number) }
+        if let number = value as? NSNumber { return number.intValue }
+        return nil
+    }
+
+    private static func writePNG(
+        _ image: CGImage,
+        to url: URL,
+        fileManager: FileManager
+    ) throws {
+        let staging = url.appendingPathExtension("writing")
+        try? fileManager.removeItem(at: staging)
+        guard let destination = CGImageDestinationCreateWithURL(
+            staging as CFURL,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw LocalAiboImportError.ioFailed
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            try? fileManager.removeItem(at: staging)
+            throw LocalAiboImportError.ioFailed
+        }
+        if fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+        try fileManager.moveItem(at: staging, to: url)
     }
 
     private static func extractZip(_ archive: URL, to destination: URL) throws {

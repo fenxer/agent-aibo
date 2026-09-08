@@ -44,6 +44,7 @@ private struct AgentHookSettingsRootView: View {
                         AgentHookAgentRow(
                             agent: agent,
                             isInstalled: true,
+                            hostAppInstalled: true,
                             onOpen: { onOpenAgent(agent) },
                             onInstall: { runtime.installHooks(for: agent) }
                         )
@@ -59,6 +60,7 @@ private struct AgentHookSettingsRootView: View {
                         AgentHookAgentRow(
                             agent: agent,
                             isInstalled: false,
+                            hostAppInstalled: runtime.isHostAppInstalled(for: agent),
                             onOpen: { onOpenAgent(agent) },
                             onInstall: { runtime.installHooks(for: agent) }
                         )
@@ -79,6 +81,7 @@ private struct AgentHookSettingsRootView: View {
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .settingsDetailChrome(title: String(localized: "Agent Hook"))
+        .onAppear { runtime.refreshHostAppPresence() }
     }
 }
 
@@ -115,6 +118,7 @@ private struct AgentHookIntroRow: View {
 private struct AgentHookAgentRow: View {
     var agent: AgentKind
     var isInstalled: Bool
+    var hostAppInstalled: Bool
     var onOpen: () -> Void
     var onInstall: () -> Void
 
@@ -137,13 +141,16 @@ private struct AgentHookAgentRow: View {
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.tertiary)
+                    } else if !hostAppInstalled {
+                        Text(String(localized: "Not Installed on This Mac"))
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
-            if !isInstalled {
+            if !isInstalled, hostAppInstalled {
                 Button(String(localized: "Install"), action: onInstall)
             }
         }

@@ -354,6 +354,19 @@ public enum AiboLibraryNaming {
         }
         return "\(name)-\(suffix)"
     }
+
+    /// Preferred name, or a `-2` / `-3` copy when that display name is already taken.
+    public static func uniqueDisplayName(
+        _ preferred: String,
+        in records: [AiboLibraryRecord],
+        excludingID: String? = nil
+    ) -> String {
+        let name = normalizedDisplayName(preferred) ?? preferred
+        if collidingRecord(slug: nil, displayName: name, in: records, excludingID: excludingID) == nil {
+            return name
+        }
+        return suggestedCopyDisplayName(base: name, existingNames: records.map(\.displayName))
+    }
 }
 
 public enum AiboLibraryDeletion {
