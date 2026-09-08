@@ -335,7 +335,9 @@ struct AiboView: View {
     }
 
     private func activateAction(for item: StatusBubbleItem) -> (() -> Void)? {
-        if onboarding.bubbleTapAdvances, item.kind == .agent || item.kind == .webhook {
+        if onboarding.isActive, onboarding.bubbleTapAdvances,
+           item.kind == .agent || item.kind == .webhook
+        {
             return { onboarding.advance() }
         }
         switch item.kind {

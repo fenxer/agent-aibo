@@ -709,12 +709,12 @@ final class AiboPanelController {
         height += bubbleHeaderLineHeight + bubbleSectionSpacing
         height += bubbleArrowSlack
         let tour = OnboardingController.shared
-        if tour.step == .chooseAibo {
+        if tour.isActive, tour.step == .chooseAibo {
             height += OnboardingChrome.chooseAiboExtraHeight(
                 phase: tour.choosePhase,
                 hasError: tour.errorMessage != nil
             )
-        } else if tour.step == .agentHook {
+        } else if tour.isActive, tour.step == .agentHook {
             height += OnboardingChrome.agentHookExtraHeight(hasError: tour.errorMessage != nil)
         }
         return max(bubbleEstimatedHeight, height)

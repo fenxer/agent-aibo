@@ -234,13 +234,14 @@ struct StatusBubble: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if OnboardingController.shared.step == .chooseAibo {
+            let tour = OnboardingController.shared
+            if tour.isActive, tour.step == .chooseAibo {
                 OnboardingChooseAiboContent(
                     ink: ink,
                     onInk: fillIsLight ? Color.black : Color.white,
                     fillIsLight: fillIsLight
                 )
-            } else if OnboardingController.shared.step == .agentHook {
+            } else if tour.isActive, tour.step == .agentHook {
                 OnboardingAgentHookContent(ink: ink)
             }
         }

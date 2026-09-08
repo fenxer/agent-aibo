@@ -58,15 +58,19 @@ final class OnboardingController {
         isActive && step == .chooseAibo && choosePhase == .naming
     }
 
-    var showsContinueHint: Bool { step.advancesOnBubbleTap }
+    var showsContinueHint: Bool { isActive && step.advancesOnBubbleTap }
 
-    var showsSkip: Bool { step.showsSkipPill }
+    var showsSkip: Bool { isActive && step.showsSkipPill }
 
     var showsActionPills: Bool { isActive && (showsSkip || showsContinueHint) }
 
     var continueHintTitle: String { step.continueHintTitle }
 
-    var bubbleTapAdvances: Bool { step.advancesOnBubbleTap }
+    /// Only while the tour is running. Finish clears `isActive` (and `step`);
+    /// without that, leftover tour flags would steal agent bubble taps.
+    var bubbleTapAdvances: Bool { isActive && step.advancesOnBubbleTap }
+
+    private var isChoosingAibo: Bool { isActive && step == .chooseAibo }
 
     private var bodyText: String {
         if step == .chooseAibo, choosePhase == .naming {
@@ -199,12 +203,14 @@ final class OnboardingController {
         guard !input.isEmpty, !AiboLibraryStore.shared.isInstalling else { return }
         errorMessage = nil
         if let record = await AiboLibraryStore.shared.installPetdex(from: input) {
+            guard isChoosingAibo else { return }
             presentNaming(
                 preferredName: record.displayName,
                 recordID: record.id,
                 isPendingPack: false
             )
         } else {
+            guard isChoosingAibo else { return }
             errorMessage = AiboLibraryStore.shared.lastErrorMessage
             refreshPresentation()
         }
@@ -216,6 +222,7 @@ final class OnboardingController {
         let library = AiboLibraryStore.shared
         if namingIsPendingPack {
             await library.confirmPendingNamedImport(displayName: name)
+            guard isActive, step == .chooseAibo, choosePhase == .naming else { return }
             if let message = library.lastErrorMessage {
                 errorMessage = message
                 refreshPresentation()
@@ -255,12 +262,17 @@ final class OnboardingController {
     }
 
     private func importPickedFile(_ url: URL) async {
+        guard isChoosingAibo else { return }
         let accessed = url.startAccessingSecurityScopedResource()
         defer {
             if accessed { url.stopAccessingSecurityScopedResource() }
         }
         errorMessage = nil
         await AiboLibraryStore.shared.importLocal(from: url)
+        guard isChoosingAibo else {
+            AiboLibraryStore.shared.cancelPendingNamedImport()
+            return
+        }
         let library = AiboLibraryStore.shared
         if let pending = library.pendingNamedImport {
             presentNaming(
@@ -284,6 +296,7 @@ final class OnboardingController {
     }
 
     private func presentNaming(preferredName: String, recordID: String?, isPendingPack: Bool) {
+        guard isChoosingAibo else { return }
         let library = AiboLibraryStore.shared
         namingIsPendingPack = isPendingPack
         namingRecordID = recordID
@@ -319,6 +332,7 @@ final class OnboardingController {
     private func finish() {
         guard isActive else { return }
         isActive = false
+        step = .welcome
         AiboLibraryStore.shared.cancelPendingNamedImport()
         tourCompanionName = nil
         resetChooseAiboState()
