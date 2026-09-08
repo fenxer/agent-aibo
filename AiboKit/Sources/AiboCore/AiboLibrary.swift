@@ -23,8 +23,21 @@ public enum AiboKind: String, Codable, Sendable, Equatable {
 public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Hashable {
     public static let defaultBubbleDistance: Double = 6
     public static let bubbleDistanceRange: ClosedRange<Double> = -40...40
+    public static let defaultBubblePlacement: BubblePlacement = .right
     public static let defaultScalePercent: Double = 100
     public static let scalePercentRange: ClosedRange<Double> = 0...300
+    /// Built-in Poli stock size. Other aibos still default to `defaultScalePercent`.
+    public static let builtInScalePercent: Double = 200
+    /// Built-in Poli stock gap. Other aibos still default to `defaultBubbleDistance`.
+    public static let builtInBubbleDistance: Double = -35
+
+    public static func stockScalePercent(for kind: AiboKind) -> Double {
+        kind == .builtInDefault ? builtInScalePercent : defaultScalePercent
+    }
+
+    public static func stockBubbleDistance(for kind: AiboKind) -> Double {
+        kind == .builtInDefault ? builtInBubbleDistance : defaultBubbleDistance
+    }
 
     public var id: String
     public var kind: AiboKind
@@ -39,23 +52,24 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
     public var installedAt: Date?
     /// Origin shown in All Aibos. Petdex: page URL. Local image: nil (UI shows Local).
     public var installSource: String?
-    /// Per-aibo bubble side. Default `.top`; omitted in older `library.json`.
+    /// Per-aibo bubble side. Default `.right`; omitted when it matches the default.
     public var bubblePlacement: BubblePlacement
-    /// Per-aibo gap to the bubble, in points. Default 6; omitted in older `library.json`.
+    /// Per-aibo gap to the bubble, in points. Stock 6, or -35 for built-in Poli.
     public var bubbleDistance: Double
-    /// Per-aibo size as a percent of the 96pt base. Default 100; omitted in older `library.json`.
+    /// Per-aibo size as a percent of the 96pt base. Stock 100, or 200 for built-in Poli.
     public var scalePercent: Double
     /// Per-aibo integer-scale pixel-art display. Default off; omitted in older `library.json`.
     public var pixelOptimizationEnabled: Bool
 
     public var hasCustomAppearance: Bool {
         hasCustomBubbleLayout
-            || scalePercent != Self.defaultScalePercent
+            || scalePercent != Self.stockScalePercent(for: kind)
             || pixelOptimizationEnabled
     }
 
     public var hasCustomBubbleLayout: Bool {
-        bubblePlacement != .top || bubbleDistance != Self.defaultBubbleDistance
+        bubblePlacement != Self.defaultBubblePlacement
+            || bubbleDistance != Self.stockBubbleDistance(for: kind)
     }
 
     public init(
@@ -68,7 +82,7 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
         spriteVersionNumber: Int? = nil,
         installedAt: Date? = nil,
         installSource: String? = nil,
-        bubblePlacement: BubblePlacement = .top,
+        bubblePlacement: BubblePlacement = defaultBubblePlacement,
         bubbleDistance: Double = defaultBubbleDistance,
         scalePercent: Double = defaultScalePercent,
         pixelOptimizationEnabled: Bool = false
@@ -124,19 +138,19 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
         installedAt = try container.decodeIfPresent(Date.self, forKey: .installedAt)
         installSource = try container.decodeIfPresent(String.self, forKey: .installSource)
         if let raw = try container.decodeIfPresent(String.self, forKey: .bubblePlacement) {
-            bubblePlacement = BubblePlacement(rawValue: raw) ?? .top
+            bubblePlacement = BubblePlacement(rawValue: raw) ?? Self.defaultBubblePlacement
         } else {
-            bubblePlacement = .top
+            bubblePlacement = Self.defaultBubblePlacement
         }
         if let distance = try container.decodeIfPresent(Double.self, forKey: .bubbleDistance) {
             bubbleDistance = Self.clampedBubbleDistance(distance)
         } else {
-            bubbleDistance = Self.defaultBubbleDistance
+            bubbleDistance = Self.stockBubbleDistance(for: kind)
         }
         if let percent = try container.decodeIfPresent(Double.self, forKey: .scalePercent) {
             scalePercent = Self.clampedScalePercent(percent)
         } else {
-            scalePercent = Self.defaultScalePercent
+            scalePercent = Self.stockScalePercent(for: kind)
         }
         pixelOptimizationEnabled =
             try container.decodeIfPresent(Bool.self, forKey: .pixelOptimizationEnabled) ?? false
@@ -153,13 +167,13 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
         try container.encodeIfPresent(spriteVersionNumber, forKey: .spriteVersionNumber)
         try container.encodeIfPresent(installedAt, forKey: .installedAt)
         try container.encodeIfPresent(installSource, forKey: .installSource)
-        if bubblePlacement != .top {
+        if bubblePlacement != Self.defaultBubblePlacement {
             try container.encode(bubblePlacement, forKey: .bubblePlacement)
         }
-        if bubbleDistance != Self.defaultBubbleDistance {
+        if bubbleDistance != Self.stockBubbleDistance(for: kind) {
             try container.encode(bubbleDistance, forKey: .bubbleDistance)
         }
-        if scalePercent != Self.defaultScalePercent {
+        if scalePercent != Self.stockScalePercent(for: kind) {
             try container.encode(scalePercent, forKey: .scalePercent)
         }
         if pixelOptimizationEnabled {
@@ -172,7 +186,9 @@ public struct AiboLibraryRecord: Codable, Sendable, Equatable, Identifiable, Has
             id: AiboLibraryDefaults.builtInID,
             kind: .builtInDefault,
             displayName: AiboLibraryDefaults.builtInDisplayName,
-            relativePath: ""
+            relativePath: "",
+            bubbleDistance: builtInBubbleDistance,
+            scalePercent: builtInScalePercent
         )
     }
 

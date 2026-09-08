@@ -233,12 +233,6 @@ final class FullscreenSpaceMonitor {
     }
 
     private static func displayUUIDString(for screen: NSScreen) -> String? {
-        guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-        else { return nil }
-        let displayID = CGDirectDisplayID(number.uint32Value)
-        guard let cfUUID = CGDisplayCreateUUIDFromDisplayID(displayID)?.takeRetainedValue() else {
-            return nil
-        }
-        return CFUUIDCreateString(nil, cfUUID) as String
+        screen.aiboDisplayUUID
     }
 }

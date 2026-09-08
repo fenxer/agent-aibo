@@ -25,6 +25,7 @@ final class OnboardingController {
     /// Replay restores this after Skip / last-step Continue. First launch leaves the aibo where it is.
     private var restoreXPercent: Double?
     private var restoreYPercent: Double?
+    private var replaySnapshot: AiboLibraryStore.OnboardingReplaySnapshot?
     private var namingRecordID: String?
     private(set) var namingIsPendingPack = false
     /// Set when the tour installs a custom aibo; later bubbles use it instead of Poli.
@@ -117,14 +118,23 @@ final class OnboardingController {
         }
     }
 
-    /// Development: run the tour again from the welcome bubble, centered.
+    /// Development: run the tour again from the portal jump, then the welcome bubble.
     func replay() {
-        AiboPanelController.shared.persistRelativePositionNow()
-        restoreXPercent = AppSettings.shared.savedAiboCenterXPercent
-        restoreYPercent = AppSettings.shared.savedAiboCenterYPercent
+        let library = AiboLibraryStore.shared
+        if replaySnapshot == nil {
+            AiboPanelController.shared.persistRelativePositionNow()
+            restoreXPercent = AppSettings.shared.savedAiboCenterXPercent
+            restoreYPercent = AppSettings.shared.savedAiboCenterYPercent
+            replaySnapshot = library.captureOnboardingReplaySnapshot()
+        }
+        if let snapshot = replaySnapshot {
+            library.applyStockBuiltInForOnboardingReplay(snapshot)
+        }
         begin()
-        AiboPanelController.shared.syncGeometryNow()
-        AiboPanelController.shared.placeAiboForOnboarding()
+        if !AiboPanelController.shared.isLaunchPortalPlaying {
+            AiboPanelController.shared.syncGeometryNow()
+            AiboPanelController.shared.placeAiboForOnboarding()
+        }
     }
 
     func skip() {
@@ -258,6 +268,7 @@ final class OnboardingController {
     /// If the user quits mid-replay, put the aibo back before position is persisted.
     func restorePositionIfNeeded() {
         guard isActive else { return }
+        restoreReplayAppearanceIfNeeded()
         applyRestorePositionIfNeeded()
     }
 
@@ -326,7 +337,13 @@ final class OnboardingController {
         tourCompanionName = nil
         resetChooseAiboState()
         isActive = true
-        refreshPresentation()
+        AiboRuntime.shared.reloadPresentedBubbles()
+        if AiboPanelController.shared.playOnboardingEntrance() {
+            AiboPanelController.shared.updateOnboardingKeyWindow()
+        } else {
+            AiboPanelController.shared.syncGeometryNow()
+            AiboPanelController.shared.updateOnboardingKeyWindow()
+        }
     }
 
     private func finish() {
@@ -337,6 +354,7 @@ final class OnboardingController {
         tourCompanionName = nil
         resetChooseAiboState()
         Self.markCompleted()
+        restoreReplayAppearanceIfNeeded()
         applyRestorePositionIfNeeded()
         restoreXPercent = nil
         restoreYPercent = nil
@@ -363,6 +381,13 @@ final class OnboardingController {
         AiboRuntime.shared.reloadPresentedBubbles()
         AiboPanelController.shared.syncGeometryNow()
         AiboPanelController.shared.updateOnboardingKeyWindow()
+    }
+
+    private func restoreReplayAppearanceIfNeeded() {
+        guard let snapshot = replaySnapshot else { return }
+        replaySnapshot = nil
+        AiboLibraryStore.shared.restoreOnboardingReplaySnapshot(snapshot)
+        AiboPanelController.shared.syncGeometryNow()
     }
 
     private func applyRestorePositionIfNeeded() {

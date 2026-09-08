@@ -196,6 +196,28 @@ import Testing
     #expect(persisted[0].scalePercent == 150)
 }
 
+@Test func builtInPoliUsesStockLayoutDefaults() {
+    let poli = AiboLibraryRecord.builtInDefault
+    #expect(poli.bubblePlacement == .right)
+    #expect(poli.bubbleDistance == AiboLibraryRecord.builtInBubbleDistance)
+    #expect(poli.scalePercent == AiboLibraryRecord.builtInScalePercent)
+    #expect(poli.pixelOptimizationEnabled == false)
+    #expect(poli.hasCustomAppearance == false)
+}
+
+@Test func builtInPoliCodecOmitsStockScaleAndDistance() throws {
+    let json = String(decoding: try AiboLibraryCodec.encode(AiboLibraryFile(
+        selectedID: AiboLibraryDefaults.builtInID,
+        records: [.builtInDefault]
+    )), as: UTF8.self)
+    #expect(!json.contains("scalePercent"))
+    #expect(!json.contains("bubbleDistance"))
+
+    let roundTrip = try AiboLibraryCodec.decode(Data(json.utf8))
+    #expect(roundTrip.records[0].scalePercent == AiboLibraryRecord.builtInScalePercent)
+    #expect(roundTrip.records[0].bubbleDistance == AiboLibraryRecord.builtInBubbleDistance)
+}
+
 @Test func builtInAiboDoesNotRevealOrRemoveBundleFiles() {
     #expect(AiboLibraryRecord.builtInDefault.revealsOnDiskFolder == false)
     #expect(AiboLibraryRecord.builtInDefault.removesOnDiskFiles == false)
@@ -343,7 +365,7 @@ import Testing
     let file = try AiboLibraryCodec.decode(Data(json.utf8))
     #expect(file.records[0].installedAt == nil)
     #expect(file.records[0].installSource == nil)
-    #expect(file.records[0].bubblePlacement == .top)
+    #expect(file.records[0].bubblePlacement == AiboLibraryRecord.defaultBubblePlacement)
     #expect(file.records[0].bubbleDistance == AiboLibraryRecord.defaultBubbleDistance)
     #expect(file.records[0].scalePercent == AiboLibraryRecord.defaultScalePercent)
     #expect(file.records[0].pixelOptimizationEnabled == false)
@@ -373,12 +395,12 @@ import Testing
         displayName: "Boba",
         relativePath: "petdex/boba"
     )
-    record.bubblePlacement = .right
+    record.bubblePlacement = .left
     record.bubbleDistance = -12
     let roundTrip = try AiboLibraryCodec.decode(AiboLibraryCodec.encode(
         AiboLibraryFile(selectedID: record.id, records: [record])
     ))
-    #expect(roundTrip.records[0].bubblePlacement == .right)
+    #expect(roundTrip.records[0].bubblePlacement == .left)
     #expect(roundTrip.records[0].bubbleDistance == -12)
 }
 
@@ -448,7 +470,7 @@ import Testing
     let persisted = AiboLibraryCodec.persistableRecords(from: [builtIn])
     #expect(persisted.map(\.id) == [AiboLibraryDefaults.builtInID])
     #expect(persisted[0].pixelOptimizationEnabled == true)
-    #expect(persisted[0].scalePercent == AiboLibraryRecord.defaultScalePercent)
+    #expect(persisted[0].scalePercent == AiboLibraryRecord.builtInScalePercent)
 }
 
 @Test func aiboLibrarySnapshotRestoresBuiltInScaleAndPixelOptimization() {

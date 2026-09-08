@@ -12,7 +12,7 @@ final class AiboPanelController {
     private(set) var isContentPresented = true
     /// 0 = above / squashed, 1 = settled. Explicit show motion (not Pow boing).
     private(set) var aiboAppearProgress: CGFloat = 1
-    /// First-launch (and Development replay) portal jump. Display-link Metal, not SwiftUI.
+    /// Cold-launch / onboarding opening portal jump. Display-link Metal, not SwiftUI.
     private(set) var isLaunchPortalPlaying = false
     private(set) var launchPortalGeneration = 0
     private var hasPlayedLaunchPortal = false
@@ -125,12 +125,18 @@ final class AiboPanelController {
         let panel = panel ?? makePanel()
         self.panel = panel
         applyFullscreenCollectionBehavior(to: panel)
+        // Arm the portal before the first layout so onboarding bubbles never
+        // occupy the slot, then get hidden a frame later.
+        let isFirstShow = !hasPlacedInitially
+        if isFirstShow {
+            armLaunchPortalIfNeeded()
+        }
         // Menu / launch path — safe to size synchronously (not inside a layout pass).
         applyGeometryNow()
-        if !hasPlacedInitially {
+        if isFirstShow {
             placeInitially()
             hasPlacedInitially = true
-            beginLaunchPortalIfNeeded()
+            attachLaunchPortalViewIfPlaying()
         } else {
             clampToVisibleScreen()
         }
@@ -226,6 +232,20 @@ final class AiboPanelController {
         startLaunchPortal()
     }
 
+    /// Onboarding opening: hide bubbles, pin the slot at 40%/40%, then jump.
+    /// Returns `false` when the panel is not ready or the shader cannot run.
+    @discardableResult
+    func playOnboardingEntrance() -> Bool {
+        guard isVisible, isContentPresented, !isSuppressedForFullscreen else { return false }
+        hideTask?.cancel()
+        hideTask = nil
+        guard armLaunchPortal() else { return false }
+        applyGeometryNow()
+        placeAiboForOnboarding()
+        attachLaunchPortalView()
+        return true
+    }
+
     func finishLaunchPortal() {
         guard isLaunchPortalPlaying else { return }
         // Metal completes outside the layout pass. Commit the normal panel
@@ -239,21 +259,35 @@ final class AiboPanelController {
         }
     }
 
-    private func beginLaunchPortalIfNeeded() {
+    private func canPlayLaunchPortal() -> Bool {
+        AiboLaunchPortalRenderer.shared != nil
+            && AiboSpriteCache.shared.previewImage(
+                for: AiboLibraryStore.shared.selectedRecord
+            ) != nil
+    }
+
+    private func armLaunchPortalIfNeeded() {
         guard !hasPlayedLaunchPortal else { return }
         hasPlayedLaunchPortal = true
-        startLaunchPortal()
+        _ = armLaunchPortal()
+    }
+
+    @discardableResult
+    private func armLaunchPortal() -> Bool {
+        guard canPlayLaunchPortal() else { return false }
+        isLaunchPortalPlaying = true
+        launchPortalGeneration += 1
+        return true
     }
 
     private func startLaunchPortal() {
-        guard AiboLaunchPortalRenderer.shared != nil,
-              AiboSpriteCache.shared.previewImage(
-                  for: AiboLibraryStore.shared.selectedRecord
-              ) != nil
-        else { return }
-        isLaunchPortalPlaying = true
-        launchPortalGeneration += 1
+        guard armLaunchPortal() else { return }
         applyGeometryNow()
+        attachLaunchPortalView()
+    }
+
+    private func attachLaunchPortalViewIfPlaying() {
+        guard isLaunchPortalPlaying else { return }
         attachLaunchPortalView()
     }
 
@@ -1149,7 +1183,11 @@ final class AiboPanelController {
            let x = settings.savedAiboCenterXPercent,
            let y = settings.savedAiboCenterYPercent
         {
-            placeAtRelativePosition(xPercent: x, yPercent: y)
+            placeAtRelativePosition(
+                xPercent: x,
+                yPercent: y,
+                on: screenForSavedAiboPosition()
+            )
         }
         clampToVisibleScreen()
     }
@@ -1164,7 +1202,11 @@ final class AiboPanelController {
            let x = settings.savedAiboCenterXPercent,
            let y = settings.savedAiboCenterYPercent
         {
-            placeAtRelativePosition(xPercent: x, yPercent: y)
+            placeAtRelativePosition(
+                xPercent: x,
+                yPercent: y,
+                on: screenForSavedAiboPosition()
+            )
             clampToVisibleScreen()
         } else {
             placeAtDefaultCorner()
@@ -1173,8 +1215,9 @@ final class AiboPanelController {
 
     private func placeAtDefaultCorner() {
         guard let panel else { return }
-        guard let screen = NSScreen.main else { return }
-
+        guard let screen = NSScreen.aiboScreenContaining(NSEvent.mouseLocation) ?? NSScreen.main else {
+            return
+        }
         let visible = screen.visibleFrame
         var frame = panel.frame
         frame.origin.x = visible.maxX - frame.width - screenPadding
@@ -1190,14 +1233,27 @@ final class AiboPanelController {
     }
 
     func placeAiboAtRelativePosition(xPercent: Double, yPercent: Double) {
-        placeAtRelativePosition(xPercent: xPercent, yPercent: yPercent)
+        placeAtRelativePosition(
+            xPercent: xPercent,
+            yPercent: yPercent,
+            on: screenForSavedAiboPosition()
+        )
         clampToVisibleScreen()
     }
 
-    /// Place so the aibo center lands at `(xPercent, yPercent)` of the screen visible frame.
-    private func placeAtRelativePosition(xPercent: Double, yPercent: Double) {
+    /// Screen the saved percents were taken on. Do not use `NSScreen.main` first:
+    /// a menu-bar extra often reports the laptop as main even when aibo lives on an external.
+    private func screenForSavedAiboPosition() -> NSScreen? {
+        NSScreen.aiboScreen(withDisplayUUID: AppSettings.shared.savedAiboPositionScreenUUID)
+            ?? NSScreen.aiboScreenContaining(NSEvent.mouseLocation)
+            ?? NSScreen.aiboScreenContaining(aiboScreenCenter())
+            ?? panel?.screen
+            ?? NSScreen.main
+    }
+
+    /// Place so the aibo center lands at `(xPercent, yPercent)` of that screen's visible frame.
+    private func placeAtRelativePosition(xPercent: Double, yPercent: Double, on screen: NSScreen?) {
         guard let panel else { return }
-        let screen = panel.screen ?? NSScreen.main
         guard let screen else { return }
 
         let visible = screen.visibleFrame
@@ -1219,19 +1275,18 @@ final class AiboPanelController {
     /// extend off-screen — clamping the whole panel would shove the aibo up/down.
     private func clampToVisibleScreen() {
         guard let panel, !isPetDragging else { return }
-        let screen = panel.screen ?? NSScreen.main
+        let centerInPanel = laidOutAiboCenter
+        var aiboOnScreen = CGPoint(
+            x: panel.frame.origin.x + centerInPanel.x,
+            y: panel.frame.origin.y + centerInPanel.y
+        )
+        let screen = NSScreen.aiboScreenContaining(aiboOnScreen) ?? panel.screen ?? NSScreen.main
         guard let screen else { return }
 
         let visible = screen.visibleFrame
         var frame = panel.frame
         frame.size.width = max(frame.size.width, 1)
         frame.size.height = max(frame.size.height, 1)
-
-        let centerInPanel = laidOutAiboCenter
-        var aiboOnScreen = CGPoint(
-            x: frame.origin.x + centerInPanel.x,
-            y: frame.origin.y + centerInPanel.y
-        )
 
         // Shrink padding if the visible area is tiny so min ≤ max still holds.
         let padX = min(screenPadding, max(0, visible.width / 2 - 1))
@@ -1348,20 +1403,24 @@ final class AiboPanelController {
     /// Call after the user finishes dragging, and on quit.
     func persistRelativePositionNow() {
         guard let panel else { return }
-        let screen = panel.screen ?? NSScreen.main
-        guard let screen else { return }
-
-        let visible = screen.visibleFrame
-        guard visible.width > 0, visible.height > 0 else { return }
-
         let centerInPanel = laidOutAiboCenter
         let aiboOnScreen = CGPoint(
             x: panel.frame.origin.x + centerInPanel.x,
             y: panel.frame.origin.y + centerInPanel.y
         )
+        let screen = NSScreen.aiboScreenContaining(aiboOnScreen) ?? panel.screen ?? NSScreen.main
+        guard let screen else { return }
+
+        let visible = screen.visibleFrame
+        guard visible.width > 0, visible.height > 0 else { return }
+
         let xPercent = Double((aiboOnScreen.x - visible.minX) / visible.width)
         let yPercent = Double((aiboOnScreen.y - visible.minY) / visible.height)
-        AppSettings.shared.saveAiboCenterRelativePosition(xPercent: xPercent, yPercent: yPercent)
+        AppSettings.shared.saveAiboCenterRelativePosition(
+            xPercent: xPercent,
+            yPercent: yPercent,
+            screenUUID: screen.aiboDisplayUUID
+        )
         refreshLookDirection()
     }
 

@@ -46,6 +46,7 @@ final class AppSettings {
         static let disableMouseTracking = "settings.disableMouseTracking"
         static let aiboPositionXPercent = "settings.aiboPositionXPercent"
         static let aiboPositionYPercent = "settings.aiboPositionYPercent"
+        static let aiboPositionScreenUUID = "settings.aiboPositionScreenUUID"
         static let musicNotesEnabled = "settings.musicNotesEnabled"
         static let musicNotesColorMode = "settings.musicNotesColorMode"
         static let musicNotesCustomColor = "settings.musicNotesCustomColor"
@@ -131,6 +132,8 @@ final class AppSettings {
     private(set) var savedAiboCenterXPercent: Double?
     /// Pet center Y within the screen `visibleFrame`, 0…1. `nil` until the user has moved the aibo.
     private(set) var savedAiboCenterYPercent: Double?
+    /// Display the percents belong to. `NSScreen.main` is the focused/menu-bar screen, often the laptop.
+    private(set) var savedAiboPositionScreenUUID: String?
 
     /// Overlay music-note rise effect while a known player is playing. Default on.
     var musicNotesEnabled: Bool {
@@ -441,6 +444,11 @@ final class AppSettings {
             savedAiboCenterXPercent = nil
             savedAiboCenterYPercent = nil
         }
+        if let uuid = UserDefaults.standard.string(forKey: Keys.aiboPositionScreenUUID), !uuid.isEmpty {
+            savedAiboPositionScreenUUID = uuid
+        } else {
+            savedAiboPositionScreenUUID = nil
+        }
 
         if UserDefaults.standard.object(forKey: Keys.musicNotesEnabled) != nil {
             musicNotesEnabled = UserDefaults.standard.bool(forKey: Keys.musicNotesEnabled)
@@ -604,15 +612,25 @@ final class AppSettings {
         return agentBubbleGlassTint(for: agent)
     }
 
-    /// Persist aibo center as fractions of the screen visible frame (resolution-independent).
-    func saveAiboCenterRelativePosition(xPercent: Double, yPercent: Double) {
+    /// Persist aibo center as fractions of that display's visible frame (resolution-independent).
+    func saveAiboCenterRelativePosition(xPercent: Double, yPercent: Double, screenUUID: String?) {
         let x = min(max(xPercent, 0), 1)
         let y = min(max(yPercent, 0), 1)
-        guard savedAiboCenterXPercent != x || savedAiboCenterYPercent != y else { return }
+        let uuid = screenUUID.flatMap { $0.isEmpty ? nil : $0 }
+        guard savedAiboCenterXPercent != x
+            || savedAiboCenterYPercent != y
+            || savedAiboPositionScreenUUID != uuid
+        else { return }
         savedAiboCenterXPercent = x
         savedAiboCenterYPercent = y
+        savedAiboPositionScreenUUID = uuid
         UserDefaults.standard.set(x, forKey: Keys.aiboPositionXPercent)
         UserDefaults.standard.set(y, forKey: Keys.aiboPositionYPercent)
+        if let uuid {
+            UserDefaults.standard.set(uuid, forKey: Keys.aiboPositionScreenUUID)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Keys.aiboPositionScreenUUID)
+        }
     }
 
     func saveSettingsWindowHeight(_ height: CGFloat) {

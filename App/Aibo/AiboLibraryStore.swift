@@ -13,6 +13,18 @@ final class AiboLibraryStore {
     private(set) var isInstalling = false
     private(set) var pendingNamedImport: PendingNamedAiboImport?
 
+    struct OnboardingReplaySnapshot: Equatable {
+        var selectedID: String
+        var builtInHidden: Bool
+        var scalePercent: Double
+        var bubbleDistance: Double
+        var bubblePlacement: BubblePlacement
+        var pixelOptimizationEnabled: Bool
+    }
+
+    /// While Development replays onboarding, disk keeps the pre-tour Poli layout.
+    private var onboardingReplaySnapshot: OnboardingReplaySnapshot?
+
     private let installer = PetdexInstaller()
     private var builtInHidden = false
     private var persistedBuiltInRecord = AiboLibraryRecord.builtInDefault
@@ -158,6 +170,90 @@ final class AiboLibraryStore {
         AiboAppearance.invalidateDominantColorCache()
         AiboPanelController.shared.updateHitTestImage()
         AiboPanelController.shared.refreshContent()
+    }
+
+    func captureOnboardingReplaySnapshot() -> OnboardingReplaySnapshot {
+        let builtIn = records.first(where: { $0.id == AiboLibraryDefaults.builtInID })
+            ?? persistedBuiltInRecord
+        return OnboardingReplaySnapshot(
+            selectedID: selectedID,
+            builtInHidden: builtInHidden,
+            scalePercent: builtIn.scalePercent,
+            bubbleDistance: builtIn.bubbleDistance,
+            bubblePlacement: builtIn.bubblePlacement,
+            pixelOptimizationEnabled: builtIn.pixelOptimizationEnabled
+        )
+    }
+
+    /// Development replay: Poli at stock size/gap/side, not the current aibo.
+    func applyStockBuiltInForOnboardingReplay(_ snapshot: OnboardingReplaySnapshot) {
+        onboardingReplaySnapshot = snapshot
+        ensureBuiltInListed()
+        applyBuiltInAppearance(
+            scalePercent: AiboLibraryRecord.builtInScalePercent,
+            bubbleDistance: AiboLibraryRecord.builtInBubbleDistance,
+            bubblePlacement: AiboLibraryRecord.defaultBubblePlacement,
+            pixelOptimizationEnabled: false
+        )
+        selectedID = AiboLibraryDefaults.builtInID
+        AiboPanelController.shared.updateHitTestImage()
+    }
+
+    func restoreOnboardingReplaySnapshot(_ snapshot: OnboardingReplaySnapshot) {
+        onboardingReplaySnapshot = nil
+        if snapshot.builtInHidden {
+            records.removeAll { $0.id == AiboLibraryDefaults.builtInID }
+            builtInHidden = true
+            applyBuiltInAppearance(
+                scalePercent: snapshot.scalePercent,
+                bubbleDistance: snapshot.bubbleDistance,
+                bubblePlacement: snapshot.bubblePlacement,
+                pixelOptimizationEnabled: snapshot.pixelOptimizationEnabled,
+                visibleRecord: false
+            )
+        } else {
+            builtInHidden = false
+            ensureBuiltInListed()
+            applyBuiltInAppearance(
+                scalePercent: snapshot.scalePercent,
+                bubbleDistance: snapshot.bubbleDistance,
+                bubblePlacement: snapshot.bubblePlacement,
+                pixelOptimizationEnabled: snapshot.pixelOptimizationEnabled
+            )
+        }
+        if records.contains(where: { $0.id == snapshot.selectedID }) {
+            selectedID = snapshot.selectedID
+        } else {
+            selectedID = records.first?.id ?? AiboLibraryDefaults.builtInID
+        }
+        persist()
+        notifyAppearanceChanged()
+    }
+
+    private func ensureBuiltInListed() {
+        guard !records.contains(where: { $0.id == AiboLibraryDefaults.builtInID }) else { return }
+        records.insert(persistedBuiltInRecord, at: 0)
+        builtInHidden = false
+    }
+
+    private func applyBuiltInAppearance(
+        scalePercent: Double,
+        bubbleDistance: Double,
+        bubblePlacement: BubblePlacement,
+        pixelOptimizationEnabled: Bool,
+        visibleRecord: Bool = true
+    ) {
+        persistedBuiltInRecord.scalePercent = scalePercent
+        persistedBuiltInRecord.bubbleDistance = bubbleDistance
+        persistedBuiltInRecord.bubblePlacement = bubblePlacement
+        persistedBuiltInRecord.pixelOptimizationEnabled = pixelOptimizationEnabled
+        guard visibleRecord,
+              let index = records.firstIndex(where: { $0.id == AiboLibraryDefaults.builtInID })
+        else { return }
+        records[index].scalePercent = scalePercent
+        records[index].bubbleDistance = bubbleDistance
+        records[index].bubblePlacement = bubblePlacement
+        records[index].pixelOptimizationEnabled = pixelOptimizationEnabled
     }
 
     func select(id: String) {
@@ -570,14 +666,19 @@ final class AiboLibraryStore {
 
     private func persist() {
         var source = records
-        if builtInHidden, !source.contains(where: { $0.id == AiboLibraryDefaults.builtInID }) {
+        var hidden = builtInHidden
+        if let replay = onboardingReplaySnapshot {
+            hidden = replay.builtInHidden
+            source.removeAll { $0.id == AiboLibraryDefaults.builtInID }
+            source.insert(frozenBuiltIn(from: replay), at: 0)
+        } else if builtInHidden, !source.contains(where: { $0.id == AiboLibraryDefaults.builtInID }) {
             source.insert(persistedBuiltInRecord, at: 0)
         }
         let userRecords = AiboLibraryCodec.persistableRecords(from: source)
         let file = AiboLibraryFile(
             selectedID: selectedID,
             records: userRecords,
-            builtInHidden: builtInHidden
+            builtInHidden: hidden
         )
         do {
             try FileManager.default.createDirectory(
@@ -590,6 +691,17 @@ final class AiboLibraryStore {
         } catch {
             lastErrorMessage = String(localized: "Failed to save aibo library")
         }
+    }
+
+    private func frozenBuiltIn(from snapshot: OnboardingReplaySnapshot) -> AiboLibraryRecord {
+        var record = persistedBuiltInRecord
+        record.id = AiboLibraryDefaults.builtInID
+        record.kind = .builtInDefault
+        record.scalePercent = snapshot.scalePercent
+        record.bubbleDistance = snapshot.bubbleDistance
+        record.bubblePlacement = snapshot.bubblePlacement
+        record.pixelOptimizationEnabled = snapshot.pixelOptimizationEnabled
+        return record
     }
 
     private func notifyAppearanceChanged() {

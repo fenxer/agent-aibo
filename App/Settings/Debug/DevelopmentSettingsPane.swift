@@ -160,7 +160,7 @@ struct DevelopmentSettingsPane: View {
             } label: {
                 Text(verbatim: "Replay Onboarding")
             }
-            Text(verbatim: "Moves aibo slightly left and down from center and starts the first-launch tour. Skip or finish restores the previous position. Ordinary launches still skip the tour after the first time.")
+            Text(verbatim: "Uses stock Poli (200%, -35 pt, right), moves slightly left and down from center, plays the portal jump, then starts the first-launch tour. Skip or finish restores the previous aibo, size, and position. Ordinary launches still skip the tour after the first time.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
@@ -175,7 +175,7 @@ struct DevelopmentSettingsPane: View {
             } label: {
                 Text(verbatim: "Replay Launch Entrance")
             }
-            Text(verbatim: "Plays the portal jump used when Aibo.app opens. Does not change onboarding.")
+            Text(verbatim: "Plays the portal jump used when Aibo.app opens. Does not start onboarding.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
