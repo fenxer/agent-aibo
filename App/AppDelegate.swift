@@ -18,13 +18,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AiboRuntime.shared.refreshHostAppPresence()
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        persistAiboPositionIfNeeded()
+        if AiboPanelController.shared.playQuitPortal(completion: {
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }) {
+            return .terminateLater
+        }
+        return .terminateNow
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        persistAiboPositionIfNeeded()
+        AiboRuntime.shared.stop()
+    }
+
+    private func persistAiboPositionIfNeeded() {
         // Only refresh the saved spot when restore is on; otherwise keep the last
         // user-dragged percentages for when they turn the toggle back on.
-        if AppSettings.shared.restoreLastAiboPosition {
-            OnboardingController.shared.restorePositionIfNeeded()
-            AiboPanelController.shared.persistRelativePositionNow()
-        }
-        AiboRuntime.shared.stop()
+        guard AppSettings.shared.restoreLastAiboPosition else { return }
+        OnboardingController.shared.restorePositionIfNeeded()
+        AiboPanelController.shared.persistRelativePositionNow()
     }
 }

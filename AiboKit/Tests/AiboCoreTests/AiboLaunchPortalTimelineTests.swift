@@ -122,3 +122,28 @@ import Testing
     )
     #expect(trailingHeavy.x < center.x)
 }
+
+@Test func reversePortalStartsAtRestAndJumpsIn() {
+    let start = AiboLaunchPortalTimeline.frame(at: 0, playback: .reverse)
+    let landed = AiboLaunchPortalTimeline.frame(at: AiboLaunchPortalTimeline.duration)
+    #expect(abs(start.restRelativeX - landed.restRelativeX) < 1e-9)
+    #expect(abs(start.restRelativeY - landed.restRelativeY) < 1e-9)
+    #expect(abs(start.scale - landed.scale) < 1e-9)
+    #expect(abs(start.opacity - 1) < 1e-9)
+    #expect(abs(start.ringOpacity) < 1e-9)
+    #expect(!start.isFinished)
+
+    let ringOpen = AiboLaunchPortalTimeline.frame(at: 0.8, playback: .reverse)
+    #expect(abs(ringOpen.ringRadius - 2) < 1e-9)
+    #expect(abs(ringOpen.ringOpacity - 1) < 1e-9)
+    #expect(!ringOpen.isFinished)
+
+    let done = AiboLaunchPortalTimeline.frame(
+        at: AiboLaunchPortalTimeline.duration,
+        playback: .reverse
+    )
+    let origin = AiboLaunchPortalTimeline.frame(at: 0)
+    #expect(abs(done.opacity - origin.opacity) < 1e-9)
+    #expect(abs(done.scale - origin.scale) < 1e-9)
+    #expect(done.isFinished)
+}

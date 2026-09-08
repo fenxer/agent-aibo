@@ -16,6 +16,9 @@ final class AiboPanelController {
     private(set) var isLaunchPortalPlaying = false
     private(set) var launchPortalGeneration = 0
     private var hasPlayedLaunchPortal = false
+    private var portalPlayback: AiboLaunchPortalTimeline.Playback = .forward
+    private var isQuitPortalPlaying = false
+    private var quitPortalCompletion: (() -> Void)?
     /// V2 idle look cell toward the pointer; `nil` in the deadzone or on V1.
     private(set) var lookDirection: PetdexLookDirection?
     /// True while the user is dragging the aibo from an opaque pixel.
@@ -119,6 +122,7 @@ final class AiboPanelController {
     }
 
     func show() {
+        if isQuitPortalPlaying { return }
         hideTask?.cancel()
         hideTask = nil
 
@@ -184,7 +188,7 @@ final class AiboPanelController {
     }
 
     func hide() {
-        guard isVisible else { return }
+        guard isVisible, !isQuitPortalPlaying else { return }
         isVisible = false
         hideTask?.cancel()
 
@@ -226,7 +230,7 @@ final class AiboPanelController {
 
     /// Development: play the cold-launch portal again without quitting.
     func replayLaunchPortal() {
-        guard isVisible, isContentPresented, !isSuppressedForFullscreen else { return }
+        guard isVisible, isContentPresented, !isSuppressedForFullscreen, !isQuitPortalPlaying else { return }
         hideTask?.cancel()
         hideTask = nil
         startLaunchPortal()
@@ -236,7 +240,7 @@ final class AiboPanelController {
     /// Returns `false` when the panel is not ready or the shader cannot run.
     @discardableResult
     func playOnboardingEntrance() -> Bool {
-        guard isVisible, isContentPresented, !isSuppressedForFullscreen else { return false }
+        guard isVisible, isContentPresented, !isSuppressedForFullscreen, !isQuitPortalPlaying else { return false }
         hideTask?.cancel()
         hideTask = nil
         guard armLaunchPortal() else { return false }
@@ -248,15 +252,57 @@ final class AiboPanelController {
 
     func finishLaunchPortal() {
         guard isLaunchPortalPlaying else { return }
+        let wasQuit = isQuitPortalPlaying
+        let quitDone = quitPortalCompletion
+        quitPortalCompletion = nil
+        isQuitPortalPlaying = false
+        portalPlayback = .forward
         // Metal completes outside the layout pass. Commit the normal panel
         // geometry with the reveal so no frame uses normal padding in a portal-sized window.
+        // Quit must not reveal the live sprite: the last reverse frame is empty.
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
+            if wasQuit {
+                isContentPresented = false
+            }
             isLaunchPortalPlaying = false
-            applyGeometryNow()
+            if !wasQuit {
+                applyGeometryNow()
+            }
             detachLaunchPortalView()
         }
+        if wasQuit {
+            panel?.orderOut(nil)
+            quitDone?()
+        }
+    }
+
+    /// Reverse of the launch jump. Returns `false` when Hide / fullscreen / Metal
+    /// cannot play, so the caller should quit immediately.
+    @discardableResult
+    func playQuitPortal(completion: @escaping () -> Void) -> Bool {
+        if isQuitPortalPlaying { return true }
+        guard isVisible, isContentPresented, !isSuppressedForFullscreen else { return false }
+        guard !isLaunchPortalPlaying else { return false }
+        hideTask?.cancel()
+        hideTask = nil
+        guard canPlayLaunchPortal() else { return false }
+        portalPlayback = .reverse
+        isQuitPortalPlaying = true
+        quitPortalCompletion = completion
+        isLaunchPortalPlaying = true
+        launchPortalGeneration += 1
+        applyGeometryNow()
+        guard attachLaunchPortalView() else {
+            quitPortalCompletion = nil
+            isQuitPortalPlaying = false
+            portalPlayback = .forward
+            isLaunchPortalPlaying = false
+            applyGeometryNow()
+            return false
+        }
+        return true
     }
 
     private func canPlayLaunchPortal() -> Bool {
@@ -275,6 +321,7 @@ final class AiboPanelController {
     @discardableResult
     private func armLaunchPortal() -> Bool {
         guard canPlayLaunchPortal() else { return false }
+        portalPlayback = .forward
         isLaunchPortalPlaying = true
         launchPortalGeneration += 1
         return true
@@ -288,16 +335,17 @@ final class AiboPanelController {
 
     private func attachLaunchPortalViewIfPlaying() {
         guard isLaunchPortalPlaying else { return }
-        attachLaunchPortalView()
+        _ = attachLaunchPortalView()
     }
 
-    private func attachLaunchPortalView() {
+    @discardableResult
+    private func attachLaunchPortalView() -> Bool {
         guard let rootView,
               let hostingView,
               let image = AiboSpriteCache.shared.previewImage(
                   for: AiboLibraryStore.shared.selectedRecord
               )
-        else { return }
+        else { return false }
         let record = AiboLibraryStore.shared.selectedRecord
         let view = launchPortalView ?? AiboLaunchPortalMetalView()
         launchPortalView = view
@@ -305,15 +353,21 @@ final class AiboPanelController {
             rootView.addSubview(view, positioned: .above, relativeTo: hostingView)
         }
         layoutLaunchPortalView()
+        let hue = portalPlayback == .reverse
+            ? AiboLaunchPortalStyle.exitHue
+            : AiboLaunchPortalStyle.enterHue
         view.apply(
             image: image,
             aiboSize: laidOutAiboSize,
             usesNearest: record.pixelOptimizationEnabled && record.kind != .builtInDefault,
             generation: launchPortalGeneration,
+            playback: portalPlayback,
+            hue: hue,
             onCompleted: { [weak self] in
                 self?.finishLaunchPortal()
             }
         )
+        return true
     }
 
     private func layoutLaunchPortalView() {

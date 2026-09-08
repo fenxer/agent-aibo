@@ -35,7 +35,26 @@ public enum AiboLaunchPortalTimeline: Sendable {
     public static let blurFrom: Double = 64 * webToAppScale
     public static let blurTo: Double = 0
 
-    public static func frame(at time: Double) -> Frame {
+    public enum Playback: Sendable {
+        case forward
+        case reverse
+    }
+
+    public static func frame(at time: Double, playback: Playback = .forward) -> Frame {
+        let elapsed = max(0, time)
+        let sampleTime: Double
+        switch playback {
+        case .forward:
+            sampleTime = elapsed
+        case .reverse:
+            sampleTime = duration - elapsed
+        }
+        var frame = sample(at: sampleTime)
+        frame.isFinished = elapsed >= duration
+        return frame
+    }
+
+    private static func sample(at time: Double) -> Frame {
         let t = max(0, time)
         let ring = sampleRing(at: t)
 
@@ -81,7 +100,7 @@ public enum AiboLaunchPortalTimeline: Sendable {
             y: y,
             restRelativeX: x - xTo,
             restRelativeY: y - yTo,
-            isFinished: t >= duration
+            isFinished: false
         )
     }
 

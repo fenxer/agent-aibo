@@ -17,6 +17,8 @@ final class AiboLaunchPortalMetalView: NSView {
     private var generation = 0
     private var startedAt: CFTimeInterval = 0
     private var didFinish = false
+    private var playback: AiboLaunchPortalTimeline.Playback = .forward
+    private var hue: Float = AiboLaunchPortalStyle.enterHue
     private var onCompleted: (() -> Void)?
 
     private final class TickProxy: NSObject {
@@ -80,11 +82,15 @@ final class AiboLaunchPortalMetalView: NSView {
         aiboSize: CGSize,
         usesNearest: Bool,
         generation: Int,
+        playback: AiboLaunchPortalTimeline.Playback = .forward,
+        hue: Float = AiboLaunchPortalStyle.enterHue,
         onCompleted: @escaping () -> Void
     ) {
         self.onCompleted = onCompleted
         self.aiboSize = aiboSize
         self.usesNearest = usesNearest
+        self.playback = playback
+        self.hue = hue
         let sameImage = image === self.image
         if sameImage, generation == self.generation {
             drawCurrent()
@@ -128,7 +134,9 @@ final class AiboLaunchPortalMetalView: NSView {
         didFinish = true
         stopLink()
         let finish = onCompleted
-        DispatchQueue.main.async {
+        // Quit uses terminateLater (modal-panel run loop). Main-queue async
+        // only drains in `.default` and would deadlock the reply.
+        RunLoop.main.perform(inModes: [.common]) {
             finish?()
         }
     }
@@ -141,14 +149,15 @@ final class AiboLaunchPortalMetalView: NSView {
               !didFinish
         else { return }
         let elapsed = max(0, CACurrentMediaTime() - startedAt)
-        let frame = AiboLaunchPortalTimeline.frame(at: elapsed)
+        let frame = AiboLaunchPortalTimeline.frame(at: elapsed, playback: playback)
         renderer.draw(
             layer: metalLayer,
             texture: texture,
             frame: frame,
             aiboSize: aiboSize,
             nearestSprite: usesNearest,
-            elapsed: Float(elapsed)
+            elapsed: Float(elapsed),
+            hue: hue
         )
     }
 

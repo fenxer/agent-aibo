@@ -151,7 +151,8 @@ final class AiboLaunchPortalRenderer {
         frame: AiboLaunchPortalTimeline.Frame,
         aiboSize: CGSize,
         nearestSprite: Bool,
-        elapsed: Float
+        elapsed: Float,
+        hue: Float = AiboLaunchPortalStyle.enterHue
     ) {
         guard layer.drawableSize.width >= 1, layer.drawableSize.height >= 1,
               let drawable = layer.nextDrawable(),
@@ -203,7 +204,7 @@ final class AiboLaunchPortalRenderer {
                 warpTime: AiboLaunchPortalStyle.warpTime,
                 glow: AiboLaunchPortalStyle.glow,
                 pulse: AiboLaunchPortalStyle.pulse,
-                hue: AiboLaunchPortalStyle.hue,
+                hue: hue,
                 camDist: AiboLaunchPortalStyle.camDist,
                 focal: AiboLaunchPortalStyle.focal,
                 exposure: AiboLaunchPortalStyle.exposure,
@@ -259,7 +260,9 @@ enum AiboLaunchPortalStyle {
     static let warpTime: Float = 2
     static let glow: Float = 2
     static let pulse: Float = 4.5
-    static let hue: Float = 0
+    static let enterHue: Float = 0
+    /// Quit jump-in. Playground hue slider; launch stays 0.
+    static let exitHue: Float = 1.76
     static let camDist: Float = 8
     static let focal: Float = 1.4
     static let exposure: Float = 1
