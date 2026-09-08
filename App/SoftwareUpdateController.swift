@@ -56,10 +56,10 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
         canCheckObservation = updater.observe(
             \.canCheckForUpdates,
             options: [.initial, .new]
-        ) { [weak self] updater, _ in
+        ) { updater, _ in
             let canCheck = updater.canCheckForUpdates
             Task { @MainActor in
-                self?.canCheckForUpdates = canCheck
+                SoftwareUpdateController.shared.canCheckForUpdates = canCheck
             }
         }
     }
@@ -90,7 +90,7 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
         false
     }
 
-    nonisolated func allowedSystemProfileKeys(for updater: SPUUpdater) -> [String] {
+    nonisolated func allowedSystemProfileKeys(for updater: SPUUpdater) -> [String]? {
         []
     }
 
@@ -116,7 +116,7 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
 
     nonisolated func standardUserDriverWillShowModalAlert() {
         Task { @MainActor in
-            self.activateForUpdateUI()
+            SoftwareUpdateController.shared.activateForUpdateUI()
         }
     }
 

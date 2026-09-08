@@ -60,10 +60,10 @@ final class AppSettings {
 
     static let defaultWebhookPort: UInt16 = 8787
     /// Aibo image size as a percentage of the base 96pt sprite. Range 0…300; default 100.
-    static let defaultAiboScalePercent: Double = 100
+    nonisolated static let defaultAiboScalePercent: Double = 100
     static let aiboScalePercentRange: ClosedRange<Double> = 0...300
     /// Discrete sizes while Pixel Optimization is on (integer-scale display).
-    static let pixelOptimizationScalePercents: [Double] = [50, 100, 150, 200, 250, 300]
+    nonisolated static let pixelOptimizationScalePercents: [Double] = [50, 100, 150, 200, 250, 300]
     static let defaultWebhookAutoDismissSeconds = 12
     static let webhookAutoDismissSecondsRange = 1...600
     /// Playground `Color.primary` `#0935E5`.
@@ -630,9 +630,9 @@ final class AppSettings {
         NSApp.appearance = mode.nsAppearance
     }
 
-    static func snapAiboScalePercentToPixelSteps(
+    nonisolated static func snapAiboScalePercentToPixelSteps(
         _ value: Double,
-        steps: [Double] = pixelOptimizationScalePercents
+        steps: [Double] = []
     ) -> Double {
         let resolved = steps.isEmpty ? pixelOptimizationScalePercents : steps
         return resolved.min { lhs, rhs in

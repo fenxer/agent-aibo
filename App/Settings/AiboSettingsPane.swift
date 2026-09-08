@@ -431,7 +431,7 @@ private struct AiboConfigurationSection: View {
             Toggle(isOn: pixelOptimizationEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(String(localized: "Pixel Optimization"))
-                    Text(String(localized: "Note: Turn off for non-pixel-art images"))
+                    Text(String(localized: "Recommended only for pixel-art images"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

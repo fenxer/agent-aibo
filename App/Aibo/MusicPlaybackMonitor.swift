@@ -271,8 +271,10 @@ final class MusicPlaybackMonitor {
         debugLastMediaRemoteDump = Self.formatDebugMediaRemote(trackInfo)
     }
 
-    private nonisolated static func formatDebugMediaRemote(_ trackInfo: TrackInfo?) -> String {
-        let stamp = Self.debugTimeFormatter.string(from: Date())
+    private static func formatDebugMediaRemote(_ trackInfo: TrackInfo?) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        let stamp = formatter.string(from: Date())
         guard let payload = trackInfo?.payload else {
             return "[\(stamp)] nil (no now-playing item)"
         }
@@ -316,12 +318,6 @@ final class MusicPlaybackMonitor {
 
         return lines.joined(separator: "\n")
     }
-
-    private static let debugTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss.SSS"
-        return formatter
-    }()
     #endif
 
     private nonisolated static func isPlaying(trackInfo: TrackInfo?) -> Bool {
