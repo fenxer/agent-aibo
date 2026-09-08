@@ -1014,6 +1014,16 @@
         }
       }
     },
+    "Hook Log" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hook 日志"
+          }
+        }
+      }
+    },
     "Hook and style settings" : {
       "localizations" : {
         "zh-Hans" : {

@@ -1,3 +1,5 @@
+import AiboCore
+import AppKit
 import SwiftUI
 
 struct AboutSettingsPane: View {
@@ -7,6 +9,7 @@ struct AboutSettingsPane: View {
             Form {
                 AboutUpdatesSection()
                 AboutLinksSection()
+                AboutLogsSection()
             }
             .formStyle(.grouped)
         }
@@ -149,6 +152,39 @@ private struct AboutLinksSection: View {
 private enum AboutLinks {
     static let github = URL(string: "https://github.com/fenxer/agent-aibo")
     static let x = URL(string: "https://x.com/haxfenx")
+}
+
+private struct AboutLogsSection: View {
+    var body: some View {
+        Section {
+            Button(action: revealHookLogInFinder) {
+                HStack {
+                    Text(String(localized: "Hook Log"))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "folder")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Text(String(localized: "Logs"))
+        }
+    }
+
+    private func revealHookLogInFinder() {
+        let directory = AiboPaths.applicationSupportDirectory
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let logURL = AiboPaths.ingestLogURL
+        if FileManager.default.fileExists(atPath: logURL.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([logURL])
+        } else {
+            NSWorkspace.shared.open(directory)
+        }
+    }
 }
 
 private struct AboutLinkRow: View {
