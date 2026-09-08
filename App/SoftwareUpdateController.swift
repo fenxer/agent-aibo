@@ -3,9 +3,9 @@ import Sparkle
 
 /// Sparkle updater for GitHub Releases. Started once from `AppDelegate`.
 ///
-/// Scheduled / Check probes never present Sparkle’s “update available” alert.
-/// A pending version stays in About until the user installs it. Update Now
-/// starts a real update session and installs without that confirmation alert.
+/// Check and Update Now both use Sparkle’s standard windows. A pending version
+/// stays in About after Skip / Remind Later until the user installs it, or a
+/// user-initiated check finds nothing newer.
 @MainActor
 @Observable
 final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
@@ -14,14 +14,15 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
     private(set) var canCheckForUpdates = false
     var automaticallyChecksForUpdates = false
     private(set) var hasUpdateFeed = false
-    private(set) var isChecking = false
-    private(set) var isInstalling = false
     private(set) var availableUpdateDisplayVersion: String?
 
-    private var updater: SPUUpdater?
-    private var userDriver: SoftwareUpdateUserDriver?
+    private var updaterController: SPUStandardUpdaterController?
     private var canCheckObservation: NSKeyValueObservation?
-    private var installRequested = false
+    private var foundUpdateThisCycle = false
+    #if DEBUG
+    /// Development probe: About Check / Update Now use stand-in dialogs, not Sparkle.
+    private var debugPreviewActive = false
+    #endif
 
     private enum DefaultsKey {
         static let pendingDisplayVersion = "aibo.pendingUpdateDisplayVersion"
@@ -36,24 +37,16 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
     }
 
     func start() {
-        guard updater == nil else { return }
+        guard updaterController == nil else { return }
 
-        let driver = SoftwareUpdateUserDriver(hostBundle: .main, controller: self)
-        let updater = SPUUpdater(
-            hostBundle: .main,
-            applicationBundle: .main,
-            userDriver: driver,
-            delegate: self
+        let controller = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: self,
+            userDriverDelegate: self
         )
-        do {
-            try updater.start()
-        } catch {
-            return
-        }
-        userDriver = driver
-        self.updater = updater
-        automaticallyChecksForUpdates = updater.automaticallyChecksForUpdates
-        canCheckObservation = updater.observe(
+        updaterController = controller
+        automaticallyChecksForUpdates = controller.updater.automaticallyChecksForUpdates
+        canCheckObservation = controller.updater.observe(
             \.canCheckForUpdates,
             options: [.initial, .new]
         ) { updater, _ in
@@ -64,26 +57,51 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
         }
     }
 
-    /// Probe the appcast and refresh the About row. No Sparkle windows.
     func checkForUpdates() {
-        guard let updater, updater.canCheckForUpdates else { return }
-        isChecking = true
-        updater.checkForUpdateInformation()
+        #if DEBUG
+        if debugPreviewActive {
+            if availableUpdateDisplayVersion != nil {
+                presentDebugUpdateFound()
+            } else {
+                presentDebugUpToDate()
+            }
+            return
+        }
+        #endif
+        activateForUpdateUI()
+        updaterController?.checkForUpdates(nil)
     }
 
-    /// User chose Update Now: download, install, and relaunch.
-    func installAvailableUpdate() {
-        guard let updater, updater.canCheckForUpdates else { return }
-        installRequested = true
-        isInstalling = true
-        isChecking = true
-        activateForUpdateUI()
-        updater.checkForUpdates()
+    #if DEBUG
+    /// Development: stand-in “update available” dialog and About hint.
+    func debugShowAvailableUpdate() {
+        debugPreviewActive = true
+        hasUpdateFeed = true
+        availableUpdateDisplayVersion = "9.9.9"
+        presentDebugUpdateFound()
     }
+
+    /// Development: stand-in “you’re up to date” dialog.
+    func debugShowUpToDate() {
+        debugPreviewActive = true
+        hasUpdateFeed = true
+        availableUpdateDisplayVersion = nil
+        presentDebugUpToDate()
+    }
+
+    /// Development: drop the fake About hint.
+    func debugClearPreview() {
+        debugPreviewActive = false
+        hasUpdateFeed = (Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String)?
+            .isEmpty == false
+        availableUpdateDisplayVersion = nil
+        restorePendingUpdateIfNeeded()
+    }
+    #endif
 
     func setAutomaticallyChecksForUpdates(_ enabled: Bool) {
         automaticallyChecksForUpdates = enabled
-        updater?.automaticallyChecksForUpdates = enabled
+        updaterController?.updater.automaticallyChecksForUpdates = enabled
     }
 
     nonisolated func updaterShouldPromptForPermissionToCheck(forUpdates updater: SPUUpdater) -> Bool {
@@ -95,11 +113,8 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
     }
 
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        foundUpdateThisCycle = true
         rememberPendingUpdate(item)
-    }
-
-    func updaterDidNotFindUpdate(_ updater: SPUUpdater) {
-        clearPendingUpdate()
     }
 
     func updater(
@@ -107,10 +122,13 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
         didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
         error: Error?
     ) {
-        isChecking = false
-        if error != nil {
-            installRequested = false
-            isInstalling = false
+        defer { foundUpdateThisCycle = false }
+
+        // User-initiated Check includes skipped versions. No update then means
+        // we're actually current. Background checks omit skipped items, so they
+        // must not wipe the About hint.
+        if updateCheck == .updates, !foundUpdateThisCycle {
+            clearPendingUpdate()
         }
     }
 
@@ -120,25 +138,25 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
         }
     }
 
-    /// Stay `.accessory` (no Dock). Sparkle progress windows still need to become key.
+    nonisolated func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate update: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        Task { @MainActor in
+            SoftwareUpdateController.shared.activateForUpdateUI()
+        }
+    }
+
+    /// Stay `.accessory` (no Dock). Sparkle alerts still need to become key.
     func activateForUpdateUI() {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    fileprivate var shouldInstallFoundUpdate: Bool {
-        installRequested
-    }
-
-    fileprivate func rememberPendingUpdate(_ item: SUAppcastItem) {
+    private func rememberPendingUpdate(_ item: SUAppcastItem) {
         availableUpdateDisplayVersion = item.displayVersionString
         UserDefaults.standard.set(item.displayVersionString, forKey: DefaultsKey.pendingDisplayVersion)
         UserDefaults.standard.set(item.versionString, forKey: DefaultsKey.pendingVersion)
-    }
-
-    fileprivate func finishInstallSession() {
-        installRequested = false
-        isInstalling = false
-        isChecking = false
     }
 
     private func clearPendingUpdate() {
@@ -150,7 +168,10 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
     private func restorePendingUpdateIfNeeded() {
         let pendingVersion = UserDefaults.standard.string(forKey: DefaultsKey.pendingVersion) ?? ""
         let pendingDisplay = UserDefaults.standard.string(forKey: DefaultsKey.pendingDisplayVersion) ?? ""
-        guard !pendingVersion.isEmpty, !pendingDisplay.isEmpty else { return }
+        guard !pendingVersion.isEmpty, !pendingDisplay.isEmpty else {
+            availableUpdateDisplayVersion = nil
+            return
+        }
 
         let currentVersion = Bundle.main.object(forInfoDictionaryKey: kCFBundleVersionKey as String) as? String ?? ""
         let isNewer = SUStandardVersionComparator.default.compareVersion(
@@ -163,111 +184,49 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
             clearPendingUpdate()
         }
     }
-}
 
-/// Forwards download/install chrome to Sparkle’s standard driver, but never
-/// presents the “update available” / “you’re up to date” alerts.
-@MainActor
-private final class SoftwareUpdateUserDriver: NSObject, SPUUserDriver {
-    private let standard: SPUStandardUserDriver
-    private weak var controller: SoftwareUpdateController?
+    #if DEBUG
+    private func presentDebugUpdateFound() {
+        activateForUpdateUI()
+        let appName = "Aibo"
+        let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let newer = availableUpdateDisplayVersion ?? "9.9.9"
 
-    init(hostBundle: Bundle, controller: SoftwareUpdateController) {
-        self.standard = SPUStandardUserDriver(hostBundle: hostBundle, delegate: controller)
-        self.controller = controller
-        super.init()
-    }
-
-    func show(
-        _ request: SPUUpdatePermissionRequest,
-        reply: @escaping @Sendable (SUUpdatePermissionResponse) -> Void
-    ) {
-        let checks = controller?.automaticallyChecksForUpdates ?? false
-        reply(SUUpdatePermissionResponse(automaticUpdateChecks: checks, sendSystemProfile: false))
-    }
-
-    func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {
-        // About already shows Checking… / Update Now. Skip Sparkle’s check window.
-    }
-
-    func showUpdateFound(
-        with appcastItem: SUAppcastItem,
-        state: SPUUserUpdateState,
-        reply: @escaping @Sendable (SPUUserUpdateChoice) -> Void
-    ) {
-        controller?.rememberPendingUpdate(appcastItem)
-        if controller?.shouldInstallFoundUpdate == true {
-            controller?.activateForUpdateUI()
-            reply(.install)
-        } else {
-            reply(.dismiss)
-        }
-    }
-
-    func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
-
-    func showUpdateReleaseNotesFailedToDownloadWithError(_ error: any Error) {}
-
-    func showUpdateNotFoundWithError(_ error: any Error, acknowledgement: @escaping () -> Void) {
-        if controller?.shouldInstallFoundUpdate == true {
-            standard.showUpdateNotFoundWithError(error, acknowledgement: acknowledgement)
-        } else {
-            acknowledgement()
-        }
-    }
-
-    func showUpdaterError(_ error: any Error, acknowledgement: @escaping () -> Void) {
-        controller?.activateForUpdateUI()
-        standard.showUpdaterError(error, acknowledgement: acknowledgement)
-    }
-
-    func showDownloadInitiated(cancellation: @escaping () -> Void) {
-        controller?.activateForUpdateUI()
-        standard.showDownloadInitiated(cancellation: cancellation)
-    }
-
-    func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) {
-        standard.showDownloadDidReceiveExpectedContentLength(expectedContentLength)
-    }
-
-    func showDownloadDidReceiveData(ofLength length: UInt64) {
-        standard.showDownloadDidReceiveData(ofLength: length)
-    }
-
-    func showDownloadDidStartExtractingUpdate() {
-        standard.showDownloadDidStartExtractingUpdate()
-    }
-
-    func showExtractionReceivedProgress(_ progress: Double) {
-        standard.showExtractionReceivedProgress(progress)
-    }
-
-    func showReady(toInstallAndRelaunch reply: @escaping @Sendable (SPUUserUpdateChoice) -> Void) {
-        controller?.activateForUpdateUI()
-        reply(.install)
-    }
-
-    func showInstallingUpdate(
-        withApplicationTerminated applicationTerminated: Bool,
-        retryTerminatingApplication: @escaping () -> Void
-    ) {
-        standard.showInstallingUpdate(
-            withApplicationTerminated: applicationTerminated,
-            retryTerminatingApplication: retryTerminatingApplication
+        let alert = NSAlert()
+        alert.messageText = sparkleLocalized("A new version of %@ is available!", appName)
+        alert.informativeText = sparkleLocalized(
+            "%@ %@ is now available—you have %@. Would you like to download it now?",
+            appName,
+            newer,
+            current
         )
+        alert.addButton(withTitle: sparkleLocalized("Install Update"))
+        alert.addButton(withTitle: sparkleLocalized("Remind Me Later"))
+        alert.addButton(withTitle: sparkleLocalized("Skip This Version"))
+        // Install does not download. Skip / Remind Later keep the About hint.
+        _ = alert.runModal()
     }
 
-    func showUpdateInstalledAndRelaunched(_ relaunched: Bool, acknowledgement: @escaping () -> Void) {
-        standard.showUpdateInstalledAndRelaunched(relaunched, acknowledgement: acknowledgement)
+    private func presentDebugUpToDate() {
+        activateForUpdateUI()
+        let appName = "Aibo"
+        let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+
+        let alert = NSAlert()
+        alert.messageText = sparkleLocalized("You’re up to date!")
+        alert.informativeText = sparkleLocalized(
+            "%@ %@ is currently the newest version available.",
+            appName,
+            current
+        )
+        alert.addButton(withTitle: sparkleLocalized("OK"))
+        _ = alert.runModal()
     }
 
-    func dismissUpdateInstallation() {
-        standard.dismissUpdateInstallation()
-        controller?.finishInstallSession()
+    private func sparkleLocalized(_ key: String, _ arguments: CVarArg...) -> String {
+        let format = Bundle(for: SPUUpdater.self).localizedString(forKey: key, value: key, table: "Sparkle")
+        guard !arguments.isEmpty else { return format }
+        return String(format: format, arguments: arguments)
     }
-
-    func showUpdateInFocus() {
-        controller?.activateForUpdateUI()
-        standard.showUpdateInFocus()
-    }
+    #endif
 }

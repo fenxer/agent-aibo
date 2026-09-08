@@ -71,7 +71,7 @@ private struct AboutUpdatesSection: View {
                             .accessibilityLabel("Version \(version) is available")
 
                         Button {
-                            updates.installAvailableUpdate()
+                            updates.checkForUpdates()
                         } label: {
                             Text(verbatim: "Update Now")
                         }
@@ -83,7 +83,7 @@ private struct AboutUpdatesSection: View {
                     Button {
                         updates.checkForUpdates()
                     } label: {
-                        Text(verbatim: (updates.isChecking && !updates.isInstalling) ? "Checking…" : "Check")
+                        Text(verbatim: "Check")
                     }
                     .disabled(!canActOnUpdates)
                 }
@@ -97,7 +97,7 @@ private struct AboutUpdatesSection: View {
     }
 
     private var canActOnUpdates: Bool {
-        updates.hasUpdateFeed && updates.canCheckForUpdates && !updates.isChecking && !updates.isInstalling
+        updates.hasUpdateFeed && updates.canCheckForUpdates
     }
 
     private var automaticChecksBinding: Binding<Bool> {

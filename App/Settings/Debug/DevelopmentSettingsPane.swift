@@ -42,6 +42,7 @@ struct DevelopmentSettingsPane: View {
         Form {
             bubblePreviewSection
             onboardingSection
+            SoftwareUpdateDebugSection()
             webhookPreviewSection
             hookIngestLogSection
             hitRegionDebugSection
