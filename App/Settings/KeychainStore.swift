@@ -5,6 +5,11 @@ enum KeychainStore {
     private static let service = "work.fenx.aibo"
 
     static func string(forAccount account: String) -> String? {
+        guard let data = data(forAccount: account) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func data(forAccount account: String) -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -15,11 +20,14 @@ enum KeychainStore {
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         guard status == errSecSuccess, let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        return data
     }
 
     static func setString(_ value: String, forAccount account: String) throws {
-        let data = Data(value.utf8)
+        try setData(Data(value.utf8), forAccount: account)
+    }
+
+    static func setData(_ data: Data, forAccount account: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

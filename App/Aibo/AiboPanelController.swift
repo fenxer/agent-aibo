@@ -185,11 +185,13 @@ final class AiboPanelController {
                 hideTask = nil
             }
         }
+        PlaytimeStore.shared.noteVisibilityChanged()
     }
 
     func hide() {
         guard isVisible, !isQuitPortalPlaying else { return }
         isVisible = false
+        PlaytimeStore.shared.noteVisibilityChanged()
         hideTask?.cancel()
 
         hideTask = Task { @MainActor in
@@ -412,12 +414,16 @@ final class AiboPanelController {
             if isVisible, isContentPresented {
                 panel?.orderFrontRegardless()
             }
+            PlaytimeStore.shared.noteVisibilityChanged()
         }
     }
 
     private var shouldPresentPanelOnScreen: Bool {
         isVisible && isContentPresented && !isSuppressedForFullscreen
     }
+
+    /// Visible on the desktop (not Hide, not fullscreen-suppressed).
+    var isPlaytimeActiveSurface: Bool { shouldPresentPanelOnScreen }
 
     private func applyFullscreenCollectionBehavior(to panel: AiboPanel) {
         if AppSettings.shared.hideWhenFullscreen {
@@ -453,11 +459,13 @@ final class AiboPanelController {
         applyFullscreenVisibility()
         // Leave the fullscreen Space entirely — do not float above the transition.
         panel?.orderOut(nil)
+        PlaytimeStore.shared.noteVisibilityChanged()
     }
 
     private func unsuppressIfNeeded() {
         let wasSuppressed = isSuppressedForFullscreen
         isSuppressedForFullscreen = false
+        defer { PlaytimeStore.shared.noteVisibilityChanged() }
         guard isVisible, isContentPresented, let panel else { return }
         applyFullscreenCollectionBehavior(to: panel)
         if wasSuppressed {

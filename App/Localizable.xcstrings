@@ -510,6 +510,36 @@
         }
       }
     },
+    "Continue Previous Time?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续之前的计时？"
+          }
+        }
+      }
+    },
+    "Continue Time" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续计时"
+          }
+        }
+      }
+    },
+    "An aibo named “%@” already has recorded time (%@). Continue that time with this aibo, or start a new timer?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已有一只叫“%@”的 aibo 留下过计时（%@）。要接到这只上，还是重新计时？"
+          }
+        }
+      }
+    },
     "Copy" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1678,6 +1708,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择 Aibo"
+          }
+        }
+      }
+    },
+    "Start New Timer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新计时"
           }
         }
       }

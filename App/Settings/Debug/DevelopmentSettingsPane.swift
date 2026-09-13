@@ -41,6 +41,7 @@ struct DevelopmentSettingsPane: View {
     var body: some View {
         Form {
             bubblePreviewSection
+            PlaytimeDebugSection()
             onboardingSection
             launchEntranceSection
             SoftwareUpdateDebugSection()

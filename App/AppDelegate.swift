@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OnboardingController.shared.startIfNeeded()
         AiboRuntime.shared.start()
         AiboPanelController.shared.show()
+        PlaytimeStore.shared.start()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -20,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         persistAiboPositionIfNeeded()
+        PlaytimeStore.shared.flushForTermination()
         if AiboPanelController.shared.playQuitPortal(completion: {
             NSApp.reply(toApplicationShouldTerminate: true)
         }) {
@@ -30,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         persistAiboPositionIfNeeded()
+        PlaytimeStore.shared.flushForTermination()
         AiboRuntime.shared.stop()
     }
 

@@ -281,6 +281,7 @@ final class AiboLibraryStore {
         )
         persist()
         notifyAppearanceChanged()
+        PlaytimeStore.shared.noteSelected()
         Task { await convertPetdexClipsIfNeeded(selectedRecord) }
     }
 
@@ -308,6 +309,7 @@ final class AiboLibraryStore {
             persistedBuiltInRecord.displayName = name
         }
         persist()
+        PlaytimeStore.shared.noteRenamed(id: id, to: name)
         return .renamed
     }
 
@@ -459,6 +461,7 @@ final class AiboLibraryStore {
         }
         persist()
         notifyAppearanceChanged()
+        PlaytimeStore.shared.noteRemoved(ids: Array(removeIDs))
     }
 
     /// Opens this aibo's folder in Finder. Built-in Poli lives in the app bundle and is skipped.
@@ -525,13 +528,16 @@ final class AiboLibraryStore {
     @discardableResult
     private func commitInstalled(_ record: AiboLibraryRecord) -> AiboLibraryRecord {
         upsert(record)
-        if selectedID != record.id {
-            select(id: record.id)
+        let committed = records.first(where: { $0.id == record.id }) ?? record
+        PlaytimeStore.shared.noteInstalled(committed)
+        if selectedID != committed.id {
+            select(id: committed.id)
         } else {
             persist()
             notifyAppearanceChanged()
+            PlaytimeStore.shared.noteSelected()
         }
-        return records.first(where: { $0.id == record.id }) ?? record
+        return committed
     }
 
     private func upsert(_ record: AiboLibraryRecord) {
