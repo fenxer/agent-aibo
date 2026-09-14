@@ -2,6 +2,22 @@ import AiboCore
 import Pow
 import SwiftUI
 
+extension EnvironmentValues {
+    /// Tear down `glassEffect` while Pow poof runs. Active Liquid Glass is an
+    /// `NSGlassEffectView` that ignores SwiftUI opacity and composites above
+    /// the cartoon cloud.
+    @Entry var suppressBubbleGlass: Bool = false
+}
+
+/// Flipped on for the removal transition so glass unmounts before poof frames.
+private struct BubbleGlassSuppression: ViewModifier {
+    var isSuppressed: Bool
+
+    func body(content: Content) -> some View {
+        content.environment(\.suppressBubbleGlass, isSuppressed)
+    }
+}
+
 /// Shared motion for status-bubble insert / remove.
 enum BubbleMotion {
     /// Snappy spring with a little overshoot.
@@ -40,16 +56,24 @@ struct AnimatedStatusBubble: View {
 
     var body: some View {
         let offset = BubbleMotion.appearOffset(for: placement)
-        StatusBubble(
-            item: item,
-            placement: placement,
-            showsArrow: showsArrow,
-            reservesArrowSlot: reservesArrowSlot,
-            onActivate: onActivate,
-            onDismiss: onDismiss,
-            glassStyle: glassStyle,
-            glassTint: glassTint
-        )
+        // A real layout boundary keeps StatusBubble's internal identity
+        // transition from overriding this wrapper's removal transition.
+        // Group is transparent here and does not isolate the two transitions.
+        ZStack {
+            StatusBubble(
+                item: item,
+                placement: placement,
+                showsArrow: showsArrow,
+                reservesArrowSlot: reservesArrowSlot,
+                onActivate: onActivate,
+                onDismiss: onDismiss,
+                glassStyle: glassStyle,
+                glassTint: glassTint
+            )
+        }
+        // Onboarding already reserves an arrow slot inside each card.
+        .padding(.leading, !showsArrow && !reservesArrowSlot && placement == .right ? 8 : 0)
+        .padding(.trailing, !showsArrow && !reservesArrowSlot && placement == .left ? 8 : 0)
         .opacity(hasAppeared ? 1 : 0)
         .scaleEffect(hasAppeared ? 1 : 0.88)
         .offset(
@@ -59,7 +83,16 @@ struct AnimatedStatusBubble: View {
         // Appear is explicit above; dismiss uses Pow's cartoon poof cloud.
         // Insertion must stay identity — inspect open/close used to remount
         // this view and play poof as if the bubble had been dismissed.
-        .transition(.asymmetric(insertion: .identity, removal: .movingParts.poof))
+        // Drop glass first: `_hasActiveAppearance` makes real NSGlassEffectView,
+        // which would eat the overlay if it stayed in the tree.
+        .transition(.asymmetric(
+            insertion: .identity,
+            removal: AnyTransition.modifier(
+                active: BubbleGlassSuppression(isSuppressed: true),
+                identity: BubbleGlassSuppression(isSuppressed: false)
+            )
+            .combined(with: .movingParts.poof)
+        ))
         .onAppear {
             guard !hasAppeared else { return }
             // Defer so the initial opacity/offset state isn't itself inside an

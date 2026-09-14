@@ -19,6 +19,7 @@ struct StatusBubble: View {
     var glassTint: Color? = AppSettings.shared.bubbleGlassTint
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.suppressBubbleGlass) private var suppressBubbleGlass
     private var runtime = AiboRuntime.shared
     /// Last measured status-face size; height so open / close animates between
     /// two concrete values, width so left/right inspect doesn't jump to 320.
@@ -256,7 +257,7 @@ struct StatusBubble: View {
             alignment: .topLeading
         )
         .overlay(alignment: .topLeading) {
-            if item.hookJSON != nil {
+            if item.hookJSON != nil, !suppressBubbleGlass {
                 inspectOverlay(ink: ink, prefersLightInk: prefersLightInk)
                     .opacity(inspecting ? 1 : 0)
                     .animation(.easeOut(duration: 0.12), value: inspecting)
@@ -358,7 +359,7 @@ struct StatusBubble: View {
         }
             .foregroundStyle(ink)
             .padding(.horizontal, 10)
-            .frame(height: 24)
+            .frame(height: HookInspectLayout.buttonChrome)
             .background { inspectChipGlass }
             .environment(\.backgroundProminence, prefersLight ? .increased : .standard)
             .contentTransition(.opacity)
@@ -368,16 +369,12 @@ struct StatusBubble: View {
 
     @ViewBuilder
     private var inspectChipGlass: some View {
-        let shape = Capsule()
-        shape
-            .fill(Color.clear)
-            .glassEffect(
-                Self.configuredGlass(style: .clear, tint: glassTint),
-                in: shape
-            )
-            .background {
-                shape.fill(Self.behindFill(style: .clear, tint: glassTint))
-            }
+        Self.chromeMaterial(
+            Capsule(),
+            style: .clear,
+            tint: glassTint,
+            suppressGlass: suppressBubbleGlass
+        )
     }
 
     @ViewBuilder
@@ -692,28 +689,40 @@ struct StatusBubble: View {
         // the color behind the material instead (same pattern as Apple's
         // `.glassEffect(.clear).background(...)` example). `.clear.tint` still
         // comes from Glass.tint.
-        if glassStyle == .identity {
-            shape.fill(behindFill)
-        } else {
-            shape
-                .fill(Color.clear)
-                .glassEffect(configuredGlass, in: shape)
-                .background {
-                    shape.fill(behindFill)
-                }
-        }
-    }
-
-    private var configuredGlass: Glass {
-        Self.configuredGlass(style: glassStyle, tint: glassTint)
-    }
-
-    private var behindFill: Color {
-        Self.behindFill(style: glassStyle, tint: glassTint)
+        //
+        // Branching here on purpose: poof must unmount NSGlassEffectView, not
+        // fade it. A ternary on Glass would leave the platform view in place.
+        Self.chromeMaterial(
+            shape,
+            style: glassStyle,
+            tint: glassTint,
+            suppressGlass: suppressBubbleGlass
+        )
     }
 
     static func configuredGlass(style: BubbleGlassStyle, tint: Color?) -> Glass {
         style.glass.tint(tint).interactive()
+    }
+
+    @ViewBuilder
+    static func chromeMaterial<S: Shape>(
+        _ shape: S,
+        style: BubbleGlassStyle,
+        tint: Color?,
+        suppressGlass: Bool
+    ) -> some View {
+        if suppressGlass {
+            shape.fill(Color.clear)
+        } else if style == .identity {
+            shape.fill(behindFill(style: style, tint: tint))
+        } else {
+            shape
+                .fill(Color.clear)
+                .glassEffect(configuredGlass(style: style, tint: tint), in: shape)
+                .background {
+                    shape.fill(behindFill(style: style, tint: tint))
+                }
+        }
     }
 
     static func behindFill(style: BubbleGlassStyle, tint: Color?) -> Color {

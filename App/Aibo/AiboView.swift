@@ -332,7 +332,11 @@ struct AiboView: View {
     /// expand to the full stack and collapse the panel into a constraint loop.
     @ViewBuilder
     private func sideAnchoredBubbleStack(nearPetIndex: Int) -> some View {
-        sideAnchor(nearPetIndex: nearPetIndex)
+        // Keep the overlay's owner alive when the last card's sizing anchor
+        // changes to the empty spacer, or its pending poof is destroyed too.
+        ZStack {
+            sideAnchor(nearPetIndex: nearPetIndex)
+        }
             .hidden()
             .accessibilityHidden(true)
             .overlay(alignment: sideStackOverlayAlignment) {
@@ -423,7 +427,7 @@ struct AiboView: View {
             // Warning opens via SettingsLink. Onboarding taps are owned by the cluster.
             return nil
         case .agent, .webhook:
-            guard let agent = item.agent else { return nil }
+            guard item.allowsSourceAppActivation, let agent = item.agent else { return nil }
             return { SourceAppActivator.activate(agent) }
         }
     }

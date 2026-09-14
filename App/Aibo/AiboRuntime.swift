@@ -814,7 +814,8 @@ final class AiboRuntime {
             projectName: (trimmedProject?.isEmpty == false) ? trimmedProject : nil,
             modelName: (trimmedModel?.isEmpty == false) ? trimmedModel : nil,
             isSubagent: isSubagent && !isAwaitingApproval,
-            agent: usesAgentCapsule ? agentKind : nil,
+            agent: agentKind,
+            allowsSourceAppActivation: usesAgentCapsule,
             planProgress: planProgress,
             forcesPlanProgressShader: shouldAnimatePlan,
             hookJSON: Self.debugHookJSON(

@@ -8,6 +8,15 @@ final class AiboPanel: NSPanel {
     override var canBecomeKey: Bool { allowsBecomingKey }
     override var canBecomeMain: Bool { false }
 
+    // Liquid Glass consults AppKit's window appearance, not SwiftUI's
+    // `appearsActive`. A non-key panel otherwise loses the regular refraction
+    // and gives clear glass a heavy blur. Keep presentation active without
+    // changing key-window eligibility or keyboard focus.
+    // This undocumented AppKit selector needs revalidation on macOS updates;
+    // if AppKit stops consulting it, the system's inactive appearance returns.
+    @objc(_hasActiveAppearance)
+    private func usesActiveGlassAppearance() -> Bool { true }
+
     /// SwiftUI (text selection, `Button`, context menu) still calls `makeKey`
     /// on a `.nonactivatingPanel`. Refuse it unless onboarding needs a field.
     override func makeKey() {

@@ -37,8 +37,10 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
     var statusLabel: String? = nil
     /// Cursor Task/subagent: outline dashed capsule labeled “Subagent”.
     var isSubagent: Bool = false
-    /// Local hook agent; used to activate the source app on tap. Nil for webhook/debug.
+    /// Agent identity for appearance and source-app activation, including debug previews.
     var agent: AgentKind? = nil
+    /// A preview can use an agent's appearance without activating its app on tap.
+    var allowsSourceAppActivation: Bool = true
     /// Codex `update_plan` checklist (`current/total` in the agent capsule). Nil hides it.
     var planProgress: AgentPlanProgress? = nil
     /// When true, draw the plasma fill even if this agent has no To-do shader setting
