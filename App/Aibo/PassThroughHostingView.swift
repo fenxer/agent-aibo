@@ -80,6 +80,7 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
         let point = convert(event.locationInWindow, from: nil)
         // Control-click is the classic context-menu gesture; don't steal it for dragging.
         if event.modifierFlags.contains(.control) {
+            if handleBubbleInspect(at: point) { return }
             super.mouseDown(with: event)
             return
         }
@@ -90,6 +91,39 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
             return
         }
         super.mouseDown(with: event)
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if handleBubbleInspect(at: point) { return }
+        super.rightMouseDown(with: event)
+    }
+
+    /// SwiftUI hosting often drops wheel events before they reach an embedded
+    /// `NSScrollView` (inspect JSON). Forward when the hit is inside a scroller.
+    override func scrollWheel(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if let hit = hitTest(point) {
+            var view: NSView? = hit
+            while let current = view {
+                if let scroll = current as? NSScrollView {
+                    scroll.scrollWheel(with: event)
+                    return
+                }
+                if let scroll = current.enclosingScrollView {
+                    scroll.scrollWheel(with: event)
+                    return
+                }
+                view = current.superview
+            }
+        }
+        super.scrollWheel(with: event)
+    }
+
+    /// Consume bubble right-clicks here so SwiftUI never tries to key the panel.
+    @discardableResult
+    private func handleBubbleInspect(at point: NSPoint) -> Bool {
+        AiboPanelController.shared.handleBubbleRightClick(atBottomLeft: pointInBottomLeft(point))
     }
 
     private func isOpaquePetHit(at point: NSPoint) -> Bool {

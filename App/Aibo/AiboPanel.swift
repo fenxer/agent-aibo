@@ -8,6 +8,21 @@ final class AiboPanel: NSPanel {
     override var canBecomeKey: Bool { allowsBecomingKey }
     override var canBecomeMain: Bool { false }
 
+    /// SwiftUI (text selection, `Button`, context menu) still calls `makeKey`
+    /// on a `.nonactivatingPanel`. Refuse it unless onboarding needs a field.
+    override func makeKey() {
+        guard allowsBecomingKey else { return }
+        super.makeKey()
+    }
+
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        if allowsBecomingKey {
+            super.makeKeyAndOrderFront(sender)
+        } else {
+            orderFront(sender)
+        }
+    }
+
     init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,

@@ -57,7 +57,9 @@ struct AnimatedStatusBubble: View {
             y: hasAppeared ? 0 : offset.height
         )
         // Appear is explicit above; dismiss uses Pow's cartoon poof cloud.
-        .transition(.movingParts.poof)
+        // Insertion must stay identity — inspect open/close used to remount
+        // this view and play poof as if the bubble had been dismissed.
+        .transition(.asymmetric(insertion: .identity, removal: .movingParts.poof))
         .onAppear {
             guard !hasAppeared else { return }
             // Defer so the initial opacity/offset state isn't itself inside an

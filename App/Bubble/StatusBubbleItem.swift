@@ -44,4 +44,8 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
     /// When true, draw the plasma fill even if this agent has no To-do shader setting
     /// (DEBUG preview keeps whatever Agent Name is typed).
     var forcesPlanProgressShader: Bool = false
+    /// Last applied hook stdin line for this session. Agent bubbles only.
+    var hookJSON: String? = nil
+    /// Right-click flipped to the hook payload face. Same bubble; Close dismisses.
+    var isInspecting: Bool = false
 }

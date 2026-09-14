@@ -218,6 +218,16 @@
         }
       }
     },
+    "An aibo named “%@” already has recorded time (%@). Continue that time with this aibo, or start a new timer?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已有一只叫“%@”的 aibo 留下过计时（%@）。要接到这只上，还是重新计时？"
+          }
+        }
+      }
+    },
     "Appearance" : {
       "localizations" : {
         "zh-Hans" : {
@@ -491,6 +501,16 @@
         }
       }
     },
+    "Close Bubble" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭气泡"
+          }
+        }
+      }
+    },
     "Codex permission prompts show “request permission”. Click the bubble to open Codex." : {
       "localizations" : {
         "zh-Hans" : {
@@ -541,12 +561,12 @@
         }
       }
     },
-    "An aibo named “%@” already has recorded time (%@). Continue that time with this aibo, or start a new timer?" : {
+    "Copied" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已有一只叫“%@”的 aibo 留下过计时（%@）。要接到这只上，还是重新计时？"
+            "value" : "已复制"
           }
         }
       }
@@ -1055,22 +1075,22 @@
         }
       }
     },
-    "Hook Log" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hook 日志"
-          }
-        }
-      }
-    },
     "Hook and style settings" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hook 与样式设置"
+          }
+        }
+      }
+    },
+    "Hook Log" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hook 日志"
           }
         }
       }
@@ -1161,16 +1181,6 @@
         }
       }
     },
-    "Let's set up the local Agent hook now!" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "现在来配置本地 Agent Hook 吧！"
-          }
-        }
-      }
-    },
     "Language" : {
       "comment" : "General → Appearance: UI language picker label.",
       "localizations" : {
@@ -1189,6 +1199,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "左"
+          }
+        }
+      }
+    },
+    "Let's set up the local Agent hook now!" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在来配置本地 Agent Hook 吧！"
           }
         }
       }
@@ -1723,16 +1743,6 @@
         }
       }
     },
-    "Start New Timer" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新计时"
-          }
-        }
-      }
-    },
     "Settings…" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1865,6 +1875,16 @@
         }
       }
     },
+    "Start New Timer" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新计时"
+          }
+        }
+      }
+    },
     "Status" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1919,26 +1939,6 @@
         }
       }
     },
-    "Together for %lldd %lldh" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已陪伴 %lldd %lldh"
-          }
-        }
-      }
-    },
-    "Together for %lldh %lldm" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已陪伴 %lldh %lldm"
-          }
-        }
-      }
-    },
     "This archive isn’t a valid Petdex pack" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1985,6 +1985,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "待办进度条颜色"
+          }
+        }
+      }
+    },
+    "Together for %lldd %lldh" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已陪伴 %lldd %lldh"
+          }
+        }
+      }
+    },
+    "Together for %lldh %lldm" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已陪伴 %lldh %lldm"
           }
         }
       }
@@ -2091,6 +2111,17 @@
         }
       }
     },
+    "v%@ New" : {
+      "comment" : "About → Updates: pending version badge.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ 新版本"
+          }
+        }
+      }
+    },
     "V2" : {
       "shouldTranslate" : false
     },
@@ -2100,17 +2131,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仅适用于 V2 资源"
-          }
-        }
-      }
-    },
-    "v%@ New" : {
-      "comment" : "About → Updates: pending version badge.",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@ 新版本"
           }
         }
       }

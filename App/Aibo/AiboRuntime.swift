@@ -98,6 +98,11 @@ final class AiboRuntime {
     private var tunnelProbeGeneration = 0
     /// Project / model labels keyed by session; merged across hook events.
     private var sessionDisplayMeta: [SessionKey: SessionDisplayMeta] = [:]
+    /// Agent bubble id whose payload card is open. One at a time.
+    private var inspectingBubbleID: String?
+    /// Inspect Copy just succeeded; StatusBubble shows “Copied” until reset.
+    private(set) var inspectJustCopiedID: String?
+    private var inspectCopiedResetTask: Task<Void, Never>?
     /// Last hook event name per session — drives Petdex sprite row lookup.
     private var sessionHookEvents: [SessionKey: String] = [:]
     #if DEBUG
@@ -128,6 +133,8 @@ final class AiboRuntime {
         var planProgress: AgentPlanProgress? = nil
         /// Codex `PermissionRequest` tool name. Cleared on any other event.
         var waitingToolName: String? = nil
+        /// Last applied hook stdin line. Memory only; not written to ingest-log.
+        var lastHookJSON: String? = nil
     }
 
     private enum HookIngestSource: String {
@@ -491,6 +498,70 @@ final class AiboRuntime {
         )
     }
 
+    func toggleHookInspect(id: String) {
+        guard bubbleItems.contains(where: {
+            $0.id == id && $0.kind == .agent && $0.hookJSON != nil
+        }) else { return }
+        let closing = inspectingBubbleID == id
+        inspectingBubbleID = closing ? nil : id
+        if closing { clearInspectCopied() }
+        refreshBubbleItems()
+        // Closing: the card animates back to its status height; keep the panel
+        // tall until that finishes so the shrinking card isn't clipped.
+        AiboPanelController.shared.refreshContent(deferShrink: closing)
+    }
+
+    func noteInspectCopied(id: String) {
+        inspectJustCopiedID = id
+        inspectCopiedResetTask?.cancel()
+        inspectCopiedResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            if inspectJustCopiedID == id {
+                inspectJustCopiedID = nil
+            }
+            inspectCopiedResetTask = nil
+        }
+    }
+
+    private func clearInspectCopied() {
+        inspectCopiedResetTask?.cancel()
+        inspectCopiedResetTask = nil
+        inspectJustCopiedID = nil
+    }
+
+    /// Drops a local agent session (stale hook state). Inspect card goes with it.
+    func dismissAgentBubble(id: String) {
+        let sessionID = id
+        #if DEBUG
+        if debugBubbleItems.contains(where: { $0.id == sessionID }) {
+            if inspectingBubbleID == sessionID {
+                inspectingBubbleID = nil
+            }
+            clearInspectCopied()
+            if sessionID == Self.debugPlanProgressID {
+                cancelDebugPlanProgress()
+            }
+            debugBubbleItems.removeAll { $0.id == sessionID }
+            refreshBubbleItems()
+            AiboPanelController.shared.refreshContent()
+            return
+        }
+        #endif
+        for key in world.sessions.keys {
+            let itemID = "\(key.agent.rawValue):\(key.conversationID)"
+            guard itemID == sessionID else { continue }
+            if inspectingBubbleID == itemID {
+                inspectingBubbleID = nil
+            }
+            clearInspectCopied()
+            sessionDisplayMeta.removeValue(forKey: key)
+            sessionHookEvents.removeValue(forKey: key)
+            apply(.agent(session: key, transition: .removeSession, at: Date()))
+            return
+        }
+    }
+
     /// Clears a dismissible bubble on user click (webhook, tunnel warning, or `.failed` agent status).
     func dismissBubble(id: String) {
         if tunnelWarningBubble?.id == id {
@@ -731,8 +802,9 @@ final class AiboRuntime {
             cancelDebugPlanProgress()
             debugBubbleItems.removeAll { $0.id == Self.debugPlanProgressID }
         }
+        let itemID = shouldAnimatePlan ? Self.debugPlanProgressID : "debug-\(UUID().uuidString)"
         let item = StatusBubbleItem(
-            id: shouldAnimatePlan ? Self.debugPlanProgressID : "debug-\(UUID().uuidString)",
+            id: itemID,
             text: trimmedText,
             lastEventAt: Date.distantFuture.addingTimeInterval(TimeInterval(debugBubbleItems.count)),
             animatesEllipsis: !isAwaitingApproval,
@@ -744,7 +816,16 @@ final class AiboRuntime {
             isSubagent: isSubagent && !isAwaitingApproval,
             agent: usesAgentCapsule ? agentKind : nil,
             planProgress: planProgress,
-            forcesPlanProgressShader: shouldAnimatePlan
+            forcesPlanProgressShader: shouldAnimatePlan,
+            hookJSON: Self.debugHookJSON(
+                agent: agentKind,
+                conversationID: itemID,
+                projectName: trimmedProject,
+                modelName: trimmedModel,
+                isSubagent: isSubagent && !isAwaitingApproval,
+                isAwaitingApproval: isAwaitingApproval,
+                showsPlanProgress: shouldAnimatePlan
+            )
         )
         debugBubbleItems.append(item)
         refreshBubbleItems()
@@ -756,6 +837,11 @@ final class AiboRuntime {
 
     func clearDebugBubble() {
         cancelDebugPlanProgress()
+        if let inspecting = inspectingBubbleID,
+           debugBubbleItems.contains(where: { $0.id == inspecting })
+        {
+            inspectingBubbleID = nil
+        }
         debugBubbleItems = []
         cancelDeferredTunnelWarning()
         clearTunnelWarningBubble(resetDetectionClock: true)
@@ -800,6 +886,90 @@ final class AiboRuntime {
     private func cancelDebugPlanProgress() {
         debugPlanProgressTask?.cancel()
         debugPlanProgressTask = nil
+    }
+
+    /// Compact sample stdin so Bubble Preview can exercise the inspect card.
+    private static func debugHookJSON(
+        agent: AgentKind,
+        conversationID: String,
+        projectName: String?,
+        modelName: String?,
+        isSubagent: Bool,
+        isAwaitingApproval: Bool,
+        showsPlanProgress: Bool
+    ) -> String {
+        var payload: [String: Any] = [:]
+        let projectPath = projectName.flatMap { name -> String? in
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : "/tmp/\(trimmed)"
+        }
+        let model = modelName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasModel = model?.isEmpty == false
+
+        if showsPlanProgress {
+            payload["session_id"] = conversationID
+            payload["hook_event_name"] = "PreToolUse"
+            payload["tool_name"] = "update_plan"
+            payload["tool_input"] = [
+                "explanation": "preview checklist",
+                "plan": [
+                    ["step": "Parse hooks", "status": "pending"],
+                    ["step": "Log todos", "status": "in_progress"],
+                    ["step": "Show bubble", "status": "pending"],
+                ],
+            ]
+            if let projectPath { payload["cwd"] = projectPath }
+            if hasModel { payload["model"] = model }
+            return encodeDebugHookJSON(payload, conversationID: conversationID)
+        }
+
+        switch agent {
+        case .cursor:
+            payload["conversation_id"] = conversationID
+            if isSubagent {
+                payload["hook_event_name"] = "subagentStart"
+                payload["subagent_id"] = conversationID
+                payload["parent_conversation_id"] = "debug-parent"
+                payload["task"] = "Preview subagent"
+                if hasModel { payload["subagent_model"] = model }
+            } else if isAwaitingApproval {
+                payload["hook_event_name"] = "preToolUse"
+                payload["tool_name"] = "Shell"
+            } else {
+                payload["hook_event_name"] = "beforeSubmitPrompt"
+            }
+            if let projectPath { payload["workspace_roots"] = [projectPath] }
+            if hasModel, !isSubagent { payload["model"] = model }
+        case .codex, .deepseek:
+            payload["session_id"] = conversationID
+            if agent == .deepseek {
+                payload["aibo_agent"] = "deepseek"
+            }
+            if isAwaitingApproval {
+                payload["hook_event_name"] = "PermissionRequest"
+                payload["tool_name"] = "Bash"
+            } else if isSubagent {
+                payload["hook_event_name"] = "SubagentStart"
+            } else {
+                payload["hook_event_name"] = "UserPromptSubmit"
+                payload["prompt"] = "Preview prompt"
+            }
+            if let projectPath { payload["cwd"] = projectPath }
+            if hasModel { payload["model"] = model }
+        }
+        return encodeDebugHookJSON(payload, conversationID: conversationID)
+    }
+
+    private static func encodeDebugHookJSON(
+        _ payload: [String: Any],
+        conversationID: String
+    ) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return #"{"hook_event_name":"debugPreview","conversation_id":"\#(conversationID)"}"#
+        }
+        return text
     }
 
     private static func debugAgentKind(from agentName: String) -> AgentKind {
@@ -990,7 +1160,8 @@ final class AiboRuntime {
                 isSubagent: parsed.isSubagent,
                 prefersPlanningCopy: parsed.prefersPlanningCopy,
                 planProgress: parsed.planProgress,
-                waitingToolName: parsed.waitingToolName
+                waitingToolName: parsed.waitingToolName,
+                lastHookJSON: jsonLine
             )
             if case .removeSession = parsed.transition {
                 sessionDisplayMeta.removeValue(forKey: parsed.session)
@@ -1043,7 +1214,8 @@ final class AiboRuntime {
         isSubagent: Bool = false,
         prefersPlanningCopy: Bool = false,
         planProgress: AgentPlanProgress? = nil,
-        waitingToolName: String? = nil
+        waitingToolName: String? = nil,
+        lastHookJSON: String? = nil
     ) {
         var meta = sessionDisplayMeta[session] ?? SessionDisplayMeta()
         if let projectName { meta.projectName = projectName }
@@ -1054,6 +1226,7 @@ final class AiboRuntime {
         // Sticky: keep the last checklist until a newer `update_plan` replaces it.
         if let planProgress { meta.planProgress = planProgress }
         meta.waitingToolName = waitingToolName
+        if let lastHookJSON { meta.lastHookJSON = lastHookJSON }
         sessionDisplayMeta[session] = meta
     }
 
@@ -1131,7 +1304,8 @@ final class AiboRuntime {
                     modelName: meta?.modelName,
                     isSubagent: isSubagent,
                     agent: key.agent,
-                    planProgress: isSubagent ? nil : meta?.planProgress
+                    planProgress: isSubagent ? nil : meta?.planProgress,
+                    hookJSON: meta?.lastHookJSON
                 )
             )
         }
@@ -1142,8 +1316,17 @@ final class AiboRuntime {
         #if DEBUG
         items.append(contentsOf: debugBubbleItems)
         #endif
-        let next = items.sorted { $0.lastEventAt > $1.lastEventAt }
-        assignBubbleItems(next)
+        if let inspecting = inspectingBubbleID,
+           let index = items.firstIndex(where: {
+               $0.id == inspecting && $0.kind == .agent && $0.hookJSON != nil
+           })
+        {
+            items[index].isInspecting = true
+        } else {
+            inspectingBubbleID = nil
+        }
+        let sorted = items.sorted { $0.lastEventAt > $1.lastEventAt }
+        assignBubbleItems(sorted)
     }
 
     private func assignBubbleItems(_ next: [StatusBubbleItem]) {

@@ -146,7 +146,7 @@ struct DevelopmentSettingsPane: View {
                 }
             }
 
-            Text(verbatim: "Leave Project / Model empty to hide the header row. Cleared by the next real agent event.")
+            Text(verbatim: "Leave Project / Model empty to hide the header row. Right-click a preview bubble to inspect sample hook JSON. Cleared by the next real agent event.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {

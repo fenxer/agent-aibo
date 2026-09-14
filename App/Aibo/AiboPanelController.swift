@@ -533,12 +533,14 @@ final class AiboPanelController {
         hostingView?.frame = bounds
     }
 
-    func refreshContent() {
+    /// - Parameter deferShrink: a bubble is animating to a shorter layout
+    ///   (hook inspect closing); hold the panel size like a removal.
+    func refreshContent(deferShrink: Bool = false) {
         guard panel != nil else { return }
         let bubbleCount = AiboRuntime.shared.bubbleItems.count
         // Grow: defer one turn so we aren't inside SwiftUI/AppKit layout.
         // Shrink: wait for Pow poof (0.4s) so the cloud isn't clipped.
-        if bubbleCount < laidOutBubbleCount {
+        if bubbleCount < laidOutBubbleCount || deferShrink {
             scheduleGeometryUpdate(after: .milliseconds(420))
         } else {
             scheduleGeometryUpdate(after: .zero)
@@ -871,15 +873,18 @@ final class AiboPanelController {
             // Size only to row + stackAbove — do NOT mirror empty space below
             // (halfAbove * 2 left a dead purple zone that blocked the desktop).
             let nearHeight = heights.last ?? bubbleEstimatedHeight
+            let nearRow = items.last.map(sideNearRowHeight(for:)) ?? nearHeight
             let aboveHeights = heights.dropLast()
             let stackAbove =
                 aboveHeights.reduce(0, +)
                 + CGFloat(max(0, aboveHeights.count - 1)) * bubbleStackSpacing
-            let rowHeight = max(aiboSize.height, nearHeight)
+            let rowHeight = max(aiboSize.height, nearRow)
+            // Hook inspect face grows upward past the centered row.
+            let nearExtra = max(0, nearHeight - nearRow)
             let pills = onboardingActionPillsHeight
             return NSSize(
                 width: max(aiboBlockWidth + bubbleMaxWidth + aiboBubbleSpacing + panelBubbleSlack, 1),
-                height: max(insets.vertical + rowHeight + stackAbove + pills, 1)
+                height: max(insets.vertical + rowHeight + nearExtra + stackAbove + pills, 1)
             )
         }
     }
@@ -888,6 +893,9 @@ final class AiboPanelController {
     private func estimatedBubbleHeight(for item: StatusBubbleItem) -> CGFloat {
         if item.kind == .onboarding {
             return estimatedOnboardingClusterHeight(for: item)
+        }
+        if item.isInspecting {
+            return estimatedHookInspectHeight(for: item)
         }
         let contentWidth = bubbleMaxWidth - bubbleContentPadding * 2 - bubbleArrowSlack
         let trailingReserve: CGFloat = item.isAwaitingApproval ? 24 : 0
@@ -916,6 +924,64 @@ final class AiboPanelController {
             height += bubbleHeaderLineHeight + bubbleSectionSpacing
         }
         return max(bubbleEstimatedHeight, height + bubbleArrowSlack)
+    }
+
+    /// Side placements center the near bubble's *status* face on the aibo. The
+    /// hook inspect face keeps that bottom edge and grows upward, so the aibo
+    /// and the panel origin never move when the card opens (moving the window
+    /// makes every glass bubble re-sample its backdrop and blink).
+    private func sideNearRowHeight(for item: StatusBubbleItem) -> CGFloat {
+        var status = item
+        status.isInspecting = false
+        return estimatedBubbleHeight(for: status)
+    }
+
+    private func estimatedHookInspectHeight(for item: StatusBubbleItem) -> CGFloat {
+        let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
+        let contentWidth: CGFloat
+        switch placement {
+        case .left, .right:
+            // Same wrap as the status face so the side card doesn't jump to 320.
+            contentWidth = estimatedAgentContentWidth(for: item)
+        case .top, .bottom:
+            contentWidth = bubbleMaxWidth - bubbleContentPadding * 2
+        }
+        let json = HookPayloadJSON.prettyPrinted(item.hookJSON ?? "")
+        let font = NSFont.monospacedSystemFont(ofSize: HookInspectLayout.jsonFontSize, weight: .regular)
+        let textHeight = ceil(
+            (json as NSString).boundingRect(
+                with: NSSize(width: max(1, contentWidth), height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: font]
+            ).height
+        )
+        let jsonHeight = min(HookInspectLayout.jsonMaxHeight, max(14, textHeight))
+        return bubbleContentPadding * 2
+            + jsonHeight
+            + HookInspectLayout.sectionSpacing
+            + HookInspectLayout.buttonRowHeight
+    }
+
+    /// Hug-content width of an agent status face (header / capsule row).
+    private func estimatedAgentContentWidth(for item: StatusBubbleItem) -> CGFloat {
+        let maxContent = bubbleMaxWidth - bubbleContentPadding * 2 - bubbleArrowSlack
+        let nameFont = NSFont.systemFont(ofSize: 12)
+        var headerWidth: CGFloat = 0
+        if let project = item.projectName, !project.isEmpty {
+            headerWidth += ceil((project as NSString).size(withAttributes: [.font: nameFont]).width)
+        }
+        if let model = item.modelName, !model.isEmpty {
+            if headerWidth > 0 { headerWidth += bubbleRowSpacing }
+            headerWidth += ceil((model as NSString).size(withAttributes: [.font: nameFont]).width)
+        }
+        let bodyFont = NSFont.systemFont(ofSize: 14)
+        let textWidth = ceil((item.text as NSString).size(withAttributes: [.font: bodyFont]).width)
+        var rowWidth = bubbleCapsuleWidthEstimate
+            + (item.planProgress == nil ? 0 : bubbleCapsulePlanProgressExtra)
+            + bubbleRowSpacing
+            + textWidth
+        if item.isAwaitingApproval { rowWidth += 24 }
+        return min(maxContent, max(80, headerWidth, rowWidth))
     }
 
     /// Welcome copy wraps, and action pills sit 8pt under the bubble.
@@ -1001,6 +1067,168 @@ final class AiboPanelController {
         ).first.map(\.origin)
     }
 
+    /// Right-click / control-click on an agent bubble with hook JSON. Consumes
+    /// the event so SwiftUI does not call `makeKeyWindow` on this panel.
+    @discardableResult
+    func handleBubbleRightClick(atBottomLeft point: CGPoint) -> Bool {
+        guard !OnboardingController.shared.isActive else { return false }
+        guard let panel else { return false }
+        let items = AiboRuntime.shared.bubbleItems
+        let frames = bubbleItemFrames(
+            panelSize: panel.frame.size,
+            aiboSize: laidOutAiboSize,
+            placement: laidOutPlacement,
+            items: items
+        )
+        guard let match = frames.first(where: { $0.frame.contains(point) }) else {
+            return false
+        }
+        let item = items.first(where: { $0.id == match.id })
+        if let item, item.kind == .agent, item.hookJSON != nil {
+            AiboRuntime.shared.toggleHookInspect(id: item.id)
+            return true
+        }
+        // Still eat the click on other bubbles so SwiftUI does not key the panel.
+        return true
+    }
+
+    /// Copy / Close sit in a non-activating panel; SwiftUI and `NSButton` never
+    /// see the click (`hitTest` lands on a hosting descendant). Swallow here.
+    private func handleInspectCardClick(with event: NSEvent) -> Bool {
+        guard event.window === panel, let panel, let content = panel.contentView else {
+            return false
+        }
+        let point = content.convert(event.locationInWindow, from: nil)
+        let items = AiboRuntime.shared.bubbleItems
+        let frames = bubbleItemFrames(
+            panelSize: panel.frame.size,
+            aiboSize: laidOutAiboSize,
+            placement: laidOutPlacement,
+            items: items
+        )
+        guard let match = frames.first(where: { $0.frame.contains(point) }),
+              let item = items.first(where: { $0.id == match.id }),
+              item.isInspecting
+        else {
+            return false
+        }
+        let hit = inspectButtonHit(at: point, in: match.frame)
+        switch hit {
+        case .copy:
+            copyInspectJSON(item.hookJSON)
+            AiboRuntime.shared.noteInspectCopied(id: item.id)
+            return true
+        case .close:
+            AiboRuntime.shared.dismissAgentBubble(id: item.id)
+            return true
+        case .none:
+            return false
+        }
+    }
+
+    private enum InspectButtonHit {
+        case copy
+        case close
+        case none
+    }
+
+    private func inspectButtonHit(at point: CGPoint, in card: CGRect) -> InspectButtonHit {
+        let pad = HookInspectLayout.contentPadding
+        let row = CGRect(
+            x: card.minX + pad,
+            y: card.minY,
+            width: max(0, card.width - pad * 2),
+            height: pad + HookInspectLayout.buttonRowHeight + 6
+        )
+        guard row.contains(point) else { return .none }
+
+        let copyWidth = max(
+            inspectButtonWidth(String(localized: "Copy")),
+            inspectButtonWidth(String(localized: "Copied"))
+        )
+        let splitX = row.minX + copyWidth + HookInspectLayout.buttonSpacing / 2
+        return point.x < splitX ? .copy : .close
+    }
+
+    private func inspectButtonWidth(_ title: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 12)
+        let text = ceil((title as NSString).size(withAttributes: [.font: font]).width)
+        return max(44, text + 20)
+    }
+
+    private func copyInspectJSON(_ raw: String?) {
+        let text = HookPayloadJSON.prettyPrinted(raw ?? "")
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if pasteboard.writeObjects([text as NSString]) { return }
+        pasteboard.declareTypes([.string], owner: nil)
+        pasteboard.setString(text, forType: .string)
+    }
+
+    /// Per-bubble frames in panel bottom-left coords (same as `bubbleHitRects`).
+    private func bubbleItemFrames(
+        panelSize: NSSize,
+        aiboSize: CGSize,
+        placement: BubblePlacement,
+        items: [StatusBubbleItem]
+    ) -> [(id: String, frame: CGRect)] {
+        guard !items.isEmpty else { return [] }
+        let insets = contentInsets
+        let origin = aiboOrigin(
+            in: panelSize,
+            aiboSize: aiboSize,
+            placement: placement,
+            bubbleCount: items.count
+        )
+        let heights = items.map(estimatedBubbleHeight(for:))
+        let spacing = bubbleStackSpacing
+        let contentWidth = panelSize.width - insets.horizontal
+        let gap = aiboBubbleSpacing
+        var result: [(id: String, frame: CGRect)] = []
+        result.reserveCapacity(items.count)
+
+        switch placement {
+        case .top:
+            let width = min(bubbleMaxWidth, contentWidth)
+            let x = insets.leading + (contentWidth - width) / 2
+            var y = origin.y + aiboSize.height + gap
+            for (item, height) in zip(items, heights).reversed() {
+                result.append((item.id, CGRect(x: x, y: y, width: width, height: height)))
+                y += height + spacing
+            }
+        case .bottom:
+            let width = min(bubbleMaxWidth, contentWidth)
+            let x = insets.leading + (contentWidth - width) / 2
+            var top = origin.y - gap
+            for (item, height) in zip(items, heights).reversed() {
+                let y = top - height
+                result.append((item.id, CGRect(x: x, y: y, width: width, height: height)))
+                top = y - spacing
+            }
+        case .right, .left:
+            let width: CGFloat
+            let x: CGFloat
+            if placement == .right {
+                x = origin.x + aiboSize.width + gap
+                width = min(bubbleMaxWidth, max(0, panelSize.width - x - insets.trailing))
+            } else {
+                width = min(bubbleMaxWidth, max(0, origin.x - gap - insets.leading))
+                x = origin.x - gap - width
+            }
+            let nearRow = items.last.map(sideNearRowHeight(for:)) ?? bubbleEstimatedHeight
+            var y = sideBubbleNearBottom(
+                aiboOriginY: origin.y,
+                aiboHeight: aiboSize.height,
+                nearHeight: nearRow
+            )
+            for (item, height) in zip(items, heights).reversed() {
+                result.append((item.id, CGRect(x: x, y: y, width: width, height: height)))
+                y += height + spacing
+            }
+        }
+        return result
+    }
+
     /// Bottom-left union rects for bubble stacks so empty panel chrome can click through.
     private func bubbleHitRects(
         panelSize: NSSize,
@@ -1039,6 +1267,7 @@ final class AiboPanelController {
             let x = origin.x + aiboSize.width + gap
             let width = min(bubbleMaxWidth, max(0, panelSize.width - x - insets.trailing))
             let nearHeight = heights.last ?? bubbleEstimatedHeight
+            let nearRow = items.last.map(sideNearRowHeight(for:)) ?? nearHeight
             let aboveHeights = heights.dropLast()
             let stackAbove =
                 aboveHeights.reduce(0, +)
@@ -1046,7 +1275,7 @@ final class AiboPanelController {
             let nearBottom = sideBubbleNearBottom(
                 aiboOriginY: origin.y,
                 aiboHeight: aiboSize.height,
-                nearHeight: nearHeight
+                nearHeight: nearRow
             )
             let pills = onboardingActionPillsHeight
             return [CGRect(
@@ -1059,6 +1288,7 @@ final class AiboPanelController {
             let width = min(bubbleMaxWidth, max(0, origin.x - gap - insets.leading))
             let x = origin.x - gap - width
             let nearHeight = heights.last ?? bubbleEstimatedHeight
+            let nearRow = items.last.map(sideNearRowHeight(for:)) ?? nearHeight
             let aboveHeights = heights.dropLast()
             let stackAbove =
                 aboveHeights.reduce(0, +)
@@ -1066,7 +1296,7 @@ final class AiboPanelController {
             let nearBottom = sideBubbleNearBottom(
                 aiboOriginY: origin.y,
                 aiboHeight: aiboSize.height,
-                nearHeight: nearHeight
+                nearHeight: nearRow
             )
             let pills = onboardingActionPillsHeight
             return [CGRect(
@@ -1169,8 +1399,8 @@ final class AiboPanelController {
             // Vertically center the pet with the near bubble. Skip / Continue
             // hang below the bubble and take extra panel space, not this row.
             let items = AiboRuntime.shared.bubbleItems
-            let nearHeight = items.last.map(estimatedBubbleHeight(for:)) ?? bubbleEstimatedHeight
-            let rowHeight = max(aiboSize.height, nearHeight)
+            let nearRow = items.last.map(sideNearRowHeight(for:)) ?? bubbleEstimatedHeight
+            let rowHeight = max(aiboSize.height, nearRow)
             let y = insets.bottom + onboardingActionPillsHeight
                 + (rowHeight - aiboSize.height) / 2
             if placement == .left {
@@ -1186,9 +1416,20 @@ final class AiboPanelController {
     private func startClickThroughMonitoringIfNeeded() {
         guard localMouseMonitor == nil else { return }
         localMouseMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+            matching: [
+                .mouseMoved,
+                .leftMouseDragged,
+                .rightMouseDragged,
+                .rightMouseDown,
+                .leftMouseDown,
+            ]
         ) { [weak self] event in
             self?.refreshClickThroughState()
+            if event.type == .leftMouseDown,
+               self?.handleInspectCardClick(with: event) == true
+            {
+                return nil
+            }
             return event
         }
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(

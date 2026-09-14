@@ -19,6 +19,11 @@ struct StatusBubble: View {
     var glassTint: Color? = AppSettings.shared.bubbleGlassTint
 
     @Environment(\.colorScheme) private var colorScheme
+    private var runtime = AiboRuntime.shared
+    /// Last measured status-face size; height so open / close animates between
+    /// two concrete values, width so left/right inspect doesn't jump to 320.
+    @State private var statusFaceHeight: CGFloat = 0
+    @State private var statusFaceWidth: CGFloat = 0
 
     private let arrowHeight: CGFloat = 6
     private let arrowWidth: CGFloat = 10
@@ -30,8 +35,24 @@ struct StatusBubble: View {
     private let capsuleHeight: CGFloat = 22
     private let statusLineHeight: CGFloat = 22
 
+    private var showsInspectFace: Bool {
+        item.kind == .agent && item.isInspecting
+    }
+
+    private var isSidePlacement: Bool {
+        placement == .left || placement == .right
+    }
+
+    private var drawsArrow: Bool {
+        showsArrow && !showsInspectFace
+    }
+
+    /// Left/right keep the arrow's layout slot while inspecting so the body
+    /// width stays status-sized (triangle off, slot stays). Top/bottom drop
+    /// the slot and grow vertically only.
     private var arrowSlotHeight: CGFloat {
-        (showsArrow || reservesArrowSlot) ? arrowHeight : 0
+        if showsInspectFace, !isSidePlacement { return 0 }
+        return (showsArrow || reservesArrowSlot) ? arrowHeight : 0
     }
 
     var body: some View {
@@ -56,29 +77,20 @@ struct StatusBubble: View {
             defaultContent: defaultCapsuleContent
         )
 
-        bubbleContent(
-            ink: ink,
-            capsuleFill: agentCapsule.fill,
-            capsuleContent: agentCapsule.content,
-            webhookCapsuleFill: defaultCapsuleFill,
-            webhookCapsuleContent: defaultCapsuleContent,
-            fillIsLight: prefersLightLabel
-        )
-            .padding(contentPadding)
-            .padding(arrowSlotHeight > 0 ? Edge.Set(edge) : [], arrowSlotHeight)
-            .background {
-                bubbleBackground(edge: edge)
-            }
-            .environment(
-                \.backgroundProminence,
-                prefersLightLabel ? .increased : .standard
+        chromedCard(edge: edge) {
+            bubbleContent(
+                ink: ink,
+                capsuleFill: agentCapsule.fill,
+                capsuleContent: agentCapsule.content,
+                webhookCapsuleFill: defaultCapsuleFill,
+                webhookCapsuleContent: defaultCapsuleContent,
+                fillIsLight: prefersLightLabel
             )
-            // Cap width; pin content toward the aibo so short copy doesn't float
-            // in the middle of a bubbleMaxWidth-sized panel slot.
-            .frame(maxWidth: 320, alignment: frameAlignment)
-            // Don't compress wrapped text when a parent proposes a short height.
-            .fixedSize(horizontal: false, vertical: true)
-            // Stack left/right on the body edge, not the arrow tip.
+        }
+            // Right-click swaps the face in place; only the frame changes (no
+            // transform — 3D / scale layers made the whole panel's glass rebuild
+            // and every bubble blink). The stack in AiboView owns the animation
+            // so pushed siblings move on the same curve.
             .alignmentGuide(.trailing) { d in
                 arrowSlotHeight > 0 && placement == .left
                     ? d[.trailing] - arrowSlotHeight
@@ -91,6 +103,36 @@ struct StatusBubble: View {
             }
             .contentShape(Rectangle())
             .modifier(BubbleTapModifier(onActivate: onActivate, onDismiss: onDismiss))
+            // Face / tap-target updates must not inherit the stack's poof.
+            .transition(.identity)
+    }
+
+    /// Padding + popover glass around a face. Kept as one persistent view so a
+    /// face swap animates the card frame instead of re-creating the chrome.
+    @ViewBuilder
+    private func chromedCard<Content: View>(
+        edge: Edge,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .padding(contentPadding)
+            .padding(arrowSlotHeight > 0 ? Edge.Set(edge) : [], arrowSlotHeight)
+            .background {
+                bubbleBackground(edge: edge)
+            }
+            .environment(
+                \.backgroundProminence,
+                Self.prefersLightLabel(
+                    tint: glassTint,
+                    style: glassStyle,
+                    colorScheme: colorScheme
+                ) ? .increased : .standard
+            )
+            // Cap width; pin content toward the aibo so short copy doesn't float
+            // in the middle of a bubbleMaxWidth-sized panel slot.
+            .frame(maxWidth: 320, alignment: frameAlignment)
+            // Don't compress wrapped text when a parent proposes a short height.
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
@@ -104,7 +146,12 @@ struct StatusBubble: View {
     ) -> some View {
         switch item.kind {
         case .agent:
-            agentBubbleContent(ink: ink, capsuleFill: capsuleFill, capsuleContent: capsuleContent)
+            agentFace(
+                ink: ink,
+                capsuleFill: capsuleFill,
+                capsuleContent: capsuleContent,
+                prefersLightInk: fillIsLight
+            )
         case .webhook:
             webhookBubbleContent(
                 ink: ink,
@@ -165,6 +212,172 @@ struct StatusBubble: View {
                 }
             }
         }
+    }
+
+    /// Status stays in the tree (opacity only). Inspect is an overlay that
+    /// does not affect intrinsic size. The outer height interpolates between
+    /// the two faces so the card never dips (status removed) then grows —
+    /// that dip is what made the near-aibo bubble overshoot its top.
+    @ViewBuilder
+    private func agentFace(
+        ink: Color,
+        capsuleFill: Color,
+        capsuleContent: Color,
+        prefersLightInk: Bool
+    ) -> some View {
+        let inspecting = item.isInspecting
+        agentBubbleContent(
+            ink: ink,
+            capsuleFill: capsuleFill,
+            capsuleContent: capsuleContent
+        )
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: AgentStatusSizeKey.self,
+                    value: proxy.size
+                )
+            }
+        }
+        .onPreferenceChange(AgentStatusSizeKey.self) { size in
+            if size.height > 0 { statusFaceHeight = size.height }
+            if size.width > 0 { statusFaceWidth = size.width }
+        }
+        .opacity(inspecting ? 0 : 1)
+        // Height uses the stack's 0.35s curve; labels should be gone well
+        // before the card finishes growing.
+        .animation(.easeOut(duration: 0.12), value: inspecting)
+        .allowsHitTesting(!inspecting)
+        // Frame first so the overlay is proposed the inspect size. Overlay
+        // on the status face made the JSON representable report height 0.
+        .frame(
+            width: sideLockedContentWidth,
+            height: agentFaceHeight(inspecting: inspecting),
+            alignment: .topLeading
+        )
+        .overlay(alignment: .topLeading) {
+            if item.hookJSON != nil {
+                inspectOverlay(ink: ink, prefersLightInk: prefersLightInk)
+                    .opacity(inspecting ? 1 : 0)
+                    .animation(.easeOut(duration: 0.12), value: inspecting)
+                    .allowsHitTesting(inspecting)
+            }
+        }
+        .clipped()
+    }
+
+    private func agentFaceHeight(inspecting: Bool) -> CGFloat? {
+        if inspecting { return inspectFaceHeight }
+        return statusFaceHeight > 0 ? statusFaceHeight : nil
+    }
+
+    /// Left/right: pin inspect content to the status face width. Top/bottom
+    /// may grow as wide as the 320 cap.
+    private var sideLockedContentWidth: CGFloat? {
+        guard isSidePlacement, showsInspectFace, statusFaceWidth > 0 else { return nil }
+        return statusFaceWidth
+    }
+
+    /// Content height of the inspect face (no card padding). Matches the
+    /// panel's `estimatedHookInspectHeight` minus padding.
+    private var inspectFaceHeight: CGFloat {
+        inspectJSONHeight()
+            + HookInspectLayout.sectionSpacing
+            + HookInspectLayout.buttonRowHeight
+    }
+
+    private func inspectJSONHeight() -> CGFloat {
+        let pretty = HookPayloadJSON.prettyPrinted(item.hookJSON ?? "")
+        let width = max(
+            1,
+            sideLockedContentWidth ?? (320 - contentPadding * 2)
+        )
+        let font = NSFont.monospacedSystemFont(
+            ofSize: HookInspectLayout.jsonFontSize,
+            weight: .regular
+        )
+        let used = ceil(
+            (pretty as NSString).boundingRect(
+                with: NSSize(width: width, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: font]
+            ).height
+        )
+        return min(HookInspectLayout.jsonMaxHeight, max(14, used))
+    }
+
+    @ViewBuilder
+    private func inspectOverlay(ink: Color, prefersLightInk: Bool) -> some View {
+        VStack(alignment: .leading, spacing: HookInspectLayout.sectionSpacing) {
+            InspectJSONScrollView(
+                text: HookPayloadJSON.prettyPrinted(item.hookJSON ?? ""),
+                prefersLightInk: prefersLightInk,
+                maxHeight: HookInspectLayout.jsonMaxHeight
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: inspectJSONHeight())
+            .animation(nil, value: item.isInspecting)
+
+            HStack(spacing: HookInspectLayout.buttonSpacing) {
+                inspectCopyChip(ink: ink)
+                inspectChipLabel(String(localized: "Close Bubble"), ink: ink)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func inspectCopyChip(ink: Color) -> some View {
+        let copied = runtime.inspectJustCopiedID == item.id
+        inspectChipLabel(
+            copied ? String(localized: "Copied") : String(localized: "Copy"),
+            ink: ink,
+            widthReserve: String(localized: "Copied")
+        )
+    }
+
+    /// Capsule Liquid Glass chip. `widthReserve` keeps Copy → Copied from jumping.
+    private func inspectChipLabel(
+        _ title: String,
+        ink: Color,
+        widthReserve: String? = nil
+    ) -> some View {
+        let prefersLight = Self.prefersLightLabel(
+            tint: glassTint,
+            style: glassStyle,
+            colorScheme: colorScheme
+        )
+        return ZStack {
+            if let widthReserve {
+                Text(widthReserve)
+                    .font(.system(size: 12))
+                    .hidden()
+            }
+            Text(title)
+                .font(.system(size: 12))
+        }
+            .foregroundStyle(ink)
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background { inspectChipGlass }
+            .environment(\.backgroundProminence, prefersLight ? .increased : .standard)
+            .contentTransition(.opacity)
+            .animation(.easeOut(duration: 0.15), value: title)
+            .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private var inspectChipGlass: some View {
+        let shape = Capsule()
+        shape
+            .fill(Color.clear)
+            .glassEffect(
+                Self.configuredGlass(style: .clear, tint: glassTint),
+                in: shape
+            )
+            .background {
+                shape.fill(Self.behindFill(style: .clear, tint: glassTint))
+            }
     }
 
     @ViewBuilder
@@ -468,7 +681,7 @@ struct StatusBubble: View {
         let shape = PopoverBubbleShape(
             arrowEdge: edge,
             cornerRadius: cornerRadius,
-            arrowWidth: showsArrow ? arrowWidth : 0,
+            arrowWidth: drawsArrow ? arrowWidth : 0,
             arrowHeight: arrowSlotHeight
         )
         // Keep text outside glassEffect — Liquid Glass foreground treatment
@@ -588,6 +801,17 @@ struct StatusBubble: View {
     private static func srgbLinear(_ channel: CGFloat) -> Double {
         let c = Double(channel)
         return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+    }
+}
+
+private struct AgentStatusSizeKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        let next = nextValue()
+        value = CGSize(
+            width: max(value.width, next.width),
+            height: max(value.height, next.height)
+        )
     }
 }
 
@@ -771,19 +995,19 @@ private struct BubbleTapModifier: ViewModifier {
     var onDismiss: (() -> Void)?
 
     func body(content: Content) -> some View {
-        if onActivate != nil || onDismiss != nil {
-            content
-                .highPriorityGesture(
-                    TapGesture().onEnded {
-                        onActivate?()
-                        onDismiss?()
-                    }
-                )
-                .accessibilityHint(accessibilityHint)
-                .accessibilityAddTraits(.isButton)
-        } else {
-            content
-        }
+        // One tree for both faces. `if tappable { gesture } else { content }`
+        // remounts the whole card; the stack's poof then plays on inspect toggle.
+        let tappable = onActivate != nil || onDismiss != nil
+        content
+            .highPriorityGesture(
+                TapGesture().onEnded {
+                    onActivate?()
+                    onDismiss?()
+                },
+                isEnabled: tappable
+            )
+            .accessibilityHint(tappable ? accessibilityHint : "")
+            .accessibilityAddTraits(tappable ? .isButton : [])
     }
 
     private var accessibilityHint: String {

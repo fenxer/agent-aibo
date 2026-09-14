@@ -115,12 +115,16 @@ struct AiboView: View {
         panelController.isContentPresented && !panelController.isLaunchPortalPlaying
     }
 
+    private func usesAgentGlass(_ item: StatusBubbleItem) -> Bool {
+        item.kind == .agent
+    }
+
     private func glassStyle(for item: StatusBubbleItem) -> BubbleGlassStyle {
-        AppSettings.shared.bubbleGlassStyle(for: item.kind == .agent ? item.agent : nil)
+        AppSettings.shared.bubbleGlassStyle(for: usesAgentGlass(item) ? item.agent : nil)
     }
 
     private func glassTint(for item: StatusBubbleItem) -> Color? {
-        AppSettings.shared.bubbleGlassTint(for: item.kind == .agent ? item.agent : nil)
+        AppSettings.shared.bubbleGlassTint(for: usesAgentGlass(item) ? item.agent : nil)
     }
 
     private var shouldEmitMusicNotes: Bool {
@@ -230,6 +234,10 @@ struct AiboView: View {
             }
         }
         .animation(nil, value: items.map(\.id))
+        // Hook inspect open / close: the card's height and every bubble it
+        // pushes move on one curve (scoped to the card, siblings would jump).
+        // Panel shrink is deferred 420ms to outlast this.
+        .animation(.easeInOut(duration: 0.35), value: items.map(\.isInspecting))
     }
 
     @ViewBuilder
@@ -267,8 +275,8 @@ struct AiboView: View {
             placement: placement,
             showsArrow: showsArrow,
             reservesArrowSlot: onboardingStackUsesIntrinsicWidth,
-            onActivate: activateAction(for: item),
-            onDismiss: dismissAction(for: item),
+            onActivate: item.isInspecting ? nil : activateAction(for: item),
+            onDismiss: item.isInspecting ? nil : dismissAction(for: item),
             glassStyle: glassStyle(for: item),
             glassTint: glassTint(for: item)
         )
@@ -305,10 +313,12 @@ struct AiboView: View {
     }
 
     /// Stable size anchor: near-aibo bubble when present, otherwise aibo height.
+    /// Always the *status* face: the hook inspect face grows upward from this
+    /// bottom edge instead of re-centering (see `sideNearRowHeight`).
     @ViewBuilder
     private func sideAnchor(nearPetIndex: Int) -> some View {
         if bubbleItems.indices.contains(nearPetIndex) {
-            let item = bubbleItems[nearPetIndex]
+            let item = Self.statusFace(of: bubbleItems[nearPetIndex])
             if item.kind == .onboarding {
                 OnboardingBubbleCluster(
                     item: item,
@@ -330,6 +340,12 @@ struct AiboView: View {
         } else {
             Color.clear.frame(width: 1, height: aiboLayoutSize.height)
         }
+    }
+
+    private static func statusFace(of item: StatusBubbleItem) -> StatusBubbleItem {
+        var status = item
+        status.isInspecting = false
+        return status
     }
 
     /// Top/bottom: center. Left: flush to pet (trailing). Right: flush to pet (leading).
