@@ -44,6 +44,7 @@ final class AppSettings {
         static let restoreLastAiboPosition = "settings.restoreLastAiboPosition"
         static let hideWhenFullscreen = "settings.hideWhenFullscreen"
         static let disableMouseTracking = "settings.disableMouseTracking"
+        static let mouseShakeDodgeEnabled = "settings.mouseShakeDodgeEnabled"
         static let aiboPositionXPercent = "settings.aiboPositionXPercent"
         static let aiboPositionYPercent = "settings.aiboPositionYPercent"
         static let aiboPositionScreenUUID = "settings.aiboPositionScreenUUID"
@@ -125,6 +126,16 @@ final class AppSettings {
             guard oldValue != disableMouseTracking else { return }
             UserDefaults.standard.set(disableMouseTracking, forKey: Keys.disableMouseTracking)
             AiboPanelController.shared.syncLookDirection()
+        }
+    }
+
+    /// When true, a rapid left/right pointer shake over Aibo hops it toward
+    /// the screen center. Default on.
+    var mouseShakeDodgeEnabled: Bool {
+        didSet {
+            guard oldValue != mouseShakeDodgeEnabled else { return }
+            UserDefaults.standard.set(mouseShakeDodgeEnabled, forKey: Keys.mouseShakeDodgeEnabled)
+            AiboPanelController.shared.syncMouseShakeDodgeEnabled()
         }
     }
 
@@ -434,6 +445,12 @@ final class AppSettings {
         }
 
         disableMouseTracking = UserDefaults.standard.bool(forKey: Keys.disableMouseTracking)
+
+        if UserDefaults.standard.object(forKey: Keys.mouseShakeDodgeEnabled) != nil {
+            mouseShakeDodgeEnabled = UserDefaults.standard.bool(forKey: Keys.mouseShakeDodgeEnabled)
+        } else {
+            mouseShakeDodgeEnabled = true
+        }
 
         if UserDefaults.standard.object(forKey: Keys.aiboPositionXPercent) != nil,
            UserDefaults.standard.object(forKey: Keys.aiboPositionYPercent) != nil

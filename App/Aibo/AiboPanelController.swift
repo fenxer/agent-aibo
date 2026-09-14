@@ -549,6 +549,12 @@ final class AiboPanelController {
         refreshLookDirection()
     }
 
+    func syncMouseShakeDodgeEnabled() {
+        guard !AppSettings.shared.mouseShakeDodgeEnabled else { return }
+        shakeDetector.reset()
+        cancelDodge(persist: true)
+    }
+
     func updateHitTestImage() {
         let image = AiboSpriteCache.shared.previewImage(for: AiboLibraryStore.shared.selectedRecord)
         hostingView?.updateHitTestImage(image)
@@ -1516,6 +1522,7 @@ final class AiboPanelController {
     #endif
 
     private func evaluateMouseShake() {
+        guard AppSettings.shared.mouseShakeDodgeEnabled else { return }
         guard canBeginDodge, NSEvent.pressedMouseButtons == 0 else { return }
         let config = shakeConfig
         shakeDetector.config = config

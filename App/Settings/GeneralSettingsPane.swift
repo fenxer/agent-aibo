@@ -521,6 +521,16 @@ private struct GeneralActionSection: View {
                 }
             }
             .toggleStyle(VerticallyCenteredSwitchToggleStyle())
+
+            Toggle(isOn: $settings.mouseShakeDodgeEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Slide to Dodge"))
+                    Text(String(localized: "Slide left and right over Aibo to send it away."))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(VerticallyCenteredSwitchToggleStyle())
         } header: {
             Text(String(localized: "Extra Action"))
         }

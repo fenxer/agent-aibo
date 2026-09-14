@@ -1822,6 +1822,28 @@
         }
       }
     },
+    "Slide left and right over Aibo to send it away." : {
+      "comment" : "General → Extra Action: Slide to Dodge subtitle.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 aibo 附近左右滑动，即可让它离开当前位置。"
+          }
+        }
+      }
+    },
+    "Slide to Dodge" : {
+      "comment" : "General → Extra Action: pointer-shake dodge toggle.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "滑动避让"
+          }
+        }
+      }
+    },
     "Sort" : {
       "localizations" : {
         "zh-Hans" : {
