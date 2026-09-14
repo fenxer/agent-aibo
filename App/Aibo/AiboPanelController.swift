@@ -28,6 +28,19 @@ final class AiboPanelController {
     private var pendingDragDeltaX: CGFloat = 0
     /// Horizontal drag must exceed this before the run animation (or a reverse) kicks in.
     private static let dragDirectionThreshold: CGFloat = 4
+    private var isPetDodging = false
+    private var shakeDetector = MouseShakeDetector()
+    private let dodgeAnimator = AiboDodgeAnimator()
+
+    private var isRepositioningAibo: Bool { isPetDragging || isPetDodging }
+
+    private var shakeConfig: MouseShakeConfig {
+        #if DEBUG
+        MouseShakeDebugSettings.shared.config
+        #else
+        MouseShakeConfig()
+        #endif
+    }
 
     private var panel: AiboPanel?
     private var rootView: AiboPanelRootView?
@@ -190,6 +203,7 @@ final class AiboPanelController {
 
     func hide() {
         guard isVisible, !isQuitPortalPlaying else { return }
+        cancelDodge(persist: true)
         isVisible = false
         PlaytimeStore.shared.noteVisibilityChanged()
         hideTask?.cancel()
@@ -245,6 +259,7 @@ final class AiboPanelController {
         guard isVisible, isContentPresented, !isSuppressedForFullscreen, !isQuitPortalPlaying else { return false }
         hideTask?.cancel()
         hideTask = nil
+        cancelDodge(persist: true)
         guard armLaunchPortal() else { return false }
         applyGeometryNow()
         placeAiboForOnboarding()
@@ -330,6 +345,7 @@ final class AiboPanelController {
     }
 
     private func startLaunchPortal() {
+        cancelDodge(persist: true)
         guard armLaunchPortal() else { return }
         applyGeometryNow()
         attachLaunchPortalView()
@@ -455,6 +471,7 @@ final class AiboPanelController {
     }
 
     private func suppressForFullscreen() {
+        cancelDodge(persist: true)
         isSuppressedForFullscreen = true
         applyFullscreenVisibility()
         // Leave the fullscreen Space entirely — do not float above the transition.
@@ -548,6 +565,7 @@ final class AiboPanelController {
     /// action, a different window than Settings) so the transparent panel
     /// already matches the union canvas before SwiftUI swaps in Metal.
     func syncGeometryNow() {
+        cancelDodge(persist: true)
         applyGeometryNow()
     }
 
@@ -597,7 +615,7 @@ final class AiboPanelController {
     /// Returns `true` when the onboarding bubble was pinned (do not clamp — that would drag it).
     @discardableResult
     private func applyGeometryPreservingPetCenter() -> Bool {
-        guard let panel, !isPetDragging else { return false }
+        guard let panel, !isRepositioningAibo else { return false }
 
         let items = AiboRuntime.shared.bubbleItems
         let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
@@ -1203,6 +1221,9 @@ final class AiboPanelController {
 
     private func refreshClickThroughState() {
         refreshLookDirection()
+        if !isRepositioningAibo {
+            evaluateMouseShake()
+        }
         if isPetDragging { return }
         guard let panel else { return }
         guard isVisible, isContentPresented, shouldPresentPanelOnScreen, !isSuppressedForFullscreen else {
@@ -1336,7 +1357,7 @@ final class AiboPanelController {
     /// Keep the *pet* inside the padded visible frame. Stacked bubbles may
     /// extend off-screen — clamping the whole panel would shove the aibo up/down.
     private func clampToVisibleScreen() {
-        guard let panel, !isPetDragging else { return }
+        guard let panel, !isRepositioningAibo else { return }
         let centerInPanel = laidOutAiboCenter
         var aiboOnScreen = CGPoint(
             x: panel.frame.origin.x + centerInPanel.x,
@@ -1399,6 +1420,7 @@ final class AiboPanelController {
     /// re-pinning after that keeps the cursor on the same pixel.
     func performPetDrag(with startEvent: NSEvent) {
         guard let panel, !isLaunchPortalPlaying else { return }
+        cancelDodge(persist: false)
         beginPetDrag()
         let grabOffset = grabOffsetFromAibo(for: startEvent)
         var lastMouseX = NSEvent.mouseLocation.x
@@ -1486,8 +1508,123 @@ final class AiboPanelController {
         refreshLookDirection()
     }
 
+    #if DEBUG
+    func debugTriggerDodge() {
+        cancelDodge(persist: false)
+        beginDodge()
+    }
+    #endif
+
+    private func evaluateMouseShake() {
+        guard canBeginDodge, NSEvent.pressedMouseButtons == 0 else { return }
+        let config = shakeConfig
+        shakeDetector.config = config
+        let mouse = NSEvent.mouseLocation
+        let triggered = shakeDetector.push(
+            x: mouse.x,
+            time: ProcessInfo.processInfo.systemUptime,
+            inProximity: isMouseInAiboProximity(padding: config.proximityPadding)
+        )
+        guard triggered else { return }
+        beginDodge()
+    }
+
+    private var canBeginDodge: Bool {
+        isVisible
+            && isContentPresented
+            && shouldPresentPanelOnScreen
+            && !isSuppressedForFullscreen
+            && !isLaunchPortalPlaying
+            && !isQuitPortalPlaying
+            && !OnboardingController.shared.isActive
+            && panel != nil
+    }
+
+    private func isMouseInAiboProximity(padding: Double) -> Bool {
+        guard let panel, laidOutAiboFrame.width > 0, laidOutAiboFrame.height > 0 else {
+            return false
+        }
+        let pad = CGFloat(padding)
+        let rect = laidOutAiboFrame.insetBy(dx: -pad, dy: -pad)
+        let screenRect = CGRect(
+            x: panel.frame.origin.x + rect.minX,
+            y: panel.frame.origin.y + rect.minY,
+            width: rect.width,
+            height: rect.height
+        )
+        return screenRect.contains(NSEvent.mouseLocation)
+    }
+
+    private func beginDodge() {
+        guard canBeginDodge, !isPetDragging else { return }
+        let config = shakeConfig
+        let from = aiboScreenCenter()
+        let screen = NSScreen.aiboScreenContaining(from) ?? panel?.screen ?? NSScreen.main
+        guard let screen else { return }
+        let span = max(laidOutAiboSize.width, laidOutAiboSize.height)
+        guard span > 1 else { return }
+        let distance = span * config.dodgeDistanceFactor
+        let to = MouseShakeDodge.target(
+            from: from,
+            in: screen.visibleFrame,
+            distance: distance,
+            padding: screenPadding
+        )
+        guard hypot(to.x - from.x, to.y - from.y) >= 1 else { return }
+
+        shakeDetector.markTriggered(at: ProcessInfo.processInfo.systemUptime)
+        isPetDodging = true
+        let dx = to.x - from.x
+        if dx > 0.5 {
+            dragActionSprite = AiboActionSettings.shared.sprite(for: .dragRight)
+        } else if dx < -0.5 {
+            dragActionSprite = AiboActionSettings.shared.sprite(for: .dragLeft)
+        }
+
+        dodgeAnimator.start(
+            screen: screen,
+            duration: config.dodgeDuration,
+            onProgress: { [weak self] progress in
+                guard let self else { return }
+                self.moveAiboScreenCenter(
+                    to: MouseShakeDodge.interpolate(from: from, to: to, progress: progress)
+                )
+            },
+            onCompleted: { [weak self] in
+                guard let self else { return }
+                self.moveAiboScreenCenter(to: to)
+                self.finishDodge()
+            }
+        )
+    }
+
+    private func finishDodge() {
+        isPetDodging = false
+        if dragActionSprite != nil {
+            dragActionSprite = nil
+        }
+        persistRelativePositionNow()
+        refreshClickThroughState()
+    }
+
+    private func cancelDodge(persist: Bool) {
+        guard isPetDodging || dodgeAnimator.isRunning else { return }
+        dodgeAnimator.cancel()
+        isPetDodging = false
+        if dragActionSprite != nil {
+            dragActionSprite = nil
+        }
+        if persist {
+            persistRelativePositionNow()
+        }
+    }
+
     /// Bucketed pointer look. Only assigns when the 22.5° cell changes.
     private func refreshLookDirection() {
+        if isPetDodging {
+            if lookDirection != nil { lookDirection = nil }
+            return
+        }
         if AppSettings.shared.disableMouseTracking {
             if lookDirection != nil { lookDirection = nil }
             return

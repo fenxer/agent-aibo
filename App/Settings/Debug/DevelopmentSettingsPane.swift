@@ -42,6 +42,7 @@ struct DevelopmentSettingsPane: View {
         Form {
             bubblePreviewSection
             PlaytimeDebugSection()
+            MouseShakeDebugSection()
             onboardingSection
             launchEntranceSection
             SoftwareUpdateDebugSection()
