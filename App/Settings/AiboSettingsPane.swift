@@ -198,7 +198,7 @@ private struct AiboPreviewBanner: View {
     @State private var conflictPrompt: AiboNamePrompt?
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .top) {
             ZStack {
                 AiboNameMarquee(name: record.displayName)
                     .id(record.displayName)
@@ -215,33 +215,39 @@ private struct AiboPreviewBanner: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(record.displayName)
 
-            HStack(spacing: 0) {
-                Button {
-                    isPreviewing = true
-                } label: {
-                    Image(systemName: "eyes.inverse")
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .help(String(localized: "Preview"))
-                .accessibilityLabel(String(localized: "Preview"))
-
-                if record.canRename {
+            HStack(alignment: .top, spacing: 8) {
+                AiboPlaytimeCapsule(aiboID: record.id)
+                Spacer(minLength: 8)
+                HStack(spacing: 0) {
                     Button {
-                        renamePrompt = AiboNamePrompt(id: record.id, name: record.displayName)
+                        isPreviewing = true
                     } label: {
-                        Image(systemName: "pencil.line")
+                        Image(systemName: "eyes.inverse")
                             .frame(width: 32, height: 32)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
                     .foregroundStyle(.secondary)
-                    .help(String(localized: "Rename"))
-                    .accessibilityLabel(String(localized: "Rename"))
+                    .help(String(localized: "Preview"))
+                    .accessibilityLabel(String(localized: "Preview"))
+
+                    if record.canRename {
+                        Button {
+                            renamePrompt = AiboNamePrompt(id: record.id, name: record.displayName)
+                        } label: {
+                            Image(systemName: "pencil.line")
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                        .help(String(localized: "Rename"))
+                        .accessibilityLabel(String(localized: "Rename"))
+                    }
                 }
             }
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
         }
         .frame(minWidth: 0, maxWidth: .infinity)
         .frame(height: 138)
@@ -335,6 +341,34 @@ private struct AiboPreviewBanner: View {
                     existingDisplayName: existing
                 )
             }
+        }
+    }
+}
+
+/// Companion time on the Aibo preview. Ticks only while this page is open.
+private struct AiboPlaytimeCapsule: View {
+    var aiboID: String
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            Text(label(now: context.date))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.quaternary, in: Capsule())
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label(now: .now))
+    }
+
+    private func label(now: Date) -> String {
+        let seconds = PlaytimeStore.shared.displayedSeconds(id: aiboID, now: now)
+        switch PlaytimeCompanionSpan.from(seconds: seconds) {
+        case .hoursAndMinutes(let hours, let minutes):
+            return String(localized: "Together for \(hours)h \(minutes)m")
+        case .daysAndHours(let days, let hours):
+            return String(localized: "Together for \(days)d \(hours)h")
         }
     }
 }

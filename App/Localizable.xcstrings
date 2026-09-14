@@ -1886,6 +1886,26 @@
         }
       }
     },
+    "Together for %lldd %lldh" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已陪伴 %lldd %lldh"
+          }
+        }
+      }
+    },
+    "Together for %lldh %lldm" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已陪伴 %lldh %lldm"
+          }
+        }
+      }
+    },
     "This archive isn’t a valid Petdex pack" : {
       "localizations" : {
         "zh-Hans" : {

@@ -194,3 +194,18 @@ public struct PlaytimeSnapshot: Codable, Sendable, Equatable {
         return Int(nowEpoch - startedAtEpoch)
     }
 }
+
+/// Settings chip: under 24h → hours + minutes; 24h and up → days + hours.
+public enum PlaytimeCompanionSpan: Sendable, Equatable {
+    case hoursAndMinutes(hours: Int, minutes: Int)
+    case daysAndHours(days: Int, hours: Int)
+
+    public static func from(seconds: Int) -> PlaytimeCompanionSpan {
+        let totalMinutes = max(0, seconds) / 60
+        let totalHours = totalMinutes / 60
+        if totalHours >= 24 {
+            return .daysAndHours(days: totalHours / 24, hours: totalHours % 24)
+        }
+        return .hoursAndMinutes(hours: totalHours, minutes: totalMinutes % 60)
+    }
+}

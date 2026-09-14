@@ -111,6 +111,16 @@ private func date(_ epoch: Int64) -> Date {
     #expect(snapshot.record(id: "static.nova")?.totalSeconds == 60)
 }
 
+@Test func playtimeCompanionSpanSplitsAtTwentyFourHours() {
+    #expect(PlaytimeCompanionSpan.from(seconds: 0) == .hoursAndMinutes(hours: 0, minutes: 0))
+    #expect(PlaytimeCompanionSpan.from(seconds: 59) == .hoursAndMinutes(hours: 0, minutes: 0))
+    #expect(PlaytimeCompanionSpan.from(seconds: 60) == .hoursAndMinutes(hours: 0, minutes: 1))
+    #expect(PlaytimeCompanionSpan.from(seconds: 3 * 3600 + 12 * 60) == .hoursAndMinutes(hours: 3, minutes: 12))
+    #expect(PlaytimeCompanionSpan.from(seconds: 24 * 3600 - 1) == .hoursAndMinutes(hours: 23, minutes: 59))
+    #expect(PlaytimeCompanionSpan.from(seconds: 24 * 3600) == .daysAndHours(days: 1, hours: 0))
+    #expect(PlaytimeCompanionSpan.from(seconds: 2 * 24 * 3600 + 5 * 3600) == .daysAndHours(days: 2, hours: 5))
+}
+
 @Test func playtimeRenameAndOrphanKeepIdentity() {
     var snapshot = PlaytimeSnapshot()
     snapshot.ensureRecord(for: sampleRecord(), now: date(1))
