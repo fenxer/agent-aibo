@@ -379,6 +379,17 @@
         }
       }
     },
+    "Changelog" : {
+      "comment" : "About → Links: opens GitHub Releases.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新日志"
+          }
+        }
+      }
+    },
     "Check" : {
       "localizations" : {
         "zh-Hans" : {

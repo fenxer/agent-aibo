@@ -17,17 +17,30 @@ struct PlaytimeDebugSection: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(rows, id: \.id) { row in
-                        LabeledContent {
-                            Text(verbatim: row.detail)
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
-                        } label: {
-                            Text(verbatim: row.title)
+                        VStack(alignment: .leading, spacing: 4) {
+                            LabeledContent {
+                                Text(verbatim: row.detail)
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            } label: {
+                                Text(verbatim: row.title)
+                            }
+                            ForEach(row.days, id: \.key) { day in
+                                LabeledContent {
+                                    Text(verbatim: day.detail)
+                                        .foregroundStyle(.secondary)
+                                        .font(.caption)
+                                } label: {
+                                    Text(verbatim: day.key)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
                     }
                 }
             }
-            Text(verbatim: "Ledger is Keychain HMAC. Product surfaces stay empty until the settings design lands.")
+            Text(verbatim: "Lifetime is Keychain HMAC. Daily totals are Application Support/aibo/playtime-daily.json. Product calendar stays empty until the settings design lands.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {
@@ -50,10 +63,14 @@ struct PlaytimeDebugSection: View {
             if record.isOrphan { flags.append("orphan") }
             if let slug = record.slug, !slug.isEmpty { flags.append(slug) }
             let suffix = flags.isEmpty ? "" : " · \(flags.joined(separator: " · "))"
+            let days = store.displayedDayKeys(id: record.id, now: now).map { key in
+                DayRow(key: key, detail: Self.format(store.displayedDailySeconds(id: record.id, dayKey: key, now: now)))
+            }
             return Row(
                 id: record.id,
                 title: record.displayName,
-                detail: "\(Self.format(seconds))\(suffix)"
+                detail: "\(Self.format(seconds))\(suffix)",
+                days: days
             )
         }
     }
@@ -74,6 +91,12 @@ struct PlaytimeDebugSection: View {
     private struct Row {
         var id: String
         var title: String
+        var detail: String
+        var days: [DayRow]
+    }
+
+    private struct DayRow {
+        var key: String
         var detail: String
     }
 }

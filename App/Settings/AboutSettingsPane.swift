@@ -141,6 +141,7 @@ private struct AboutLinksSection: View {
     var body: some View {
         Section {
             AboutLinkRow(title: "Doc")
+            AboutLinkRow(title: String(localized: "Changelog"), url: AboutLinks.changelog)
             AboutLinkRow(title: "GitHub", url: AboutLinks.github)
             AboutLinkRow(title: "X", url: AboutLinks.x)
         } header: {
@@ -150,6 +151,7 @@ private struct AboutLinksSection: View {
 }
 
 private enum AboutLinks {
+    static let changelog = URL(string: "https://github.com/fenxer/agent-aibo/releases")
     static let github = URL(string: "https://github.com/fenxer/agent-aibo")
     static let x = URL(string: "https://x.com/haxfenx")
 }

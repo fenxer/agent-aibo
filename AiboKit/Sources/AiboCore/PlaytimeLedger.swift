@@ -127,9 +127,12 @@ public struct PlaytimeSnapshot: Codable, Sendable, Equatable {
             records.remove(at: collision)
             guard let rebound = records.firstIndex(where: { $0.id == existingID }) else { return }
             applyLibraryIdentity(libraryRecord, at: rebound, epoch: epoch)
-            return
+        } else {
+            applyLibraryIdentity(libraryRecord, at: index, epoch: epoch)
         }
-        applyLibraryIdentity(libraryRecord, at: index, epoch: epoch)
+        if let sessionID = openSession?.aiboID, sessionID == existingID || sessionID == libraryRecord.id {
+            openSession?.aiboID = libraryRecord.id
+        }
     }
 
     public mutating func adoptOrphan(orphanID: String, onto libraryRecord: AiboLibraryRecord, now: Date) {
@@ -140,6 +143,9 @@ public struct PlaytimeSnapshot: Codable, Sendable, Equatable {
             records[index].totalSeconds += orphanSeconds
             records[index].isOrphan = false
             records[index].updatedAtEpoch = Self.epoch(from: now)
+        }
+        if openSession?.aiboID == orphanID {
+            openSession?.aiboID = libraryRecord.id
         }
     }
 
@@ -165,14 +171,16 @@ public struct PlaytimeSnapshot: Codable, Sendable, Equatable {
         openSession = PlaytimeOpenSession(aiboID: aiboID, startedAtEpoch: Self.epoch(from: now))
     }
 
-    public mutating func endSession(now: Date) {
-        guard let session = openSession else { return }
+    @discardableResult
+    public mutating func endSession(now: Date) -> PlaytimeOpenSession? {
+        guard let session = openSession else { return nil }
         let elapsed = elapsedSeconds(since: session.startedAtEpoch, now: now)
         if let index = records.firstIndex(where: { $0.id == session.aiboID }) {
             records[index].totalSeconds += elapsed
             records[index].updatedAtEpoch = Self.epoch(from: now)
         }
         openSession = nil
+        return session
     }
 
     private mutating func applyLibraryIdentity(

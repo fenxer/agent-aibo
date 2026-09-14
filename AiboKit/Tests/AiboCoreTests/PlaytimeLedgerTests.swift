@@ -121,6 +121,79 @@ private func date(_ epoch: Int64) -> Date {
     #expect(PlaytimeCompanionSpan.from(seconds: 2 * 24 * 3600 + 5 * 3600) == .daysAndHours(days: 2, hours: 5))
 }
 
+@Test func playtimeDailySplitsAcrossLocalMidnight() {
+    let calendar = utcPlusEightCalendar()
+    let start = localDate(year: 2026, month: 9, day: 13, hour: 23, minute: 0, calendar: calendar)
+    let end = localDate(year: 2026, month: 9, day: 14, hour: 1, minute: 0, calendar: calendar)
+    let slices = PlaytimeDayAttribution.secondsByDay(from: start, to: end, calendar: calendar)
+    #expect(slices["2026-09-13"] == 3600)
+    #expect(slices["2026-09-14"] == 3600)
+    #expect(slices.values.reduce(0, +) == 7200)
+}
+
+@Test func playtimeDailySameDayAndEmptyWindow() {
+    let calendar = utcPlusEightCalendar()
+    let start = localDate(year: 2026, month: 9, day: 14, hour: 10, minute: 0, calendar: calendar)
+    let end = localDate(year: 2026, month: 9, day: 14, hour: 10, minute: 5, calendar: calendar)
+    #expect(PlaytimeDayAttribution.secondsByDay(from: start, to: end, calendar: calendar) == ["2026-09-14": 300])
+    #expect(PlaytimeDayAttribution.secondsByDay(from: end, to: start, calendar: calendar).isEmpty)
+}
+
+@Test func playtimeDailyBookRebindMergesAndShowsLiveToday() {
+    let calendar = utcPlusEightCalendar()
+    var book = PlaytimeDailyBook()
+    let start = localDate(year: 2026, month: 9, day: 13, hour: 22, minute: 0, calendar: calendar)
+    let end = localDate(year: 2026, month: 9, day: 13, hour: 23, minute: 0, calendar: calendar)
+    book.add(aiboID: "static.old", from: start, to: end, calendar: calendar)
+    book.add(aiboID: "static.new", from: start, to: end, calendar: calendar)
+    book.rebind(from: "static.old", to: "static.new")
+    #expect(book.seconds(aiboID: "static.old", dayKey: "2026-09-13") == 0)
+    #expect(book.seconds(aiboID: "static.new", dayKey: "2026-09-13") == 7200)
+
+    let sessionStart = localDate(year: 2026, month: 9, day: 14, hour: 8, minute: 0, calendar: calendar)
+    let now = localDate(year: 2026, month: 9, day: 14, hour: 8, minute: 10, calendar: calendar)
+    let session = PlaytimeOpenSession(
+        aiboID: "static.new",
+        startedAtEpoch: PlaytimeSnapshot.epoch(from: sessionStart)
+    )
+    #expect(book.displayedDayKeys(aiboID: "static.new", openSession: session, now: now, calendar: calendar) == [
+        "2026-09-14",
+        "2026-09-13",
+    ])
+    #expect(book.displayedSeconds(aiboID: "static.new", dayKey: "2026-09-14", openSession: session, now: now, calendar: calendar) == 600)
+}
+
+@Test func playtimeDailyCodecRejectsTamperedSeconds() throws {
+    var book = PlaytimeDailyBook()
+    book.daysByAiboID = ["static.nova": ["2026-09-14": 120]]
+    let data = try PlaytimeDailyCodec.encode(book)
+
+    var envelope = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    var inner = envelope["book"] as! [String: Any]
+    var days = inner["daysByAiboID"] as! [String: [String: Any]]
+    var nova = days["static.nova"] ?? [:]
+    nova["2026-09-14"] = 99_999
+    days["static.nova"] = nova
+    inner["daysByAiboID"] = days
+    envelope["book"] = inner
+    let tampered = try JSONSerialization.data(withJSONObject: envelope)
+
+    #expect(PlaytimeDailyCodec.decode(tampered) == nil)
+    #expect(PlaytimeDailyCodec.decode(data)?.seconds(aiboID: "static.nova", dayKey: "2026-09-14") == 120)
+}
+
+@Test func playtimeBindExistingRewritesOpenSessionID() {
+    var snapshot = PlaytimeSnapshot()
+    let now = date(100)
+    snapshot.ensureRecord(for: sampleRecord(id: "petdex.boba", kind: .petdex, slug: "boba", name: "Boba"), now: now)
+    snapshot.beginSession(aiboID: "petdex.boba", now: date(110))
+    let incoming = sampleRecord(id: "petdex.other", kind: .petdex, slug: "boba", name: "Boba")
+    snapshot.bindExisting(from: "petdex.boba", to: incoming, now: date(120))
+    #expect(snapshot.openSession?.aiboID == "petdex.other")
+    #expect(snapshot.record(id: "petdex.boba") == nil)
+    #expect(snapshot.record(id: "petdex.other") != nil)
+}
+
 @Test func playtimeRenameAndOrphanKeepIdentity() {
     var snapshot = PlaytimeSnapshot()
     snapshot.ensureRecord(for: sampleRecord(), now: date(1))
@@ -130,4 +203,29 @@ private func date(_ epoch: Int64) -> Date {
     snapshot.markOrphans(ids: ["static.nova"], now: date(3))
     #expect(snapshot.record(id: "static.nova")?.isOrphan == true)
     #expect(snapshot.record(id: "static.nova")?.id == "static.nova")
+}
+
+private func utcPlusEightCalendar() -> Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 8 * 3600)!
+    calendar.locale = Locale(identifier: "en_US_POSIX")
+    return calendar
+}
+
+private func localDate(
+    year: Int,
+    month: Int,
+    day: Int,
+    hour: Int,
+    minute: Int,
+    calendar: Calendar
+) -> Date {
+    var parts = DateComponents()
+    parts.year = year
+    parts.month = month
+    parts.day = day
+    parts.hour = hour
+    parts.minute = minute
+    parts.second = 0
+    return calendar.date(from: parts)!
 }

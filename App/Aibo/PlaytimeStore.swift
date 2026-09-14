@@ -11,6 +11,7 @@ final class PlaytimeStore {
     private static let lastGoodAccount = "playtime.lastGood"
 
     private(set) var snapshot = PlaytimeSnapshot()
+    private(set) var daily = PlaytimeDailyBook()
     private let power = PlaytimePowerObserver()
     private var lastGoodPersistedAt: Date?
     private var didStart = false
@@ -39,6 +40,25 @@ final class PlaytimeStore {
         snapshot.displayedSeconds(id: id, now: now)
     }
 
+    func displayedDailySeconds(id: String, dayKey: String, now: Date = Date()) -> Int {
+        daily.displayedSeconds(
+            aiboID: id,
+            dayKey: dayKey,
+            openSession: snapshot.openSession,
+            now: now,
+            calendar: .current
+        )
+    }
+
+    func displayedDayKeys(id: String, now: Date = Date()) -> [String] {
+        daily.displayedDayKeys(
+            aiboID: id,
+            openSession: snapshot.openSession,
+            now: now,
+            calendar: .current
+        )
+    }
+
     func noteSelected() {
         syncSession(persistLastGood: false)
     }
@@ -49,7 +69,11 @@ final class PlaytimeStore {
     }
 
     func noteRemoved(ids: [String]) {
-        snapshot.markOrphans(ids: ids, now: Date())
+        let now = Date()
+        if let session = snapshot.openSession, ids.contains(session.aiboID) {
+            closeOpenSession(now: now)
+        }
+        snapshot.markOrphans(ids: ids, now: now)
         persist(includingLastGood: false)
         syncSession(persistLastGood: false)
     }
@@ -58,6 +82,7 @@ final class PlaytimeStore {
         switch snapshot.decision(for: record) {
         case .bindExisting(let existingID):
             snapshot.bindExisting(from: existingID, to: record, now: Date())
+            daily.rebind(from: existingID, to: record.id)
         case .ask(let orphanID, let displayName, let totalSeconds):
             presentAdoptAlert(
                 record: record,
@@ -76,16 +101,12 @@ final class PlaytimeStore {
     }
 
     func flushForTermination() {
-        if snapshot.openSession != nil {
-            snapshot.endSession(now: Date())
-        }
+        closeOpenSession(now: Date())
         persist(includingLastGood: true)
     }
 
     private func handleSleepOrLidPause() {
-        if snapshot.openSession != nil {
-            snapshot.endSession(now: Date())
-        }
+        closeOpenSession(now: Date())
         persist(includingLastGood: true)
     }
 
@@ -102,17 +123,25 @@ final class PlaytimeStore {
         let selected = AiboLibraryStore.shared.selectedRecord
         if canAccumulate {
             if snapshot.openSession?.aiboID != selected.id {
-                if snapshot.openSession != nil {
-                    snapshot.endSession(now: now)
-                }
+                closeOpenSession(now: now)
                 snapshot.ensureRecord(for: selected, now: now)
                 snapshot.beginSession(aiboID: selected.id, now: now)
                 persist(includingLastGood: persistLastGood)
             }
         } else if snapshot.openSession != nil {
-            snapshot.endSession(now: now)
+            closeOpenSession(now: now)
             persist(includingLastGood: persistLastGood)
         }
+    }
+
+    private func closeOpenSession(now: Date) {
+        guard let session = snapshot.endSession(now: now) else { return }
+        daily.add(
+            aiboID: session.aiboID,
+            from: PlaytimeSnapshot.date(from: session.startedAtEpoch),
+            to: now,
+            calendar: .current
+        )
     }
 
     private var canAccumulate: Bool {
@@ -137,6 +166,7 @@ final class PlaytimeStore {
         let choice = alert.runModal()
         if choice == .alertFirstButtonReturn {
             snapshot.adoptOrphan(orphanID: orphanID, onto: record, now: Date())
+            daily.rebind(from: orphanID, to: record.id)
         } else {
             snapshot.ensureRecord(for: record, now: Date())
         }
@@ -151,6 +181,11 @@ final class PlaytimeStore {
     }
 
     private func load() {
+        loadSnapshot()
+        loadDaily()
+    }
+
+    private func loadSnapshot() {
         if let data = KeychainStore.data(forAccount: Self.currentAccount),
            let loaded = PlaytimeCodec.decode(data)
         {
@@ -171,12 +206,55 @@ final class PlaytimeStore {
         }
     }
 
+    private func loadDaily() {
+        if let data = try? Data(contentsOf: AiboPaths.playtimeDailyURL),
+           let loaded = PlaytimeDailyCodec.decode(data)
+        {
+            daily = loaded
+            if (try? Data(contentsOf: AiboPaths.playtimeDailyLastGoodURL))
+                .flatMap(PlaytimeDailyCodec.decode) != nil
+            {
+                lastGoodPersistedAt = lastGoodPersistedAt ?? Date()
+            }
+            return
+        }
+        if let backup = try? Data(contentsOf: AiboPaths.playtimeDailyLastGoodURL),
+           let loaded = PlaytimeDailyCodec.decode(backup)
+        {
+            daily = loaded
+            writeDailyFile(backup, to: AiboPaths.playtimeDailyURL)
+            lastGoodPersistedAt = lastGoodPersistedAt ?? Date()
+        }
+    }
+
     private func persist(includingLastGood: Bool) {
-        guard let data = try? PlaytimeCodec.encode(snapshot) else { return }
-        try? KeychainStore.setData(data, forAccount: Self.currentAccount)
-        if includingLastGood || shouldRefreshLastGood() {
-            try? KeychainStore.setData(data, forAccount: Self.lastGoodAccount)
+        let refreshLastGood = includingLastGood || shouldRefreshLastGood()
+        if let data = try? PlaytimeCodec.encode(snapshot) {
+            try? KeychainStore.setData(data, forAccount: Self.currentAccount)
+            if refreshLastGood {
+                try? KeychainStore.setData(data, forAccount: Self.lastGoodAccount)
+            }
+        }
+        if let data = try? PlaytimeDailyCodec.encode(daily) {
+            writeDailyFile(data, to: AiboPaths.playtimeDailyURL)
+            if refreshLastGood {
+                writeDailyFile(data, to: AiboPaths.playtimeDailyLastGoodURL)
+            }
+        }
+        if refreshLastGood {
             lastGoodPersistedAt = Date()
+        }
+    }
+
+    private func writeDailyFile(_ data: Data, to url: URL) {
+        do {
+            try FileManager.default.createDirectory(
+                at: AiboPaths.applicationSupportDirectory,
+                withIntermediateDirectories: true
+            )
+            try data.write(to: url, options: .atomic)
+        } catch {
+            // Next persist retries. Do not rewrite last-good from a failed current write.
         }
     }
 

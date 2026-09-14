@@ -7,6 +7,8 @@ public enum AiboPaths: Sendable {
     public static let queueDirectoryName = "queue"
     public static let receiveLogFileName = "receive-log.jsonl"
     public static let ingestLogFileName = "ingest-log.jsonl"
+    public static let playtimeDailyFileName = "playtime-daily.json"
+    public static let playtimeDailyLastGoodFileName = "playtime-daily.last-good.json"
 
     public static var applicationSupportDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -28,6 +30,14 @@ public enum AiboPaths: Sendable {
 
     public static var ingestLogURL: URL {
         applicationSupportDirectory.appendingPathComponent(ingestLogFileName, isDirectory: false)
+    }
+
+    public static var playtimeDailyURL: URL {
+        applicationSupportDirectory.appendingPathComponent(playtimeDailyFileName, isDirectory: false)
+    }
+
+    public static var playtimeDailyLastGoodURL: URL {
+        applicationSupportDirectory.appendingPathComponent(playtimeDailyLastGoodFileName, isDirectory: false)
     }
 
     /// Pre-rename folder. `migrateLegacyLibraryDirectoryIfNeeded` moves this to `aibos`.
