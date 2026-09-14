@@ -169,21 +169,25 @@ struct AiboView: View {
     private var positionedContent: some View {
         switch placement {
         case .top:
-            VStack(spacing: aiboBubbleSpacing) {
-                if showsBubbles {
-                    fadingBubbleStack(nearPetIndex: bubbleItems.count - 1)
+            // Overlay — not a pet+stack VStack. Insert/remove (and the
+            // removal `withAnimation`) would reflow that VStack and slide
+            // the aibo; the panel then snaps it back. Same idea as
+            // `sideAnchoredBubbleStack`: layout is the pet, stack draws away.
+            aiboImage
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .overlay(alignment: .bottom) {
+                    if showsBubbles {
+                        verticallyAnchoredBubbleStack(growsUpward: true)
+                    }
                 }
-                aiboImage
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         case .bottom:
-            VStack(spacing: aiboBubbleSpacing) {
-                aiboImage
-                if showsBubbles {
-                    fadingBubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0)
+            aiboImage
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .overlay(alignment: .top) {
+                    if showsBubbles {
+                        verticallyAnchoredBubbleStack(growsUpward: false)
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         case .left:
             HStack(alignment: .center, spacing: aiboBubbleSpacing) {
                 if showsBubbles {
@@ -286,6 +290,38 @@ struct AiboView: View {
         // Warning dismiss is handled beside SettingsLink so we don't double-fire.
         guard item.kind != .warning, item.isDismissible else { return nil }
         return { AiboRuntime.shared.dismissBubble(id: item.id) }
+    }
+
+    /// Top: stack above the pet, growing up. Bottom: stack below, growing down.
+    /// The clear spacer holds the pet's slot so bubbles don't cover it; hit
+    /// testing stays off so drag / click still land on the sprite.
+    ///
+    /// `fixedSize` + edge-aligned frame keeps extra panel slack on the far
+    /// side of the stack. Without that, a flexible VStack packs from the top
+    /// and the pet (or the near bubble) walks whenever height estimates differ.
+    @ViewBuilder
+    private func verticallyAnchoredBubbleStack(growsUpward: Bool) -> some View {
+        let spacer = Color.clear
+            .frame(width: 1, height: aiboLayoutSize.height)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        VStack(spacing: aiboBubbleSpacing) {
+            if growsUpward {
+                fadingBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                    .fixedSize(horizontal: false, vertical: true)
+                spacer
+            } else {
+                spacer
+                fadingBubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: growsUpward ? .bottom : .top
+        )
     }
 
     /// Keeps the near-pet (arrow) bubble vertically centered with the aibo;
