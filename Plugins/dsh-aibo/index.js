@@ -5,6 +5,10 @@
  * to aibo's Unix socket. Waterfalls always call `next()`; emit/serial
  * listeners never throw. Fail-open: socket errors go to aibo's queue.
  *
+ * One event is one connection, and every connection ends — either after the
+ * line is flushed or at a hard deadline. A socket left half-open would sit in
+ * aibo's listener for as long as this process lives.
+ *
  * @see https://deepseek-harness.github.io/deepseek-harness/reference/cookbook/extension-cookbook
  */
 import { homedir } from 'node:os'
@@ -20,8 +24,20 @@ const SOCKET_NAME = 'aibo.sock'
 const QUEUE_DIR_NAME = 'queue'
 const MAX_QUEUE_FILES = 200
 const MAX_QUEUE_BYTES = 5 * 1024 * 1024
+const DELIVERY_DEADLINE_MS = 2000
+
+/**
+ * DSH's `todo_write` is the same checklist Codex calls `update_plan`: a
+ * whole-list replacement with `pending` / `in_progress` / `completed` steps.
+ * aibo already renders that shape as the capsule to-do ring, so translate the
+ * name and the `todos` array into it instead of teaching aibo a second dialect.
+ */
+const TODO_TOOL_NAME = 'todo_write'
+const PLAN_TOOL_NAME = 'update_plan'
 
 const planBySession = new Map()
+/** Latest model each session asked for, learned from its `request/header` events. */
+const modelBySession = new Map()
 
 export function apply(ctx) {
   const support = join(homedir(), 'Library', 'Application Support', 'aibo')
@@ -38,21 +54,31 @@ export function apply(ctx) {
 
   ctx.on('session/event', (session, event) => {
     try {
-      if (event?.type !== 'plan/mode') return
       const id = sessionIdOf(session)
+      // The session header carries no model; the request header does, and the
+      // loop logs a fresh one whenever the user switches models mid-session.
+      if (event?.type === 'request/header') {
+        const model = modelFromRequestHeader(event)
+        if (id && model) modelBySession.set(id, model)
+      }
+      if (event?.type !== 'plan/mode') return
       if (!id) return
       if (event.data?.active === true) planBySession.set(id, true)
       else planBySession.delete(id)
     } catch {
-      // Observing plan/mode must never affect the session log consumer.
+      // Observing the session log must never affect other log consumers.
     }
   })
 
   ctx.on('agent/session-start', ({ agent, source }) => {
     try {
+      // DSH resumes every session that was live when the process last exited,
+      // and opening an old conversation resumes it too. Neither is work
+      // starting, so only a genuinely new session becomes a bubble.
+      if (source !== 'startup') return
       emit('SessionStart', {
         ...base(ctx, agent),
-        source: source ?? 'unknown',
+        source,
       })
     } catch {
       // SessionStart is emit-shaped; aibo is optional.
@@ -170,19 +196,35 @@ function base(ctx, agent) {
     session_id: id || '',
     transcript_path: transcriptPath,
     cwd,
-    model: modelOf(header),
+    model: modelOf(header) || (id ? modelBySession.get(id) : '') || '',
     permission_mode: id && planBySession.get(id) ? 'plan' : 'default',
   }
 }
 
 function toolPayload(ctx, exec) {
   const args = exec?.arguments
+  const plan = typeof exec?.name === 'string' && exec.name === TODO_TOOL_NAME
+    ? planInputFromTodoArguments(args)
+    : null
   return {
     ...base(ctx, exec?.agent),
-    tool_name: typeof exec?.name === 'string' ? exec.name : 'tool',
-    tool_input: args && typeof args === 'object' ? args : {},
+    tool_name: plan ? PLAN_TOOL_NAME : (typeof exec?.name === 'string' ? exec.name : 'tool'),
+    tool_input: plan ?? (args && typeof args === 'object' ? args : {}),
     tool_use_id: exec?.callId,
   }
+}
+
+/** Codex `update_plan` input shape (`{ plan: [{ step, status }] }`), or null when unusable. */
+function planInputFromTodoArguments(args) {
+  if (!args || !Array.isArray(args.todos)) return null
+  const plan = []
+  for (const todo of args.todos) {
+    if (!todo || typeof todo.content !== 'string') continue
+    const step = todo.content.trim()
+    if (step.length === 0) continue
+    plan.push({ step, status: todo.status })
+  }
+  return plan.length > 0 ? { plan } : null
 }
 
 function sessionIdOf(session) {
@@ -206,6 +248,12 @@ function modelOf(header) {
   return ''
 }
 
+/** Model id from a logged `request/header` event (`data.header.config.model`). */
+function modelFromRequestHeader(event) {
+  const model = event?.data?.header?.config?.model
+  return typeof model === 'string' ? model.trim() : ''
+}
+
 function textFromMessages(messages) {
   if (!Array.isArray(messages)) return ''
   return messages.map((message) => textFromBlocks(message?.content)).join('')
@@ -224,25 +272,37 @@ function sendLine(socketPath, queueDir, payload) {
   const buffer = Buffer.from(line)
   const socket = createConnection(socketPath)
   let settled = false
-  const fail = () => {
+
+  const deliver = () => {
     if (settled) return
     settled = true
+    clearTimeout(deadline)
+    socket.end()
+  }
+
+  const fallback = () => {
+    if (settled) return
+    settled = true
+    clearTimeout(deadline)
     socket.destroy()
     enqueue(queueDir, buffer)
   }
-  socket.setTimeout(250)
+
+  // `connect` and the write callback are the only two ways this finishes. If
+  // neither arrives, the deadline closes the socket and queues the line, so a
+  // stalled harness can never hold aibo's listener open.
+  const deadline = setTimeout(fallback, DELIVERY_DEADLINE_MS)
+
   socket.once('connect', () => {
     socket.write(buffer, (error) => {
       if (error) {
-        fail()
+        fallback()
         return
       }
-      settled = true
-      socket.end()
+      deliver()
     })
   })
-  socket.once('error', fail)
-  socket.once('timeout', fail)
+  socket.once('error', fallback)
 }
 
 function enqueue(queueDir, buffer) {

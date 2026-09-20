@@ -1299,7 +1299,7 @@ final class AiboRuntime {
                     isDismissible: snapshot.activity == .failed,
                     animatesEllipsis: !showsAttentionCTA && Self.animatesEllipsis(for: snapshot.activity),
                     isAwaitingApproval: showsAttentionCTA,
-                    agentName: isSubagent ? "Subagent" : StatusCopy.displayName(key.agent),
+                    agentName: isSubagent ? "Subagent" : StatusCopy.capsuleName(key.agent),
                     iconAssetName: Self.iconAssetName(for: key.agent),
                     projectName: meta?.projectName,
                     modelName: meta?.modelName,

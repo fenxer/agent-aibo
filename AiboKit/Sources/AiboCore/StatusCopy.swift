@@ -174,4 +174,13 @@ public enum StatusCopy {
         case .deepseek: "DeepSeek Harness"
         }
     }
+
+    /// Name printed on the bubble capsule. Settings still spell the agent out;
+    /// the capsule is width-constrained, so a long name steals room from the status.
+    public static func capsuleName(_ agent: AgentKind) -> String {
+        switch agent {
+        case .cursor, .codex: displayName(agent)
+        case .deepseek: "DSH"
+        }
+    }
 }

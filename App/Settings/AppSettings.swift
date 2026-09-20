@@ -40,6 +40,8 @@ final class AppSettings {
         static let deepseekCapsuleColor = "settings.agentCapsuleColor.deepseek"
         static let codexPlanProgressShaderEnabled = "settings.planProgressShaderEnabled.codex"
         static let codexPlanProgressShaderPrimary = "settings.planProgressShaderPrimary.codex"
+        static let deepseekPlanProgressShaderEnabled = "settings.planProgressShaderEnabled.deepseek"
+        static let deepseekPlanProgressShaderPrimary = "settings.planProgressShaderPrimary.deepseek"
         static let aiboScalePercent = "settings.aiboScalePercent"
         static let restoreLastAiboPosition = "settings.restoreLastAiboPosition"
         static let hideWhenFullscreen = "settings.hideWhenFullscreen"
@@ -252,6 +254,30 @@ final class AppSettings {
         }
     }
 
+    /// DeepSeek plasma fill behind to-do progress. Default on, matching Codex.
+    var deepseekPlanProgressShaderEnabled: Bool {
+        didSet {
+            guard oldValue != deepseekPlanProgressShaderEnabled else { return }
+            UserDefaults.standard.set(
+                deepseekPlanProgressShaderEnabled,
+                forKey: Keys.deepseekPlanProgressShaderEnabled
+            )
+            AiboPanelController.shared.refreshContent()
+        }
+    }
+
+    /// Custom DeepSeek shader primary, or `nil` for `defaultPlanProgressShaderPrimary`.
+    var deepseekPlanProgressShaderPrimary: Color? {
+        didSet {
+            guard oldValue != deepseekPlanProgressShaderPrimary else { return }
+            Self.persistColor(
+                deepseekPlanProgressShaderPrimary,
+                key: Keys.deepseekPlanProgressShaderPrimary
+            )
+            AiboPanelController.shared.refreshContent()
+        }
+    }
+
     /// Cursor bubble glass. Seeded from the former global style when unset.
     var cursorBubbleGlassStyle: BubbleGlassStyle {
         didSet {
@@ -431,6 +457,16 @@ final class AppSettings {
             codexPlanProgressShaderEnabled = true
         }
         codexPlanProgressShaderPrimary = Self.loadColor(key: Keys.codexPlanProgressShaderPrimary)
+        if UserDefaults.standard.object(forKey: Keys.deepseekPlanProgressShaderEnabled) != nil {
+            deepseekPlanProgressShaderEnabled = UserDefaults.standard.bool(
+                forKey: Keys.deepseekPlanProgressShaderEnabled
+            )
+        } else {
+            deepseekPlanProgressShaderEnabled = true
+        }
+        deepseekPlanProgressShaderPrimary = Self.loadColor(
+            key: Keys.deepseekPlanProgressShaderPrimary
+        )
 
         if UserDefaults.standard.object(forKey: Keys.restoreLastAiboPosition) != nil {
             restoreLastAiboPosition = UserDefaults.standard.bool(forKey: Keys.restoreLastAiboPosition)
@@ -556,21 +592,24 @@ final class AppSettings {
         guard agent.supportsPlanProgress else { return false }
         switch agent {
         case .codex: return codexPlanProgressShaderEnabled
-        case .cursor, .deepseek: return false
+        case .deepseek: return deepseekPlanProgressShaderEnabled
+        case .cursor: return false
         }
     }
 
     func setPlanProgressShaderEnabled(_ enabled: Bool, for agent: AgentKind) {
         switch agent {
         case .codex: codexPlanProgressShaderEnabled = enabled
-        case .cursor, .deepseek: break
+        case .deepseek: deepseekPlanProgressShaderEnabled = enabled
+        case .cursor: break
         }
     }
 
     func planProgressShaderPrimary(for agent: AgentKind) -> Color? {
         switch agent {
         case .codex: codexPlanProgressShaderPrimary
-        case .cursor, .deepseek: nil
+        case .deepseek: deepseekPlanProgressShaderPrimary
+        case .cursor: nil
         }
     }
 
@@ -581,7 +620,8 @@ final class AppSettings {
     func setPlanProgressShaderPrimary(_ color: Color?, for agent: AgentKind) {
         switch agent {
         case .codex: codexPlanProgressShaderPrimary = color
-        case .cursor, .deepseek: break
+        case .deepseek: deepseekPlanProgressShaderPrimary = color
+        case .cursor: break
         }
     }
 

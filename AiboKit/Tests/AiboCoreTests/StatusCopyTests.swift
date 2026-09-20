@@ -85,3 +85,11 @@ import Testing
             == "Submitted prompt and started thinking (e.g. is planning in plan mode)"
     )
 }
+
+@Test func statusCopyCapsuleNameShortensDeepSeekHarness() {
+    // The capsule is width-constrained: the full name only belongs in Settings.
+    #expect(StatusCopy.capsuleName(.deepseek) == "DSH")
+    #expect(StatusCopy.displayName(.deepseek) == "DeepSeek Harness")
+    #expect(StatusCopy.capsuleName(.cursor) == "Cursor")
+    #expect(StatusCopy.capsuleName(.codex) == "Codex")
+}

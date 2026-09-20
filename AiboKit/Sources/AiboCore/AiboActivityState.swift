@@ -5,9 +5,14 @@ public enum AgentKind: String, Sendable, Codable, CaseIterable {
     case codex
     case deepseek
 
-    /// Agents that can show `update_plan` progress in the capsule.
+    /// Agents that can show checklist progress in the capsule: Codex `update_plan`
+    /// and DeepSeek Harness `todo_write`, which the observe plugin normalizes into
+    /// the same shape.
     public var supportsPlanProgress: Bool {
-        self == .codex
+        switch self {
+        case .codex, .deepseek: true
+        case .cursor: false
+        }
     }
 }
 

@@ -365,7 +365,6 @@ private struct AgentHookBubblePreview: View {
             }
             .labelsHidden()
             .modifier(AgentHookPreviewPickerStyle())
-            .environment(\.colorScheme, .light)
             .frame(width: agent.supportsPlanProgress ? 252 : 180)
             .padding(.bottom, 8)
         }
@@ -383,7 +382,7 @@ private struct AgentHookBubblePreview: View {
             text: StatusCopy.statusPhrase(for: .thinking) ?? "is thinking",
             lastEventAt: .now,
             animatesEllipsis: true,
-            agentName: isSubagent ? "Subagent" : StatusCopy.displayName(agent),
+            agentName: isSubagent ? "Subagent" : StatusCopy.capsuleName(agent),
             iconAssetName: agent.settingsIconAssetName,
             projectName: "PROJECT",
             modelName: "model-name",

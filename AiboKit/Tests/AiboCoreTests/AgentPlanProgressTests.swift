@@ -39,3 +39,9 @@ import Testing
 @Test func planProgressRejectsEmptyStatuses() {
     #expect(AgentPlanProgress.fromPlanStatuses([]) == nil)
 }
+
+@Test func planProgressIsSupportedByCodexAndDeepSeekOnly() {
+    #expect(AgentKind.codex.supportsPlanProgress)
+    #expect(AgentKind.deepseek.supportsPlanProgress)
+    #expect(AgentKind.cursor.supportsPlanProgress == false)
+}

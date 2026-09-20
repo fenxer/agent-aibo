@@ -84,6 +84,28 @@ import Testing
     #expect(parsed?.planProgress == AgentPlanProgress(current: 2, total: 3, completed: 1))
 }
 
+@Test func parserShowsDeepSeekTodoWriteAsPlanningProgress() throws {
+    // The observe plugin normalizes DSH `todo_write` into the Codex `update_plan`
+    // shape, so the capsule ring and “is planning” copy work for DeepSeek too.
+    let line = """
+    {"aibo_agent":"deepseek","session_id":"ses_1","hook_event_name":"PreToolUse","tool_name":"update_plan","tool_input":{"plan":[{"step":"Parse hooks","status":"completed"},{"step":"Show ring","status":"in_progress"}]}}
+    """
+    let parsed = try HookLineParser.parse(jsonLine: line)
+    #expect(parsed?.session.agent == .deepseek)
+    #expect(parsed?.transition == .apply(.thinking))
+    #expect(parsed?.prefersPlanningCopy == true)
+    #expect(parsed?.planProgress == AgentPlanProgress(current: 2, total: 2, completed: 1))
+}
+
+@Test func parserKeepsDeepSeekTodoWriteWithoutTodosAsPlainTool() throws {
+    let line = """
+    {"aibo_agent":"deepseek","session_id":"ses_1","hook_event_name":"PreToolUse","tool_name":"todo_write","tool_input":{"todos":[]}}
+    """
+    let parsed = try HookLineParser.parse(jsonLine: line)
+    #expect(parsed?.transition == .apply(.usingTool("todo_write")))
+    #expect(parsed?.planProgress == nil)
+}
+
 @Test func parserLogsMissingUpdatePlanToolInput() throws {
     let line = """
     {"session_id":"thr_123","hook_event_name":"PreToolUse","tool_name":"update_plan"}

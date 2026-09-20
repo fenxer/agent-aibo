@@ -40,6 +40,8 @@ Config/ExportOptions-DeveloperID.plist
 /output/
 **/__pycache__/
 
+/.workers/
+
 # macOS
 .DS_Store
 
@@ -50,4 +52,3 @@ Config/ExportOptions-DeveloperID.plist
 AGENTS.md
 AGENTS_LEARNED.md
 PLANS.md
-
