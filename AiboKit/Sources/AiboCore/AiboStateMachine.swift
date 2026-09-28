@@ -90,6 +90,8 @@ public enum AiboStateMachine {
     ) {
         for (key, snapshot) in state.sessions {
             guard snapshot.activity != .idle else { continue }
+            // `ask_user_question` stays up until the user answers or dismisses it.
+            if snapshot.activity.waitsForUserReply { continue }
             if at.timeIntervalSince(snapshot.lastEventAt) >= timeout {
                 state.sessions[key] = SessionSnapshot(
                     activity: .idle,

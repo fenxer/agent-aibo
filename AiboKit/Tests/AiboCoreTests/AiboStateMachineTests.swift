@@ -182,6 +182,38 @@ import Testing
     #expect(state.sessions[key]?.activity == .idle)
 }
 
+@Test func askUserQuestionSurvivesWatchdogUntilALaterHook() {
+    let key = SessionKey(agent: .deepseek, conversationID: "dsh")
+    let t0 = Date(timeIntervalSince1970: 5_000)
+    var state = AiboWorldState()
+    state = AiboStateMachine.reduce(
+        state,
+        event: .agent(
+            session: key,
+            transition: .apply(.usingTool("ask_user_question")),
+            at: t0
+        )
+    )
+    #expect(state.sessions[key]?.activity.waitsForUserReply == true)
+    #expect(state.sessions[key]?.idleAt == nil)
+
+    state = AiboStateMachine.reduce(
+        state,
+        event: .watchdog(at: t0.addingTimeInterval(60 * 30), timeout: 120)
+    )
+    #expect(state.sessions[key]?.activity == .usingTool("ask_user_question"))
+
+    state = AiboStateMachine.reduce(
+        state,
+        event: .agent(session: key, transition: .apply(.thinking), at: t0.addingTimeInterval(60 * 31))
+    )
+    state = AiboStateMachine.reduce(
+        state,
+        event: .watchdog(at: t0.addingTimeInterval(60 * 33), timeout: 120)
+    )
+    #expect(state.sessions[key]?.activity == .idle)
+}
+
 @Test func cursorUsingToolStallHintOnlyForCursorUsingToolAfterDelay() {
     let t0 = Date(timeIntervalSince1970: 3_000)
     #expect(AiboStateMachine.cursorUsingToolStallDelay == 10)

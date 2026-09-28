@@ -1508,7 +1508,9 @@ final class AiboRuntime {
                     text: text,
                     lastEventAt: snapshot.lastEventAt,
                     isDismissible: snapshot.activity == .failed,
-                    animatesEllipsis: !showsAttentionCTA && Self.animatesEllipsis(for: snapshot.activity),
+                    animatesEllipsis: !showsAttentionCTA
+                        && !snapshot.activity.waitsForUserReply
+                        && Self.animatesEllipsis(for: snapshot.activity),
                     isAwaitingApproval: showsAttentionCTA,
                     agentName: isSubagent ? "Subagent" : StatusCopy.capsuleName(key.agent),
                     iconAssetName: Self.iconAssetName(for: key.agent),

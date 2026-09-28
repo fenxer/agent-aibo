@@ -46,6 +46,8 @@ import Testing
     #expect(StatusCopy.needsYourApprovalPhrase == "got stuck?")
     #expect(StatusCopy.stuckPhrase == "got stuck?")
     #expect(StatusCopy.planningPhrase == "is planning")
+    #expect(StatusCopy.statusPhrase(for: .usingTool("ask_user_question")) == "is asking")
+    #expect(StatusCopy.statusPhrase(for: .usingTool("Ask_User_Question")) == "is asking")
     #expect(
         StatusCopy.exampleBubblePhrase(agent: .codex, hookEventName: "Stop") == "finished"
     )

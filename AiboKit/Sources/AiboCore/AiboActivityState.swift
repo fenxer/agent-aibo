@@ -34,6 +34,14 @@ public enum AiboActivityState: Equatable, Sendable, Codable {
         default: false
         }
     }
+
+    /// DeepSeek Harness `ask_user_question`. The turn is blocked until the user
+    /// answers, so silence must not clear the bubble. A later hook (the answer's
+    /// `PostToolUse`) or a manual dismiss is what ends it.
+    public var waitsForUserReply: Bool {
+        guard case .usingTool(let name) = self else { return false }
+        return name.caseInsensitiveCompare("ask_user_question") == .orderedSame
+    }
 }
 
 public struct SessionKey: Hashable, Sendable, Codable {

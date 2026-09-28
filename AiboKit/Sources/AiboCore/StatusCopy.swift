@@ -27,6 +27,9 @@ public enum StatusCopy {
         case .thinking:
             return "is thinking"
         case let .usingTool(name):
+            if activity.waitsForUserReply {
+                return "is asking"
+            }
             return "is using \(name)"
         case .responding:
             return "is responding"

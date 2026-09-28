@@ -167,6 +167,7 @@ public enum PetdexSpriteStateMapper {
         case .thinking, .registered, .responding:
             return .jumping
         case .usingTool(let name):
+            if activity.waitsForUserReply { return .waiting }
             return isReviewTool(name) ? .review : .running
         case .waiting:
             return .waiting

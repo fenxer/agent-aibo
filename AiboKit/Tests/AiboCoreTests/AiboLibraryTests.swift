@@ -581,6 +581,7 @@ import Testing
     #expect(PetdexSpriteStateMapper.state(for: .thinking) == .jumping)
     #expect(PetdexSpriteStateMapper.state(for: .usingTool("Read")) == .review)
     #expect(PetdexSpriteStateMapper.state(for: .usingTool("Shell")) == .running)
+    #expect(PetdexSpriteStateMapper.state(for: .usingTool("ask_user_question")) == .waiting)
     #expect(PetdexSpriteStateMapper.state(for: .waiting) == .waiting)
     #expect(PetdexSpriteStateMapper.state(for: .failed) == .failed)
     #expect(PetdexSpriteStateMapper.state(for: .done) == .waving)
@@ -629,6 +630,15 @@ import Testing
     #expect(HookSpriteMapping.configurableHooks(for: .deepseek).contains("PermissionRequest"))
     #expect(
         HookSpriteMapping.defaultSprite(agent: .deepseek, hookEventName: "PreToolUse") == .running
+    )
+    file.deepseek["PreToolUse"] = PetdexSpriteState.running.rawValue
+    #expect(
+        HookSpriteMapping.resolve(
+            agent: .deepseek,
+            hookEventName: "PreToolUse",
+            activity: .usingTool("ask_user_question"),
+            overrides: file
+        ) == .waiting
     )
 }
 

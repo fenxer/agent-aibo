@@ -58,6 +58,10 @@ public enum HookSpriteMapping {
         if activity == .idle {
             return .idle
         }
+        // Blocked on the user's answer. Don't inherit the PreToolUse "running" pose.
+        if activity.waitsForUserReply {
+            return .waiting
+        }
         let lookupEvent = spriteEventName(
             agent: agent,
             hookEventName: hookEventName,

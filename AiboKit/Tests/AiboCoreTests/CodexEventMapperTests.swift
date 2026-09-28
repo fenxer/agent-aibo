@@ -9,6 +9,13 @@ import Testing
             == .apply(.usingTool("Bash"))
     )
     #expect(
+        CodexEventMapper.transition(
+            eventName: "PreToolUse",
+            toolName: "ask_user_question",
+            agent: .deepseek
+        ) == .apply(.usingTool("ask_user_question"))
+    )
+    #expect(
         CodexEventMapper.transition(eventName: "PreToolUse", toolName: "request_permissions")
             == .apply(.waiting)
     )
