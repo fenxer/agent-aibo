@@ -6,7 +6,8 @@ public enum CodexEventMapper {
         eventName: String,
         toolName: String? = nil,
         permissionMode: String? = nil,
-        agent: AgentKind = .codex
+        agent: AgentKind = .codex,
+        command: String? = nil
     ) -> StateTransition? {
         let isPlanMode = Self.isPlanMode(permissionMode)
         switch eventName {
@@ -28,7 +29,12 @@ public enum CodexEventMapper {
         case "PostToolUse":
             return .apply(.thinking)
         case "PermissionRequest":
-            // Includes ExitPlanMode and shell/file prompts — same wait state.
+            // Command approvals (Bash / apply_patch) all carry `tool_input.command`.
+            // That shape is a normal command, including when Codex auto-reviews it.
+            // Asks without a command (ExitPlanMode, request_permissions) stay waiting.
+            if agent == .codex, isCommandPermissionRequest(toolName: toolName, command: command) {
+                return .apply(.usingTool(displayedToolName(toolName)))
+            }
             return .apply(.waiting)
         case "Stop", "SubagentStop":
             return .apply(.done)
@@ -68,5 +74,29 @@ public enum CodexEventMapper {
         guard let toolName else { return false }
         return toolName.caseInsensitiveCompare("request_permissions") == .orderedSame
             || toolName.caseInsensitiveCompare("RequestPermissions") == .orderedSame
+    }
+
+    /// Shared shape of the sampled command approvals: a concrete `tool_input.command`.
+    /// Prompt tools stay on request even if a command string is also present.
+    private static func isCommandPermissionRequest(toolName: String?, command: String?) -> Bool {
+        if isUserPromptTool(toolName) { return false }
+        let trimmed = command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !trimmed.isEmpty
+    }
+
+    private static func isUserPromptTool(_ toolName: String?) -> Bool {
+        guard let toolName else { return false }
+        if isRequestPermissionsTool(toolName) { return true }
+        switch toolName.lowercased() {
+        case "exitplanmode", "exit_plan_mode", "request_user_input":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func displayedToolName(_ toolName: String?) -> String {
+        let trimmed = toolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? "tool" : trimmed
     }
 }

@@ -37,7 +37,8 @@ public enum CodexHookParser {
             eventName: eventName,
             toolName: toolName,
             permissionMode: permissionMode,
-            agent: agent
+            agent: agent,
+            command: commandText(from: payload)
         ) else {
             return nil
         }
@@ -49,8 +50,10 @@ public enum CodexHookParser {
         )
 
         // Codex only: surface the tool under review. DeepSeek keeps generic waiting copy.
+        // Command-shaped approvals are `.usingTool` and do not carry a waiting name.
         let waitingToolName: String? = {
             guard agent == .codex, eventName == "PermissionRequest" else { return nil }
+            guard case .apply(.waiting) = transition else { return nil }
             let trimmed = toolName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return trimmed.isEmpty ? nil : trimmed
         }()
@@ -72,5 +75,13 @@ public enum CodexHookParser {
             ),
             waitingToolName: waitingToolName
         )
+    }
+
+    /// `tool_input.command` on Bash / apply_patch permission hooks.
+    private static func commandText(from payload: [String: Any]) -> String? {
+        guard let input = payload["tool_input"] as? [String: Any] else { return nil }
+        guard let command = input["command"] as? String else { return nil }
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

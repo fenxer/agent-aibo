@@ -589,6 +589,22 @@ import Testing
 @Test func hookSpriteMappingDefaultsAndOverrides() {
     #expect(HookSpriteMapping.defaultSprite(agent: .cursor, hookEventName: "preToolUse") == .running)
     #expect(HookSpriteMapping.defaultSprite(agent: .codex, hookEventName: "PermissionRequest") == .waiting)
+    #expect(
+        HookSpriteMapping.resolve(
+            agent: .codex,
+            hookEventName: "PermissionRequest",
+            activity: .usingTool("Bash"),
+            overrides: HookSpriteMappingFile()
+        ) == .running
+    )
+    #expect(
+        HookSpriteMapping.resolve(
+            agent: .codex,
+            hookEventName: "PermissionRequest",
+            activity: .waiting,
+            overrides: HookSpriteMappingFile()
+        ) == .waiting
+    )
 
     var file = HookSpriteMappingFile()
     file.cursor["preToolUse"] = PetdexSpriteState.review.rawValue

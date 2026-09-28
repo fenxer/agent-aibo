@@ -22,6 +22,39 @@ import Testing
     #expect(CodexEventMapper.transition(eventName: "PostToolUse") == .apply(.thinking))
     #expect(CodexEventMapper.transition(eventName: "SubagentStart") == .apply(.thinking))
     #expect(CodexEventMapper.transition(eventName: "PermissionRequest") == .apply(.waiting))
+    #expect(
+        CodexEventMapper.transition(
+            eventName: "PermissionRequest",
+            toolName: "Bash",
+            permissionMode: "default",
+            command: "xcodebuild -project aibo.xcodeproj -scheme aibo build"
+        ) == .apply(.usingTool("Bash"))
+    )
+    #expect(
+        CodexEventMapper.transition(
+            eventName: "PermissionRequest",
+            toolName: "apply_patch",
+            permissionMode: "default",
+            command: "*** Begin Patch"
+        ) == .apply(.usingTool("apply_patch"))
+    )
+    #expect(
+        CodexEventMapper.transition(
+            eventName: "PermissionRequest",
+            toolName: "Bash",
+            permissionMode: "default",
+            command: "   "
+        ) == .apply(.waiting)
+    )
+    #expect(
+        CodexEventMapper.transition(
+            eventName: "PermissionRequest",
+            toolName: "Bash",
+            permissionMode: "default",
+            agent: .deepseek,
+            command: "echo hi"
+        ) == .apply(.waiting)
+    )
     #expect(CodexEventMapper.transition(eventName: "Stop") == .apply(.done))
     #expect(CodexEventMapper.transition(eventName: "SubagentStop") == .apply(.done))
     #expect(CodexEventMapper.transition(eventName: "SessionEnd") == .removeSession)
@@ -51,7 +84,8 @@ import Testing
         CodexEventMapper.transition(
             eventName: "PermissionRequest",
             toolName: "ExitPlanMode",
-            permissionMode: "plan"
+            permissionMode: "plan",
+            command: "exit plan"
         ) == .apply(.waiting)
     )
     #expect(

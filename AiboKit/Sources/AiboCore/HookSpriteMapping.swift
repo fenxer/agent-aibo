@@ -58,23 +58,43 @@ public enum HookSpriteMapping {
         if activity == .idle {
             return .idle
         }
-        if let hookEventName,
-           let raw = overrideRaw(agent: agent, hookEventName: hookEventName, file: overrides),
+        let lookupEvent = spriteEventName(
+            agent: agent,
+            hookEventName: hookEventName,
+            activity: activity
+        )
+        if let lookupEvent,
+           let raw = overrideRaw(agent: agent, hookEventName: lookupEvent, file: overrides),
            let sprite = PetdexSpriteState(rawValue: raw)
         {
             return sprite
         }
-        if let hookEventName {
-            if agent == .cursor, hookEventName == "stop" {
+        if let lookupEvent {
+            if agent == .cursor, lookupEvent == "stop" {
                 switch activity {
                 case .failed: return .failed
                 case .interrupted: return .waving
                 default: return .waving
                 }
             }
-            return defaultSprite(agent: agent, hookEventName: hookEventName)
+            return defaultSprite(agent: agent, hookEventName: lookupEvent)
         }
         return PetdexSpriteStateMapper.state(for: activity)
+    }
+
+    /// Auto-approved Codex `PermissionRequest` is a normal command (`.usingTool`).
+    /// Use the `PreToolUse` pose so the pet does not sit in the approval wait.
+    private static func spriteEventName(
+        agent: AgentKind,
+        hookEventName: String?,
+        activity: AiboActivityState
+    ) -> String? {
+        guard let hookEventName else { return nil }
+        guard agent == .codex, hookEventName == "PermissionRequest" else { return hookEventName }
+        if case .usingTool = activity {
+            return "PreToolUse"
+        }
+        return hookEventName
     }
 
     public static func effectiveSprite(

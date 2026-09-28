@@ -22,6 +22,15 @@ import Testing
     #expect(parsed?.waitingToolName == "Bash")
 }
 
+@Test func parserShowsCommandPermissionRequestAsCommand() throws {
+    let line = """
+    {"session_id":"thr_123","hook_event_name":"PermissionRequest","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"xcodebuild -project aibo.xcodeproj -scheme aibo build","description":"verify the build"}}
+    """
+    let parsed = try CodexHookParser.parse(jsonLine: line)
+    #expect(parsed?.transition == .apply(.usingTool("Bash")))
+    #expect(parsed?.waitingToolName == nil)
+}
+
 @Test func parserMapsCodexPermissionRequestWithoutToolName() throws {
     let line = """
     {"session_id":"thr_123","hook_event_name":"PermissionRequest"}
