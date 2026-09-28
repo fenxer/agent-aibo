@@ -675,6 +675,25 @@ private func actionMappingPresentation(
     )
 }
 
+@Test func hookDrivenPresentationIgnoresDragAndIdleSessions() {
+    let idle = [
+        SessionKey(agent: .cursor, conversationID: "c1"):
+            SessionSnapshot(activity: .idle, lastEventAt: Date(timeIntervalSince1970: 1)),
+    ]
+    #expect(
+        AiboActionMapping.hookDrivenPresentation(sessions: idle, spriteFor: actionMappingSprite) == nil
+    )
+
+    let thinking = [
+        SessionKey(agent: .cursor, conversationID: "c1"):
+            SessionSnapshot(activity: .thinking, lastEventAt: Date(timeIntervalSince1970: 2)),
+    ]
+    #expect(
+        AiboActionMapping.hookDrivenPresentation(sessions: thinking, spriteFor: actionMappingSprite)
+            == .sprite(.review, activity: .thinking)
+    )
+}
+
 @Test func aiboActionOverlaySpriteBeatsHooksAndDrag() throws {
     let thinking = [
         SessionKey(agent: .cursor, conversationID: "c1"):

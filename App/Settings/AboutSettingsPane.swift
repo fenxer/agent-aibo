@@ -157,8 +157,20 @@ private enum AboutLinks {
 }
 
 private struct AboutLogsSection: View {
+    @State private var runtime = AiboRuntime.shared
+
     var body: some View {
         Section {
+            Toggle(isOn: recordHookLogBinding) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Record Hook Log"))
+                    Text(String(localized: "Recording hooks uses more resources."))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(VerticallyCenteredSwitchToggleStyle())
+
             Button(action: revealHookLogInFinder) {
                 HStack {
                     Text(String(localized: "Hook Log"))
@@ -175,6 +187,13 @@ private struct AboutLogsSection: View {
         } header: {
             Text(String(localized: "Logs"))
         }
+    }
+
+    private var recordHookLogBinding: Binding<Bool> {
+        Binding(
+            get: { runtime.ingestLoggingEnabled },
+            set: { runtime.setIngestLoggingEnabled($0) }
+        )
     }
 
     private func revealHookLogInFinder() {

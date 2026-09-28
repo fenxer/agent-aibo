@@ -49,6 +49,7 @@ final class HookSpriteSettings {
         }
         file = next
         persist()
+        AiboRuntime.shared.noteHookSpriteMappingChanged()
     }
 
     func resetAll(for agent: AgentKind) {
@@ -60,6 +61,7 @@ final class HookSpriteSettings {
         }
         file = next
         persist()
+        AiboRuntime.shared.noteHookSpriteMappingChanged()
     }
 
     func hasCustomOverrides(for agent: AgentKind) -> Bool {

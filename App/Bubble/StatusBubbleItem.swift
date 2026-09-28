@@ -50,4 +50,30 @@ struct StatusBubbleItem: Identifiable, Equatable, Sendable {
     var hookJSON: String? = nil
     /// Right-click flipped to the hook payload face. Same bubble; Close dismisses.
     var isInspecting: Bool = false
+
+    /// Pixel and hit-target identity. Agent `lastEventAt` and a closed card's
+    /// hook payload are omitted so a hook burst can skip republishing.
+    func showsSamePresentedFace(as other: StatusBubbleItem) -> Bool {
+        guard id == other.id,
+              text == other.text,
+              kind == other.kind,
+              isDismissible == other.isDismissible,
+              animatesEllipsis == other.animatesEllipsis,
+              isAwaitingApproval == other.isAwaitingApproval,
+              agentName == other.agentName,
+              iconAssetName == other.iconAssetName,
+              projectName == other.projectName,
+              modelName == other.modelName,
+              statusLabel == other.statusLabel,
+              isSubagent == other.isSubagent,
+              agent == other.agent,
+              allowsSourceAppActivation == other.allowsSourceAppActivation,
+              planProgress == other.planProgress,
+              forcesPlanProgressShader == other.forcesPlanProgressShader,
+              isInspecting == other.isInspecting
+        else { return false }
+        if kind != .agent, lastEventAt != other.lastEventAt { return false }
+        if isInspecting, hookJSON != other.hookJSON { return false }
+        return true
+    }
 }

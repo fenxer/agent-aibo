@@ -222,7 +222,12 @@ struct DevelopmentSettingsPane: View {
     private var hookIngestLogSection: some View {
         Section {
             Toggle(isOn: ingestLoggingBinding) {
-                Text(verbatim: "Record Hook Ingest")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Record Hook Log"))
+                    Text(String(localized: "Recording hooks uses more resources."))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Text(verbatim: ingestLogStatusText)
@@ -250,7 +255,7 @@ struct DevelopmentSettingsPane: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(verbatim: "Writes ~/Library/Application Support/aibo/ingest-log.jsonl. Each line has source (queue/socket), queuedAt, event, conversation, project, activity; Codex update_plan also fills detail with plan steps. Default on in DEBUG — turn off if noisy.")
+            Text(verbatim: "Same setting as About → Record Hook Log. Writes ~/Library/Application Support/aibo/ingest-log.jsonl.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } header: {

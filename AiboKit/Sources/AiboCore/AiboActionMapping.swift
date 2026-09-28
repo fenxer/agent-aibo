@@ -58,8 +58,8 @@ public enum AiboActionMapping {
         if let overlaySprite {
             return .sprite(overlaySprite, activity: .idle)
         }
-        if let pair = preferredHookSession(in: sessions) {
-            return .sprite(spriteFor(pair.key, pair.snapshot), activity: pair.snapshot.activity)
+        if let hook = hookDrivenPresentation(sessions: sessions, spriteFor: spriteFor) {
+            return hook
         }
         if let dragSprite {
             return .sprite(dragSprite, activity: .idle)
@@ -68,6 +68,16 @@ public enum AiboActionMapping {
             return .look(lookDirection)
         }
         return .sprite(.idle, activity: .idle)
+    }
+
+    /// Hook-driven sprite only. `nil` when every session is idle, so drag and
+    /// follow-mouse stay outside this value and the desktop view can cache it.
+    public static func hookDrivenPresentation(
+        sessions: [SessionKey: SessionSnapshot],
+        spriteFor: (SessionKey, SessionSnapshot) -> PetdexSpriteState
+    ) -> AiboDisplayPresentation? {
+        guard let pair = preferredHookSession(in: sessions) else { return nil }
+        return .sprite(spriteFor(pair.key, pair.snapshot), activity: pair.snapshot.activity)
     }
 
     private static func preferredHookSession(

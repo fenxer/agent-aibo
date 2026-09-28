@@ -11,13 +11,9 @@ struct AiboView: View {
     var aiboSizeOverride: CGFloat? = nil
 
     @State private var panelController = AiboPanelController.shared
-    @State private var floatingNotes: [FloatingMusicNote] = []
-    @State private var musicNoteTask: Task<Void, Never>?
     @Bindable private var library = AiboLibraryStore.shared
     private var switchSignal = AiboSwitchSignal.shared
     private var runtime = AiboRuntime.shared
-    private var hookSprites = HookSpriteSettings.shared
-    private var musicMonitor = MusicPlaybackMonitor.shared
     @Bindable private var onboarding = OnboardingController.shared
 
     @Environment(\.displayScale) private var displayScale
@@ -29,52 +25,6 @@ struct AiboView: View {
     private let baseAiboSize: CGFloat = 96
     private var bubbleItems: [StatusBubbleItem] {
         bubbleItemsOverride ?? runtime.bubbleItems
-    }
-
-    /// Welcome and wrap-up use `waving` (arm wave), not `waiting` (Codex approval fidget).
-    /// Choose-aibo and Agent hook loop `idle`; success `jumping`; bubble-status / Cursor stack `review`.
-    private var onboardingOverlaySprite: PetdexSpriteState? {
-        guard onboarding.isActive || bubbleItems.contains(where: { $0.kind == .onboarding }) else {
-            return nil
-        }
-        return onboarding.step.sprite
-    }
-
-    private var resolvedPresentation: AiboDisplayPresentation {
-        if let overlay = onboardingOverlaySprite {
-            return .sprite(overlay, activity: .registered)
-        }
-        _ = hookSprites.file
-        let look = AppSettings.shared.disableMouseTracking
-            ? nil
-            : panelController.lookDirection
-        return AiboActionMapping.presentation(
-            sessions: runtime.world.sessions,
-            spriteFor: { key, snapshot in runtime.sprite(for: key, snapshot: snapshot) },
-            dragSprite: panelController.dragActionSprite,
-            lookDirection: look
-        )
-    }
-
-    private var displaySpriteState: PetdexSpriteState {
-        switch resolvedPresentation {
-        case .sprite(let state, _): state
-        case .look: .idle
-        }
-    }
-
-    private var displayActivity: AiboActivityState {
-        switch resolvedPresentation {
-        case .sprite(_, let activity): activity
-        case .look: .idle
-        }
-    }
-
-    private var displayLookDirection: PetdexLookDirection? {
-        switch resolvedPresentation {
-        case .sprite: nil
-        case .look(let direction): direction
-        }
     }
 
     private var placement: BubblePlacement {
@@ -127,17 +77,6 @@ struct AiboView: View {
         AppSettings.shared.bubbleGlassTint(for: usesAgentGlass(item) ? item.agent : nil)
     }
 
-    private var shouldEmitMusicNotes: Bool {
-        AppSettings.shared.musicNotesEnabled
-            && musicMonitor.isPlaying
-            && panelController.isContentPresented
-            && !panelController.isLaunchPortalPlaying
-    }
-
-    private var musicNoteColor: Color {
-        AppSettings.shared.resolvedMusicNotesColor(for: library.selectedRecord)
-    }
-
     var body: some View {
         // Keep one layout tree (even with zero bubbles) so insert/remove
         // transitions are not torn down by switching to a pet-only branch.
@@ -155,14 +94,6 @@ struct AiboView: View {
                     : 0
             )
             .allowsWindowActivationEvents()
-            .onChange(of: shouldEmitMusicNotes, initial: true) { _, active in
-                syncMusicNotePulse(active: active)
-            }
-            .onDisappear {
-                musicNoteTask?.cancel()
-                musicNoteTask = nil
-                floatingNotes.removeAll()
-            }
     }
 
     @ViewBuilder
@@ -173,7 +104,10 @@ struct AiboView: View {
             // removal `withAnimation`) would reflow that VStack and slide
             // the aibo; the panel then snaps it back. Same idea as
             // `sideAnchoredBubbleStack`: layout is the pet, stack draws away.
-            aiboImage
+            DesktopPetView(
+                layoutSize: aiboLayoutSize,
+                nominalSize: aiboNominalSize
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .overlay(alignment: .bottom) {
                     if showsBubbles {
@@ -181,7 +115,10 @@ struct AiboView: View {
                     }
                 }
         case .bottom:
-            aiboImage
+            DesktopPetView(
+                layoutSize: aiboLayoutSize,
+                nominalSize: aiboNominalSize
+            )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .overlay(alignment: .top) {
                     if showsBubbles {
@@ -193,12 +130,18 @@ struct AiboView: View {
                 if showsBubbles {
                     fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
                 }
-                aiboImage
+                DesktopPetView(
+                layoutSize: aiboLayoutSize,
+                nominalSize: aiboNominalSize
+            )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         case .right:
             HStack(alignment: .center, spacing: aiboBubbleSpacing) {
-                aiboImage
+                DesktopPetView(
+                layoutSize: aiboLayoutSize,
+                nominalSize: aiboNominalSize
+            )
                 if showsBubbles {
                     fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
                 }
@@ -431,8 +374,82 @@ struct AiboView: View {
             return { SourceAppActivator.activate(agent) }
         }
     }
+}
 
-    private var aiboImage: some View {
+/// Desktop pet, isolated from the bubble stack.
+///
+/// Hook bursts update `hookPresentation` or `bubbleItems` independently. Reading
+/// both in `AiboView.body` redrew every Liquid Glass bubble on each sprite tick.
+private struct DesktopPetView: View {
+    var layoutSize: CGSize
+    var nominalSize: CGFloat
+
+    @State private var panelController = AiboPanelController.shared
+    @State private var floatingNotes: [FloatingMusicNote] = []
+    @State private var musicNoteTask: Task<Void, Never>?
+    @Bindable private var library = AiboLibraryStore.shared
+    private var runtime = AiboRuntime.shared
+    @Bindable private var onboarding = OnboardingController.shared
+    private var musicMonitor = MusicPlaybackMonitor.shared
+
+    /// Tour sprite follows `isActive`. Bubbles are published in that same turn,
+    /// so this view does not read `bubbleItems`.
+    private var onboardingOverlaySprite: PetdexSpriteState? {
+        guard onboarding.isActive else { return nil }
+        return onboarding.step.sprite
+    }
+
+    private var resolvedPresentation: AiboDisplayPresentation {
+        if let overlay = onboardingOverlaySprite {
+            return .sprite(overlay, activity: .registered)
+        }
+        if let hook = runtime.hookPresentation {
+            return hook
+        }
+        let look = AppSettings.shared.disableMouseTracking
+            ? nil
+            : panelController.lookDirection
+        return AiboActionMapping.presentation(
+            sessions: [:],
+            spriteFor: { _, _ in .idle },
+            dragSprite: panelController.dragActionSprite,
+            lookDirection: look
+        )
+    }
+
+    private var displaySpriteState: PetdexSpriteState {
+        switch resolvedPresentation {
+        case .sprite(let state, _): state
+        case .look: .idle
+        }
+    }
+
+    private var displayActivity: AiboActivityState {
+        switch resolvedPresentation {
+        case .sprite(_, let activity): activity
+        case .look: .idle
+        }
+    }
+
+    private var displayLookDirection: PetdexLookDirection? {
+        switch resolvedPresentation {
+        case .sprite: nil
+        case .look(let direction): direction
+        }
+    }
+
+    private var shouldEmitMusicNotes: Bool {
+        AppSettings.shared.musicNotesEnabled
+            && musicMonitor.isPlaying
+            && panelController.isContentPresented
+            && !panelController.isLaunchPortalPlaying
+    }
+
+    private var musicNoteColor: Color {
+        AppSettings.shared.resolvedMusicNotesColor(for: library.selectedRecord)
+    }
+
+    var body: some View {
         let progress = panelController.aiboAppearProgress
         // progress 0: above + vertically squashed; 1: settled (spring may overshoot >1).
         let clamped = max(progress, 0)
@@ -440,11 +457,12 @@ struct AiboView: View {
         let widen = min(max(1.18 - clamped * 0.18, 0.9), 1.25)
         let noteColor = musicNoteColor
         let playingPortal = panelController.isLaunchPortalPlaying
+        let aiboSize = max(layoutSize.width, layoutSize.height)
 
-        return ZStack {
+        ZStack {
             // Keep layout size while the sprite is removed for Pow vanish.
             Color.clear
-                .frame(width: aiboLayoutSize.width, height: aiboLayoutSize.height)
+                .frame(width: layoutSize.width, height: layoutSize.height)
                 .allowsHitTesting(false)
 
             if panelController.isContentPresented, !playingPortal {
@@ -452,7 +470,7 @@ struct AiboView: View {
                     record: library.selectedRecord,
                     activity: displayActivity,
                     spriteState: displaySpriteState,
-                    size: aiboNominalSize,
+                    size: nominalSize,
                     lookDirection: onboardingOverlaySprite == nil ? displayLookDirection : nil,
                     pixelLayout: .fillWidth,
                     alwaysAnimates: onboardingOverlaySprite != nil,
@@ -460,7 +478,7 @@ struct AiboView: View {
                 )
                 .id("desktop-current-aibo")
                 .scaleEffect(x: widen, y: squash, anchor: .bottom)
-                .offset(y: (1 - clamped) * -aiboLayoutSize.height * 1.35)
+                .offset(y: (1 - clamped) * -layoutSize.height * 1.35)
                 .contentShape(Rectangle())
                 .contextMenu { AiboAppMenu(includesWebhookConnectivity: false) }
                 // Insertion must stay `.identity` — Pow `.boing` is a GeometryEffect
@@ -481,8 +499,16 @@ struct AiboView: View {
                     .allowsHitTesting(false)
             }
         }
-        .frame(width: aiboLayoutSize.width, height: aiboLayoutSize.height)
+        .frame(width: layoutSize.width, height: layoutSize.height)
         .accessibilityLabel(String(localized: "Desktop aibo"))
+        .onChange(of: shouldEmitMusicNotes, initial: true) { _, active in
+            syncMusicNotePulse(active: active)
+        }
+        .onDisappear {
+            musicNoteTask?.cancel()
+            musicNoteTask = nil
+            floatingNotes.removeAll()
+        }
     }
 
     private func syncMusicNotePulse(active: Bool) {

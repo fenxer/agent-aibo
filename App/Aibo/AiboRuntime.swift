@@ -11,6 +11,10 @@ final class AiboRuntime {
     private(set) var world = AiboWorldState()
     /// Active status bubbles, newest first. Empty when idle.
     private(set) var bubbleItems: [StatusBubbleItem] = []
+    /// Hook sprite for the desktop pet. `nil` while every session is idle.
+    /// Published only when the resolved sprite or activity changes, so a hook
+    /// burst does not redraw the pet or the bubbles.
+    private(set) var hookPresentation: AiboDisplayPresentation?
     private(set) var cursorHooksInstalled = false
     private(set) var codexHooksInstalled = false
     private(set) var deepseekPluginInstalled = false
@@ -83,6 +87,12 @@ final class AiboRuntime {
     private var server: UnixSocketServer?
     private var webhookServer: WebhookServer?
     private var consumeTask: Task<Void, Never>?
+    /// Coalesces hook-driven bubble and panel updates onto the next turn.
+    private var presentationCoalesceTask: Task<Void, Never>?
+    /// Live socket lines waiting for one off-main parse + one presentation pass.
+    private let liveHookLines = HookLineBuffer()
+    private var liveHookDrainTask: Task<Void, Never>?
+    private let ingestLogQueue = DispatchQueue(label: "work.fenx.aibo.ingest-log", qos: .utility)
     private var webhookTask: Task<Void, Never>?
     private var idleTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
@@ -105,13 +115,14 @@ final class AiboRuntime {
     private var inspectCopiedResetTask: Task<Void, Never>?
     /// Last hook event name per session — drives Petdex sprite row lookup.
     private var sessionHookEvents: [SessionKey: String] = [:]
+    /// When true, every hook line is appended to ingest-log.jsonl. Default off.
+    private(set) var ingestLoggingEnabled = false
+    private(set) var ingestLogEntryCount = 0
+    private static let ingestLoggingDefaultsKey = "settings.recordHookLog"
+    private static let legacyIngestLoggingDefaultsKey = "debug.ingestLoggingEnabled"
     #if DEBUG
     private var debugBubbleItems: [StatusBubbleItem] = []
     private var debugPlanProgressTask: Task<Void, Never>?
-    /// When true, every hook line (queue drain + live socket) is appended to ingest-log.jsonl.
-    private(set) var ingestLoggingEnabled: Bool
-    private(set) var ingestLogEntryCount = 0
-    private static let ingestLoggingDefaultsKey = "debug.ingestLoggingEnabled"
     #endif
 
     /// Sprite row for one session (idle mapping when the hook file has no row).
@@ -143,15 +154,12 @@ final class AiboRuntime {
     }
 
     private init() {
-        #if DEBUG
         if UserDefaults.standard.object(forKey: Self.ingestLoggingDefaultsKey) != nil {
             ingestLoggingEnabled = UserDefaults.standard.bool(forKey: Self.ingestLoggingDefaultsKey)
-        } else {
-            // Default on in DEBUG so cold-start ghosts are catchable without opening Settings first.
-            ingestLoggingEnabled = true
+        } else if UserDefaults.standard.object(forKey: Self.legacyIngestLoggingDefaultsKey) != nil {
+            ingestLoggingEnabled = UserDefaults.standard.bool(forKey: Self.legacyIngestLoggingDefaultsKey)
         }
         ingestLogEntryCount = (try? IngestLogStore.count()) ?? 0
-        #endif
     }
 
     func start() {
@@ -163,9 +171,7 @@ final class AiboRuntime {
 
         do {
             let queued = try HookQueue.drain()
-            #if DEBUG
             recordIngestDrain(count: queued.count)
-            #endif
             let drainedAt = Date()
             for item in queued {
                 handle(
@@ -181,16 +187,11 @@ final class AiboRuntime {
             self.server = server
 
             consumeTask?.cancel()
-            consumeTask = Task { [weak self] in
+            // Detached so a burst can queue lines without occupying the main
+            // actor. The drain below parses off-main and publishes once.
+            consumeTask = Task.detached { [weak self] in
                 for await line in stream {
-                    await MainActor.run {
-                        self?.handle(
-                            jsonLine: line,
-                            at: Date(),
-                            source: .socket,
-                            queuedAt: nil
-                        )
-                    }
+                    await self?.enqueueLiveHookLine(line)
                 }
             }
             lastErrorMessage = nil
@@ -207,6 +208,10 @@ final class AiboRuntime {
     func stop() {
         TunnelHealthMonitor.shared.stop()
         consumeTask?.cancel()
+        liveHookDrainTask?.cancel()
+        liveHookDrainTask = nil
+        presentationCoalesceTask?.cancel()
+        presentationCoalesceTask = nil
         webhookTask?.cancel()
         idleTask?.cancel()
         watchdogTask?.cancel()
@@ -404,8 +409,7 @@ final class AiboRuntime {
         )
         if tunnelWarningBubble != item {
             tunnelWarningBubble = item
-            refreshBubbleItems()
-            AiboPanelController.shared.refreshContent()
+            refreshPresentedInterface()
         }
     }
 
@@ -415,8 +419,7 @@ final class AiboRuntime {
         }
         guard tunnelWarningBubble != nil else { return }
         tunnelWarningBubble = nil
-        refreshBubbleItems()
-        AiboPanelController.shared.refreshContent()
+        refreshPresentedInterface()
     }
 
     private static func probePublicWebhookURL() async -> TunnelHealthStatus {
@@ -468,8 +471,7 @@ final class AiboRuntime {
         if !delivery.skipReceiveLog {
             recordReceive(delivery)
         }
-        refreshBubbleItems()
-        AiboPanelController.shared.refreshContent()
+        refreshPresentedInterface()
         switch dismissMode {
         case .onClick:
             cancelWebhookExpiry(for: item.id)
@@ -505,10 +507,9 @@ final class AiboRuntime {
         let closing = inspectingBubbleID == id
         inspectingBubbleID = closing ? nil : id
         if closing { clearInspectCopied() }
-        refreshBubbleItems()
         // Closing: the card animates back to its status height; keep the panel
         // tall until that finishes so the shrinking card isn't clipped.
-        AiboPanelController.shared.refreshContent(deferShrink: closing)
+        refreshPresentedInterface(deferShrink: closing)
     }
 
     func noteInspectCopied(id: String) {
@@ -543,8 +544,7 @@ final class AiboRuntime {
                 cancelDebugPlanProgress()
             }
             debugBubbleItems.removeAll { $0.id == sessionID }
-            refreshBubbleItems()
-            AiboPanelController.shared.refreshContent()
+            refreshPresentedInterface()
             return
         }
         #endif
@@ -599,8 +599,7 @@ final class AiboRuntime {
             animatesEllipsis: false
         )
         tunnelHealthStatus = .down
-        refreshBubbleItems()
-        AiboPanelController.shared.refreshContent()
+        refreshPresentedInterface()
     }
     #endif
 
@@ -829,8 +828,7 @@ final class AiboRuntime {
             )
         )
         debugBubbleItems.append(item)
-        refreshBubbleItems()
-        AiboPanelController.shared.refreshContent()
+        refreshPresentedInterface()
         if shouldAnimatePlan {
             startDebugPlanProgress(intervalSeconds: planProgressIntervalSeconds)
         }
@@ -846,8 +844,7 @@ final class AiboRuntime {
         debugBubbleItems = []
         cancelDeferredTunnelWarning()
         clearTunnelWarningBubble(resetDetectionClock: true)
-        refreshBubbleItems()
-        AiboPanelController.shared.refreshContent()
+        refreshPresentedInterface()
     }
 
     private static let debugPlanProgressID = "debug-plan-progress"
@@ -880,8 +877,7 @@ final class AiboRuntime {
             return
         }
         debugBubbleItems[index].planProgress = progress
-        refreshBubbleItems()
-        AiboPanelController.shared.refreshContent()
+        refreshPresentedInterface()
     }
 
     private func cancelDebugPlanProgress() {
@@ -1009,6 +1005,8 @@ final class AiboRuntime {
         }
     }
 
+    #endif
+
     func setIngestLoggingEnabled(_ enabled: Bool) {
         guard ingestLoggingEnabled != enabled else { return }
         ingestLoggingEnabled = enabled
@@ -1085,11 +1083,18 @@ final class AiboRuntime {
     }
 
     private func appendIngestLog(_ entry: IngestLogEntry) {
-        do {
-            try IngestLogStore.append(entry)
-            ingestLogEntryCount = (try? IngestLogStore.count()) ?? (ingestLogEntryCount + 1)
-        } catch {
-            // Diagnostics must stay fail-open; never break hook handling.
+        let nextCount = ingestLogEntryCount + 1
+        if nextCount - IngestLogStore.diskMaxEntries > 0,
+           (nextCount - IngestLogStore.diskMaxEntries).isMultiple(of: 100)
+        {
+            ingestLogEntryCount = IngestLogStore.diskMaxEntries
+        } else {
+            ingestLogEntryCount = nextCount
+        }
+        // File IO stays off the main actor. A hook burst used to rewrite this
+        // log on the UI thread and pin a core for the whole burst.
+        ingestLogQueue.async {
+            try? IngestLogStore.append(entry, knownLineCount: nextCount)
         }
     }
 
@@ -1126,17 +1131,19 @@ final class AiboRuntime {
         if let name = object["hookEventName"] as? String, !name.isEmpty { return name }
         return nil
     }
-    #endif
 
+    /// Socket lines share one drain. `schedulesFollowUp` is for the startup
+    /// queue, which is already a single pass.
+    @discardableResult
     private func handle(
         jsonLine: String,
         at date: Date,
         source: HookIngestSource,
-        queuedAt: Date?
-    ) {
+        queuedAt: Date?,
+        schedulesFollowUp: Bool = true
+    ) -> Bool {
         do {
             guard let parsed = try HookLineParser.parse(jsonLine: jsonLine) else {
-                #if DEBUG
                 recordIngestEvent(
                     at: date,
                     source: source,
@@ -1147,9 +1154,45 @@ final class AiboRuntime {
                     detail: "unparsed",
                     parsed: nil
                 )
-                #endif
-                return
+                return false
             }
+            return commit(
+                parsed: parsed,
+                jsonLine: jsonLine,
+                at: date,
+                source: source,
+                queuedAt: queuedAt,
+                schedulesFollowUp: schedulesFollowUp
+            )
+        } catch {
+            // Malformed hook payloads are ignored; agents are fail-open and so are we.
+            recordIngestEvent(
+                at: date,
+                source: source,
+                queuedAt: queuedAt,
+                eventName: Self.rawHookEventName(from: jsonLine),
+                activity: nil,
+                outcome: "malformed",
+                detail: String(describing: error),
+                parsed: nil
+            )
+            return false
+        }
+    }
+
+    /// Applies an already-parsed line. Returns whether bubbles or the pet sprite
+    /// need a refresh. Repeated same-face hooks only move the session clock.
+    @discardableResult
+    private func commit(
+        parsed: ParsedHookLine,
+        jsonLine: String,
+        at date: Date,
+        source: HookIngestSource,
+        queuedAt: Date?,
+        schedulesFollowUp: Bool
+    ) -> Bool {
+        let presentationChanged = !keepsPresentedFace(parsed)
+        if presentationChanged {
             #if DEBUG
             cancelDebugPlanProgress()
             debugBubbleItems = []
@@ -1170,42 +1213,172 @@ final class AiboRuntime {
             } else if case .apply = parsed.transition {
                 sessionHookEvents[parsed.session] = parsed.eventName
             }
-            apply(
-                .agent(session: parsed.session, transition: parsed.transition, at: date)
+            if schedulesFollowUp {
+                apply(
+                    .agent(session: parsed.session, transition: parsed.transition, at: date),
+                    coalescesPresentation: true
+                )
+            } else {
+                world = AiboStateMachine.reduce(
+                    world,
+                    event: .agent(session: parsed.session, transition: parsed.transition, at: date)
+                )
+            }
+        } else if case let .apply(activity) = parsed.transition {
+            let idleAt = AiboStateMachine.idleFallbackDelay(for: activity).map {
+                date.addingTimeInterval($0)
+            }
+            world.sessions[parsed.session] = SessionSnapshot(
+                activity: activity,
+                lastEventAt: date,
+                idleAt: idleAt
             )
-            #if DEBUG
-            recordIngestEvent(
-                at: date,
-                source: source,
-                queuedAt: queuedAt,
-                eventName: parsed.eventName,
-                activity: Self.activityLabel(for: parsed.transition),
-                outcome: "applied",
-                detail: parsed.ingestDetail,
-                parsed: parsed
-            )
-            #endif
+            if var meta = sessionDisplayMeta[parsed.session] {
+                meta.lastHookJSON = jsonLine
+                sessionDisplayMeta[parsed.session] = meta
+            }
+        }
+        recordIngestEvent(
+            at: date,
+            source: source,
+            queuedAt: queuedAt,
+            eventName: parsed.eventName,
+            activity: Self.activityLabel(for: parsed.transition),
+            outcome: "applied",
+            detail: parsed.ingestDetail,
+            parsed: parsed
+        )
+        if schedulesFollowUp {
             scheduleWatchdog()
             if case let .apply(activity) = parsed.transition,
                AiboStateMachine.schedulesIdleFallback(activity)
             {
                 scheduleIdleDeadline()
             }
-        } catch {
-            // Malformed hook payloads are ignored; agents are fail-open and so are we.
-            #if DEBUG
-            recordIngestEvent(
-                at: date,
-                source: source,
-                queuedAt: queuedAt,
-                eventName: Self.rawHookEventName(from: jsonLine),
-                activity: nil,
-                outcome: "malformed",
-                detail: String(describing: error),
-                parsed: nil
-            )
-            #endif
         }
+        return presentationChanged
+    }
+
+    /// True when this hook would not change bubble copy, order inputs that are
+    /// visible, or the pet sprite. The session clock still moves.
+    private func keepsPresentedFace(_ parsed: ParsedHookLine) -> Bool {
+        guard case let .apply(activity) = parsed.transition else { return false }
+        guard let snapshot = world.sessions[parsed.session], snapshot.activity == activity else {
+            return false
+        }
+        guard sessionHookEvents[parsed.session] == parsed.eventName else { return false }
+        let itemID = "\(parsed.session.agent.rawValue):\(parsed.session.conversationID)"
+        if inspectingBubbleID == itemID { return false }
+        // Stall / approval CTA is derived from silence. A new hook must redraw
+        // that bubble back to the live status instead of leaving “got stuck?”.
+        if bubbleItems.contains(where: { $0.id == itemID && $0.isAwaitingApproval }) {
+            return false
+        }
+        let meta = sessionDisplayMeta[parsed.session]
+        if let projectName = parsed.projectName, projectName != meta?.projectName { return false }
+        if let modelName = parsed.modelName, modelName != meta?.modelName { return false }
+        if parsed.isSubagent, meta?.isSubagent != true { return false }
+        if parsed.prefersPlanningCopy != (meta?.prefersPlanningCopy ?? false) { return false }
+        if let planProgress = parsed.planProgress, planProgress != meta?.planProgress { return false }
+        if parsed.waitingToolName != meta?.waitingToolName { return false }
+        return true
+    }
+
+    private func enqueueLiveHookLine(_ line: String) {
+        liveHookLines.append(line)
+        guard liveHookDrainTask == nil else { return }
+        liveHookDrainTask = Task { @MainActor [weak self] in
+            await Task.yield()
+            await self?.drainLiveHookLines()
+        }
+    }
+
+    private func drainLiveHookLines() async {
+        var needsPresentation = false
+        var didApply = false
+        while true {
+            let lines = liveHookLines.takeAll()
+            if lines.isEmpty { break }
+            didApply = true
+            let parsed = await Self.parseHookLines(lines)
+            let now = Date()
+            for item in parsed {
+                switch item {
+                case let .parsed(line, parsedLine):
+                    if commit(
+                        parsed: parsedLine,
+                        jsonLine: line,
+                        at: now,
+                        source: .socket,
+                        queuedAt: nil,
+                        schedulesFollowUp: false
+                    ) {
+                        needsPresentation = true
+                    }
+                case let .ignored(eventName):
+                    recordIngestEvent(
+                        at: now,
+                        source: .socket,
+                        queuedAt: nil,
+                        eventName: eventName,
+                        activity: nil,
+                        outcome: "ignored",
+                        detail: "unparsed",
+                        parsed: nil
+                    )
+                case let .malformed(message):
+                    recordIngestEvent(
+                        at: now,
+                        source: .socket,
+                        queuedAt: nil,
+                        eventName: nil,
+                        activity: nil,
+                        outcome: "malformed",
+                        detail: message,
+                        parsed: nil
+                    )
+                }
+            }
+        }
+        liveHookDrainTask = nil
+        guard didApply else { return }
+        scheduleWatchdog()
+        scheduleIdleDeadline()
+        syncCursorUsingToolStallTimers()
+        syncWaitingApprovalEscalationTimers()
+        if needsPresentation {
+            refreshPresentedInterface()
+        }
+    }
+
+    private enum ParsedLiveHook: Sendable {
+        case parsed(String, ParsedHookLine)
+        case ignored(String?)
+        case malformed(String)
+    }
+
+    private static func parseHookLines(_ lines: [String]) async -> [ParsedLiveHook] {
+        await Task.detached(priority: .userInitiated) {
+            lines.map { line in
+                do {
+                    if let parsed = try HookLineParser.parse(jsonLine: line) {
+                        return ParsedLiveHook.parsed(line, parsed)
+                    }
+                    return ParsedLiveHook.ignored(Self.eventName(in: line))
+                } catch {
+                    return ParsedLiveHook.malformed(String(describing: error))
+                }
+            }
+        }.value
+    }
+
+    private nonisolated static func eventName(in jsonLine: String) -> String? {
+        guard let data = jsonLine.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        if let name = object["hook_event_name"] as? String, !name.isEmpty { return name }
+        if let name = object["hookEventName"] as? String, !name.isEmpty { return name }
+        return nil
     }
 
     private func mergeDisplayMeta(
@@ -1231,25 +1404,63 @@ final class AiboRuntime {
         sessionDisplayMeta[session] = meta
     }
 
-    private func apply(_ event: AiboEvent) {
+    private func apply(_ event: AiboEvent, coalescesPresentation: Bool = false) {
         world = AiboStateMachine.reduce(world, event: event)
         syncCursorUsingToolStallTimers()
         syncWaitingApprovalEscalationTimers()
-        refreshBubbleItems()
-        AiboPanelController.shared.refreshContent()
+        if coalescesPresentation {
+            schedulePresentationRefresh()
+        } else {
+            refreshPresentedInterface()
+        }
     }
 
     func reloadPresentedBubbles() {
-        refreshBubbleItems()
-        AiboPanelController.shared.refreshContent()
+        refreshPresentedInterface()
     }
 
-    private func refreshBubbleItems() {
+    /// Hook sprite settings changed outside a hook. Bubbles stay as they are.
+    func noteHookSpriteMappingChanged() {
+        syncHookPresentation()
+    }
+
+    /// One refresh for a burst of hook lines. The next turn sees the latest
+    /// state, which is the frame that would have been painted anyway.
+    private func schedulePresentationRefresh() {
+        guard presentationCoalesceTask == nil else { return }
+        presentationCoalesceTask = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self, !Task.isCancelled else { return }
+            self.refreshPresentedInterface()
+        }
+    }
+
+    private func refreshPresentedInterface(deferShrink: Bool = false) {
+        presentationCoalesceTask?.cancel()
+        presentationCoalesceTask = nil
+        syncHookPresentation()
+        if refreshBubbleItems() {
+            AiboPanelController.shared.refreshContent(deferShrink: deferShrink)
+        }
+    }
+
+    private func syncHookPresentation() {
+        let next = AiboActionMapping.hookDrivenPresentation(
+            sessions: world.sessions,
+            spriteFor: { key, snapshot in
+                sprite(for: key, snapshot: snapshot)
+            }
+        )
+        if next != hookPresentation {
+            hookPresentation = next
+        }
+    }
+
+    private func refreshBubbleItems() -> Bool {
         if OnboardingController.shared.isActive {
             let items = OnboardingController.shared.currentBubbleItems
             if !items.isEmpty {
-                assignBubbleItems(items)
-                return
+                return assignBubbleItems(items)
             }
         }
         let now = Date()
@@ -1327,15 +1538,23 @@ final class AiboRuntime {
             inspectingBubbleID = nil
         }
         let sorted = items.sorted { $0.lastEventAt > $1.lastEventAt }
-        assignBubbleItems(sorted)
+        return assignBubbleItems(sorted)
     }
 
-    private func assignBubbleItems(_ next: [StatusBubbleItem]) {
+    @discardableResult
+    private func assignBubbleItems(_ next: [StatusBubbleItem]) -> Bool {
+        if next.count == bubbleItems.count,
+           zip(next, bubbleItems).allSatisfy({ item, current in
+               item.showsSamePresentedFace(as: current)
+           })
+        {
+            return false
+        }
         let oldIDs = Set(bubbleItems.map(\.id))
         let newIDs = Set(next.map(\.id))
         guard oldIDs != newIDs else {
             bubbleItems = next
-            return
+            return true
         }
         // Only animate the assignment for pure removals (Pow poof). Inserts are
         // driven by AnimatedStatusBubble.onAppear — wrapping inserts in
@@ -1348,6 +1567,7 @@ final class AiboRuntime {
         } else {
             bubbleItems = next
         }
+        return true
     }
 
     private static func iconAssetName(for agent: AgentKind) -> String? {
@@ -1390,8 +1610,7 @@ final class AiboRuntime {
         let before = webhookBubbles.count
         webhookBubbles.removeAll { $0.id == id }
         guard webhookBubbles.count != before else { return }
-        refreshBubbleItems()
-        AiboPanelController.shared.refreshContent()
+        refreshPresentedInterface()
     }
 
     private func scheduleIdleDeadline() {
@@ -1436,8 +1655,7 @@ final class AiboRuntime {
                           current.lastEventAt == expectedLastEventAt
                     else { return }
                     self.cursorUsingToolStallTasks[key] = nil
-                    self.refreshBubbleItems()
-                    AiboPanelController.shared.refreshContent()
+                    self.refreshPresentedInterface()
                 }
             }
         }
@@ -1475,8 +1693,7 @@ final class AiboRuntime {
                           current.lastEventAt == expectedLastEventAt
                     else { return }
                     self.waitingApprovalEscalationTasks[key] = nil
-                    self.refreshBubbleItems()
-                    AiboPanelController.shared.refreshContent()
+                    self.refreshPresentedInterface()
                 }
             }
         }
@@ -1524,5 +1741,25 @@ final class AiboRuntime {
             return bundled
         }
         throw CocoaError(.fileNoSuchFile)
+    }
+}
+
+/// Socket lines queued until the next main-actor drain. Touched only on the main actor.
+private final class HookLineBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lines: [String] = []
+
+    func append(_ line: String) {
+        lock.lock()
+        lines.append(line)
+        lock.unlock()
+    }
+
+    func takeAll() -> [String] {
+        lock.lock()
+        let taken = lines
+        lines.removeAll(keepingCapacity: true)
+        lock.unlock()
+        return taken
     }
 }

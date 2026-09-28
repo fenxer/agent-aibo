@@ -11,46 +11,6 @@
         }
       }
     },
-    "—" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "—"
-          }
-        }
-      }
-    },
-    "“%@” is already in your library. Choose a different name to install this aibo." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@”已存在。请选择其他名称以安装此 Aibo。"
-          }
-        }
-      }
-    },
-    "“%@” is already in your library. Choose a different name." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@”已存在。请选择其他名称。"
-          }
-        }
-      }
-    },
-    "“%@” was not found on Petdex" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Petdex 上未找到“%@”"
-          }
-        }
-      }
-    },
     "%@ used" : {
       "localizations" : {
         "zh-Hans" : {
@@ -157,32 +117,12 @@
         }
       }
     },
-    "Aibo mainly uses bubbles to show status." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aibo 主要使用气泡来展示状态。"
-          }
-        }
-      }
-    },
     "Aibo Size" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aibo 尺寸"
-          }
-        }
-      }
-    },
-    "Aibo supports local static images (.png), or Codex-compatible desktop pet formats (spritesheet + pet.json)." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aibo 支持本地静态图片（.png），或兼容 Codex 的桌面宠物格式（spritesheet + pet.json）。"
           }
         }
       }
@@ -194,6 +134,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aibo 更新"
+          }
+        }
+      }
+    },
+    "Aibo mainly uses bubbles to show status." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aibo 主要使用气泡来展示状态。"
+          }
+        }
+      }
+    },
+    "Aibo supports local static images (.png), or Codex-compatible desktop pet formats (spritesheet + pet.json)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aibo 支持本地静态图片（.png），或兼容 Codex 的桌面宠物格式（spritesheet + pet.json）。"
           }
         }
       }
@@ -238,22 +198,22 @@
         }
       }
     },
-    "Are you sure you want to delete “%@”?" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "确定要删除“%@”吗？"
-          }
-        }
-      }
-    },
     "Are you sure you want to delete %lld aibos?" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "确定要删除这 %lld 个 Aibo 吗？"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete “%@”?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定要删除“%@”吗？"
           }
         }
       }
@@ -762,6 +722,16 @@
         }
       }
     },
+    "Enter PetDex URL or slug to download." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入 PetDex URL 或 slug下载"
+          }
+        }
+      }
+    },
     "Enter a PetDex link" : {
       "localizations" : {
         "zh-Hans" : {
@@ -778,16 +748,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "输入 PetDex URL 或 slug"
-          }
-        }
-      }
-    },
-    "Enter PetDex URL or slug to download." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "输入 PetDex URL 或 slug下载"
           }
         }
       }
@@ -814,6 +774,9 @@
     },
     "Failed" : {
       "shouldTranslate" : false
+    },
+    "Failed to clear ingest log" : {
+
     },
     "Failed to clear received log" : {
       "localizations" : {
@@ -855,16 +818,6 @@
         }
       }
     },
-    "Failed to install aibo" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安装 Aibo 失败"
-          }
-        }
-      }
-    },
     "Failed to install Codex hooks" : {
       "localizations" : {
         "zh-Hans" : {
@@ -894,6 +847,19 @@
           }
         }
       }
+    },
+    "Failed to install aibo" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装 Aibo 失败"
+          }
+        }
+      }
+    },
+    "Failed to read ingest log" : {
+
     },
     "Failed to save aibo files" : {
       "localizations" : {
@@ -1075,16 +1041,6 @@
         }
       }
     },
-    "Hook and style settings" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hook 与样式设置"
-          }
-        }
-      }
-    },
     "Hook Log" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1095,12 +1051,12 @@
         }
       }
     },
-    "https://…/webhook" : {
+    "Hook and style settings" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "https://…/webhook"
+            "value" : "Hook 与样式设置"
           }
         }
       }
@@ -1160,16 +1116,6 @@
     },
     "Jumping" : {
       "shouldTranslate" : false
-    },
-    "just now" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刚刚"
-          }
-        }
-      }
     },
     "Keep at Least One Aibo" : {
       "localizations" : {
@@ -1293,22 +1239,22 @@
         }
       }
     },
-    "Local Upload" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本地上传"
-          }
-        }
-      }
-    },
     "Local URL" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "本地 URL"
+          }
+        }
+      }
+    },
+    "Local Upload" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地上传"
           }
         }
       }
@@ -1433,6 +1379,16 @@
         }
       }
     },
+    "OK" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
     "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Clicking the bubble does not switch apps yet." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1443,12 +1399,12 @@
         }
       }
     },
-    "OK" : {
+    "PREVIEW" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OK"
+            "value" : "预览"
           }
         }
       }
@@ -1463,22 +1419,22 @@
         }
       }
     },
-    "Petdex API error" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Petdex API 错误"
-          }
-        }
-      }
-    },
     "PetDex URL or slug" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "PetDex URL 或 slug"
+          }
+        }
+      }
+    },
+    "Petdex API error" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Petdex API 错误"
           }
         }
       }
@@ -1513,34 +1469,7 @@
         }
       }
     },
-    "position.down" : {
-      "comment" : "General → Bubble → Position: bubble below aibo. Not webhook connectivity Down.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Down"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下"
-          }
-        }
-      }
-    },
     "Preview" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "预览"
-          }
-        }
-      }
-    },
-    "PREVIEW" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1586,6 +1515,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仅推荐像素风格图片开启"
+          }
+        }
+      }
+    },
+    "Record Hook Log" : {
+      "comment" : "About → Logs: toggle that appends each hook to the hook log file.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记录 Hook 日志"
+          }
+        }
+      }
+    },
+    "Recording hooks uses more resources." : {
+      "comment" : "About → Logs: subtitle under Record Hook Log.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启后，记录 hook 会占用更多资源。"
           }
         }
       }
@@ -2019,22 +1970,22 @@
         }
       }
     },
-    "Tunnel is down, take a look!" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tunnel 已断开，快去查看！"
-          }
-        }
-      }
-    },
     "Tunnel URL" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tunnel URL"
+          }
+        }
+      }
+    },
+    "Tunnel is down, take a look!" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tunnel 已断开，快去查看！"
           }
         }
       }
@@ -2107,17 +2058,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用默认"
-          }
-        }
-      }
-    },
-    "v%@ New" : {
-      "comment" : "About → Updates: pending version badge.",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@ 新版本"
           }
         }
       }
@@ -2203,6 +2143,94 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你必须保留至少一个 Aibo。"
+          }
+        }
+      }
+    },
+    "https://…/webhook" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://…/webhook"
+          }
+        }
+      }
+    },
+    "just now" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刚刚"
+          }
+        }
+      }
+    },
+    "position.down" : {
+      "comment" : "General → Bubble → Position: bubble below aibo. Not webhook connectivity Down.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Down"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下"
+          }
+        }
+      }
+    },
+    "v%@ New" : {
+      "comment" : "About → Updates: pending version badge.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ 新版本"
+          }
+        }
+      }
+    },
+    "—" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "—"
+          }
+        }
+      }
+    },
+    "“%@” is already in your library. Choose a different name to install this aibo." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”已存在。请选择其他名称以安装此 Aibo。"
+          }
+        }
+      }
+    },
+    "“%@” is already in your library. Choose a different name." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”已存在。请选择其他名称。"
+          }
+        }
+      }
+    },
+    "“%@” was not found on Petdex" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Petdex 上未找到“%@”"
           }
         }
       }

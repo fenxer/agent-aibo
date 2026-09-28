@@ -54,6 +54,7 @@ public enum IngestLogStore {
         _ entry: IngestLogEntry,
         url: URL = AiboPaths.ingestLogURL,
         maxEntries: Int = diskMaxEntries,
+        knownLineCount: Int? = nil,
         fileManager: FileManager = .default
     ) throws {
         try fileManager.createDirectory(
@@ -73,7 +74,17 @@ public enum IngestLogStore {
             try line.write(to: url, options: .atomic)
         }
 
-        try trimIfNeeded(url: url, maxEntries: maxEntries, fileManager: fileManager)
+        // Scanning the whole file on every line dominates a hook burst. Callers
+        // that know the length skip that read, and only rewrite once every
+        // hundred lines past the cap.
+        if let knownLineCount {
+            let over = knownLineCount - maxEntries
+            if over > 0, over.isMultiple(of: 100) {
+                try trimIfNeeded(url: url, maxEntries: maxEntries, fileManager: fileManager)
+            }
+        } else {
+            try trimIfNeeded(url: url, maxEntries: maxEntries, fileManager: fileManager)
+        }
     }
 
     public static func clear(
