@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsNavigator.shared.start()
         OnboardingController.shared.startIfNeeded()
         AiboRuntime.shared.start()
+        ExtensionCenter.shared.start()
         AiboPanelController.shared.show()
         PlaytimeStore.shared.start()
     }

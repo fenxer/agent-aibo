@@ -14,6 +14,7 @@ struct AiboView: View {
     @Bindable private var library = AiboLibraryStore.shared
     private var switchSignal = AiboSwitchSignal.shared
     private var runtime = AiboRuntime.shared
+    private var extensions = ExtensionCenter.shared
     @Bindable private var onboarding = OnboardingController.shared
 
     @Environment(\.displayScale) private var displayScale
@@ -94,6 +95,7 @@ struct AiboView: View {
                     : 0
             )
             .allowsWindowActivationEvents()
+            .coordinateSpace(name: AiboPanelSpace.name)
     }
 
     @ViewBuilder
@@ -128,7 +130,11 @@ struct AiboView: View {
         case .left:
             HStack(alignment: .center, spacing: aiboBubbleSpacing) {
                 if showsBubbles {
-                    fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                    if extensions.session != nil, bubbleItems.isEmpty {
+                        extensionSideStack
+                    } else {
+                        fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                    }
                 }
                 DesktopPetView(
                 layoutSize: aiboLayoutSize,
@@ -143,7 +149,11 @@ struct AiboView: View {
                 nominalSize: aiboNominalSize
             )
                 if showsBubbles {
-                    fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                    if extensions.session != nil, bubbleItems.isEmpty {
+                        extensionSideStack
+                    } else {
+                        fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -152,13 +162,25 @@ struct AiboView: View {
 
     @ViewBuilder
     private func fadingBubbleStack(nearPetIndex: Int) -> some View {
-        fadingBubbleStack(items: bubbleItems, nearPetIndex: nearPetIndex)
+        fadingBubbleStack(items: bubbleItems, nearPetIndex: nearPetIndex, pluginAtTop: true)
     }
 
     @ViewBuilder
-    private func fadingBubbleStack(items: [StatusBubbleItem], nearPetIndex: Int) -> some View {
-        bubbleStack(items: items, nearPetIndex: nearPetIndex)
+    private func fadingBubbleStack(
+        items: [StatusBubbleItem],
+        nearPetIndex: Int,
+        pluginAtTop: Bool
+    ) -> some View {
+        bubbleStack(items: items, nearPetIndex: nearPetIndex, pluginAtTop: pluginAtTop)
             .opacity(panelController.isContentPresented ? 1 : 0)
+    }
+
+    /// Real bubble size, not a 1pt anchor. A centered overlay on a hairline
+    /// anchor draws the card across the pet, and hit testing still uses the
+    /// slot beside the pet — so only a sliver of the field receives clicks.
+    private var extensionSideStack: some View {
+        ExtensionBubbleColumn(placement: placement, center: extensions)
+            .fixedSize(horizontal: true, vertical: true)
     }
 
     @ViewBuilder
@@ -168,16 +190,27 @@ struct AiboView: View {
     }
 
     /// `bubbleItems` are newest-first; arrow sits on the bubble nearest the aibo.
+    /// The plugin card sits at the far end so it does not cover hook bubbles.
     @ViewBuilder
     private func bubbleStack(nearPetIndex: Int) -> some View {
-        bubbleStack(items: bubbleItems, nearPetIndex: nearPetIndex)
+        bubbleStack(items: bubbleItems, nearPetIndex: nearPetIndex, pluginAtTop: true)
     }
 
     @ViewBuilder
-    private func bubbleStack(items: [StatusBubbleItem], nearPetIndex: Int) -> some View {
+    private func bubbleStack(
+        items: [StatusBubbleItem],
+        nearPetIndex: Int,
+        pluginAtTop: Bool
+    ) -> some View {
         VStack(alignment: stackAlignment, spacing: resolvedStackSpacing) {
+            if pluginAtTop {
+                pluginBubble(showsArrow: items.isEmpty)
+            }
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 bubbleRow(item: item, showsArrow: index == nearPetIndex)
+            }
+            if !pluginAtTop {
+                pluginBubble(showsArrow: items.isEmpty)
             }
         }
         .animation(nil, value: items.map(\.id))
@@ -185,6 +218,18 @@ struct AiboView: View {
         // pushes move on one curve (scoped to the card, siblings would jump).
         // Panel shrink is deferred 420ms to outlast this.
         .animation(.easeInOut(duration: 0.35), value: items.map(\.isInspecting))
+    }
+
+    @ViewBuilder
+    private func pluginBubble(showsArrow: Bool) -> some View {
+        if extensions.session != nil {
+            ExtensionBubbleColumn(
+                placement: placement,
+                showsArrow: showsArrow,
+                center: extensions
+            )
+            .fixedSize(horizontal: true, vertical: true)
+        }
     }
 
     @ViewBuilder
@@ -255,7 +300,7 @@ struct AiboView: View {
                 spacer
             } else {
                 spacer
-                fadingBubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0)
+                fadingBubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0, pluginAtTop: false)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -289,7 +334,7 @@ struct AiboView: View {
                     // Onboarding stacks also keep ideal width so StatusBubble's
                     // body-edge alignment guides (not the arrow tip) can apply.
                     .fixedSize(
-                        horizontal: onboardingStackUsesIntrinsicWidth,
+                        horizontal: sideStackUsesPetEdgeAlignment,
                         vertical: true
                     )
             }
@@ -344,8 +389,12 @@ struct AiboView: View {
         bubbleItems.contains(where: { $0.kind == .onboarding }) && bubbleItems.count > 1
     }
 
+    private var sideStackUsesPetEdgeAlignment: Bool {
+        onboardingStackUsesIntrinsicWidth || (extensions.session != nil && !bubbleItems.isEmpty)
+    }
+
     private var sideStackOverlayAlignment: Alignment {
-        guard onboardingStackUsesIntrinsicWidth else { return .bottom }
+        guard sideStackUsesPetEdgeAlignment else { return .bottom }
         switch placement {
         case .right: return .bottomLeading
         case .left: return .bottomTrailing

@@ -12,6 +12,9 @@ struct AiboAppMenu: View {
     @State private var runtime = AiboRuntime.shared
     @State private var settings = AppSettings.shared
     @State private var library = AiboLibraryStore.shared
+    #if DEBUG
+    @State private var extensions = ExtensionCenter.shared
+    #endif
 
     private var showsWebhookConnectivity: Bool {
         includesWebhookConnectivity
@@ -40,6 +43,21 @@ struct AiboAppMenu: View {
         if showsWebhookConnectivity {
             webhookConnectivityItem
         }
+
+        #if DEBUG
+        Menu(String(localized: "Plugins")) {
+            if extensions.manualPlugins.isEmpty {
+                Button(String(localized: "No plugins are turned on")) {}
+                    .disabled(true)
+            } else {
+                ForEach(extensions.manualPlugins) { plugin in
+                    Button(plugin.copy.name) {
+                        extensions.beginManualPrompt(id: plugin.id)
+                    }
+                }
+            }
+        }
+        #endif
 
         // Must be SettingsLink — `openSettings()` / `showSettingsWindow:` log
         // "Please use SettingsLink…" and often no-op on current SDKs.

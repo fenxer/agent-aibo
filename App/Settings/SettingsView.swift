@@ -22,7 +22,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: String(localized: "General")
         case .about: String(localized: "About")
         #if DEBUG
-        case .development: "Development"
+        case .development: String(localized: "Development")
         #endif
         }
     }
@@ -219,7 +219,6 @@ struct SettingsView: View {
         #if DEBUG
         case .development:
             DevelopmentSettingsPane()
-                .settingsDetailChrome(title: SettingsPane.development.title)
         #endif
         }
     }

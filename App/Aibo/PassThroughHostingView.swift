@@ -7,7 +7,12 @@ import SwiftUI
 /// lives on the content view. The alpha mask is built once from the aibo image.
 ///
 /// `aiboHitRect` / `bubbleHitRects` use bottom-left coordinates (same as the panel).
+/// `measuredBubbleHitRects` use this view's coordinates (top-left, same as SwiftUI).
 /// `NSHostingView` is flipped (origin top-left), so hit-test points are converted first.
+enum AiboPanelSpace {
+    static let name = "aiboPanel"
+}
+
 final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     private let opaqueAlphaThreshold: UInt8 = 26 // ~10%
     private var alphaMask: AlphaMask?
@@ -16,6 +21,9 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     var aiboHitRect: CGRect = .null
     /// Approximate bubble stack rects in bottom-left content coordinates.
     var bubbleHitRects: [CGRect] = []
+    /// Plugin card frames in this view's top-left coordinates.
+    /// Estimates in `bubbleHitRects` miss buttons once a card is taller than the guess.
+    var measuredBubbleHitRects: [CGRect] = []
 
     init(rootView: Content, hitTestImage: NSImage?) {
         self.alphaMask = Self.makeAlphaMask(from: hitTestImage)
@@ -57,15 +65,26 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
         let p = pointInBottomLeft(point)
 
         if aiboHitRect.isNull == false, aiboHitRect.contains(p) {
+            let opaque: Bool
             if let alphaMask {
                 let local = CGPoint(x: p.x - aiboHitRect.minX, y: p.y - aiboHitRect.minY)
                 let localBounds = CGRect(origin: .zero, size: aiboHitRect.size)
-                guard alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold) else {
-                    return nil
-                }
+                opaque = alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold)
+            } else {
+                opaque = true
             }
-            // Opaque pet pixel — accept (SwiftUI context menu / AppKit drag).
-            return super.hitTest(point) ?? self
+            if opaque {
+                // Opaque pet pixel — accept (SwiftUI context menu / AppKit drag).
+                return super.hitTest(point) ?? self
+            }
+            // Transparent corner of the pet's box. A bubble in that square
+            // still needs the click; otherwise fall through to the desktop.
+        }
+
+        // A plugin card reports where it was actually drawn. That rect wins over
+        // the height estimate, which is only used to size the panel.
+        if measuredBubbleHitRects.contains(where: { $0.contains(point) }) {
+            return super.hitTest(point)
         }
 
         // Bubbles only — empty padding / music overflow / infinity frames pass through.

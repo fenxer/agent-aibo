@@ -73,6 +73,7 @@ final class AiboPanelController {
         CGPoint(x: laidOutAiboFrame.midX, y: laidOutAiboFrame.midY)
     }
     private var laidOutOnboardingLayoutID = ""
+    private var laidOutExtensionLayoutToken = ""
     private var laidOutAiboBubbleSpacing: CGFloat = 6
 
     private let baseAiboSize: CGFloat = 96
@@ -581,6 +582,7 @@ final class AiboPanelController {
     func updateOnboardingKeyWindow() {
         guard let panel else { return }
         let allowed = OnboardingController.shared.allowsKeyWindow
+            || ExtensionCenter.shared.needsKeyWindow
         panel.allowsBecomingKey = allowed
         if allowed {
             panel.makeKeyAndOrderFront(nil)
@@ -628,7 +630,8 @@ final class AiboPanelController {
         let items = AiboRuntime.shared.bubbleItems
         let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
         let aiboSize = currentAiboSize
-        let bubbleCount = effectiveBubbleCount(items)
+        let extensionToken = isLaunchPortalPlaying ? "" : ExtensionCenter.shared.layoutToken
+        let bubbleCount = effectiveBubbleCount(items) + (extensionLayoutHeights == nil ? 0 : 1)
         let pinBubble = shouldPinOnboardingBubble
 
         let oldFrame = panel.frame
@@ -638,7 +641,11 @@ final class AiboPanelController {
             y: oldFrame.origin.y + oldAiboCenter.y
         )
 
-        let newSize = panelSize(items: items, aiboSize: aiboSize, placement: placement)
+        let newSize = panelSize(
+            items: items,
+            aiboSize: aiboSize,
+            placement: placement
+        )
         // Never allow a zero frame — SwiftUI + NSPanel constraint loops crash
         // with "more Update Constraints in Window passes than there are views".
         let minSize = aiboBlockMinimum(aiboSize: aiboSize)
@@ -657,6 +664,7 @@ final class AiboPanelController {
            placement == laidOutPlacement,
            bubbleCount == laidOutBubbleCount,
            onboardingLayoutID == laidOutOnboardingLayoutID,
+           extensionToken == laidOutExtensionLayoutToken,
            aiboBubbleSpacing == laidOutAiboBubbleSpacing,
            newAiboCenter == laidOutAiboCenter,
            isLaunchPortalPlaying == laidOutLaunchPortalPlaying
@@ -710,6 +718,7 @@ final class AiboPanelController {
         laidOutPlacement = placement
         laidOutAiboSize = aiboSize
         laidOutOnboardingLayoutID = onboardingLayoutID
+        laidOutExtensionLayoutToken = extensionToken
         laidOutAiboBubbleSpacing = aiboBubbleSpacing
         updatePetHitRect(
             panelSize: safeSize,
@@ -840,6 +849,22 @@ final class AiboPanelController {
         return panel
     }
 
+    /// Plugin prompt sits farther from the pet than hook bubbles. Nil when no prompt is open.
+    private var extensionLayoutHeights: [CGFloat]? {
+        guard !isLaunchPortalPlaying else { return nil }
+        return ExtensionCenter.shared.layoutHeights
+    }
+
+    /// Hook bubbles, with the plugin card inserted at the far end (index 0).
+    /// Side layout treats the last height as the bubble centered on the pet.
+    private func layoutBubbleHeights(items: [StatusBubbleItem]) -> [CGFloat] {
+        var heights = items.map(estimatedBubbleHeight(for:))
+        guard let pluginHeight = extensionLayoutHeights?.first else { return heights }
+        if heights.isEmpty { return [pluginHeight] }
+        heights.insert(pluginHeight, at: 0)
+        return heights
+    }
+
     private func panelSize(
         items: [StatusBubbleItem],
         aiboSize: CGSize,
@@ -848,12 +873,11 @@ final class AiboPanelController {
         let insets = contentInsets
         let aiboBlockWidth = aiboSize.width + insets.horizontal
         let aiboBlockHeight = aiboSize.height + insets.vertical
-        let bubbleCount = effectiveBubbleCount(items)
+        let heights = layoutBubbleHeights(items: items)
+        let bubbleCount = heights.count
         guard bubbleCount > 0 else {
             return NSSize(width: max(aiboBlockWidth, 1), height: max(aiboBlockHeight, 1))
         }
-
-        let heights = items.map(estimatedBubbleHeight(for:))
         let stackHeight =
             heights.reduce(0, +)
             + CGFloat(max(0, bubbleCount - 1)) * bubbleStackSpacing
@@ -1050,6 +1074,33 @@ final class AiboPanelController {
         refreshClickThroughState()
     }
 
+    /// Plugin cards report the frame SwiftUI actually laid out (top-left, this
+    /// hosting view). Height estimates stay for panel sizing only — a long
+    /// result used to draw Copy / Close below the estimate, and those clicks
+    /// fell through to the desktop.
+    func noteExtensionCardFrame(_ frame: CGRect) {
+        guard let hostingView else { return }
+        guard frame.width > 1, frame.height > 1 else {
+            clearExtensionCardFrame()
+            return
+        }
+        if let current = hostingView.measuredBubbleHitRects.first, rectsMatch(current, frame) {
+            return
+        }
+        hostingView.measuredBubbleHitRects = [frame]
+    }
+
+    func clearExtensionCardFrame() {
+        hostingView?.measuredBubbleHitRects = []
+    }
+
+    private func rectsMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        abs(lhs.minX - rhs.minX) < 0.5
+            && abs(lhs.minY - rhs.minY) < 0.5
+            && abs(lhs.width - rhs.width) < 0.5
+            && abs(lhs.height - rhs.height) < 0.5
+    }
+
     /// Bottom-left of the near-aibo bubble stack in panel coords (AppKit origin).
     private func bubbleStackAnchor(
         panelSize: NSSize,
@@ -1237,19 +1288,19 @@ final class AiboPanelController {
         items: [StatusBubbleItem],
         spacing: CGFloat? = nil
     ) -> [CGRect] {
-        guard !items.isEmpty else { return [] }
+        let heights = layoutBubbleHeights(items: items)
+        guard !heights.isEmpty else { return [] }
         let gap = spacing ?? aiboBubbleSpacing
         let insets = contentInsets
         let origin = aiboOrigin(
             in: panelSize,
             aiboSize: aiboSize,
             placement: placement,
-            bubbleCount: items.count
+            bubbleCount: heights.count
         )
-        let heights = items.map(estimatedBubbleHeight(for:))
         let stackHeight =
             heights.reduce(0, +)
-            + CGFloat(max(0, items.count - 1)) * bubbleStackSpacing
+            + CGFloat(max(0, heights.count - 1)) * bubbleStackSpacing
         let contentWidth = panelSize.width - insets.horizontal
 
         switch placement {
@@ -1398,8 +1449,15 @@ final class AiboPanelController {
         case .left, .right:
             // Vertically center the pet with the near bubble. Skip / Continue
             // hang below the bubble and take extra panel space, not this row.
-            let items = AiboRuntime.shared.bubbleItems
-            let nearRow = items.last.map(sideNearRowHeight(for:)) ?? bubbleEstimatedHeight
+            // Plugin prompts replace that near bubble; use their height or the
+            // pet (and the hit rect) sit on the status-bubble row instead.
+            let nearRow: CGFloat = {
+                let items = AiboRuntime.shared.bubbleItems
+                if items.isEmpty, let pluginHeight = extensionLayoutHeights?.last {
+                    return pluginHeight
+                }
+                return items.last.map(sideNearRowHeight(for:)) ?? bubbleEstimatedHeight
+            }()
             let rowHeight = max(aiboSize.height, nearRow)
             let y = insets.bottom + onboardingActionPillsHeight
                 + (rowHeight - aiboSize.height) / 2

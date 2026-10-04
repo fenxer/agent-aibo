@@ -1,0 +1,43 @@
+{
+  "apiVersion": 1,
+  "id": "dev.aibo.translate",
+  "name": "Translate",
+  "description": "Translate a passage into Simplified Chinese, English, or Japanese.",
+  "version": "1.0.0",
+  "author": "aibo",
+  "runtime": "js",
+  "entry": "main.js",
+  "compatibility": { "aibo": ">=1.4.0" },
+  "triggers": [{ "kind": "manual" }],
+  "capabilities": ["llm"],
+  "provides": [],
+  "network": { "hosts": [] },
+  "prompt": {
+    "type": "object",
+    "order": ["text", "target"],
+    "required": ["text", "target"],
+    "properties": {
+      "text": {
+        "type": "string",
+        "title": "Text",
+        "minLength": 1
+      },
+      "target": {
+        "type": "string",
+        "title": "Target language",
+        "default": "en",
+        "oneOf": [
+          { "const": "zh-Hans", "title": "Simplified Chinese" },
+          { "const": "en", "title": "English" },
+          { "const": "ja", "title": "Japanese" }
+        ]
+      }
+    }
+  },
+  "io": {
+    "inputs": [{ "id": "text", "kind": "text" }],
+    "outputs": [{ "id": "text", "kind": "text" }]
+  },
+  "rewrite": false,
+  "localization": { "resources": "locales/${locale}.json", "defaultLocale": "en" }
+}

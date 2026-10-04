@@ -13,6 +13,7 @@
 		3A3091F53017090000431C96 /* AiboHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3091F43017090000431C96 /* AiboHook.swift */; };
 		3A3091F83017090000431C96 /* aibo-hook in Copy Helpers */ = {isa = PBXBuildFile; fileRef = 3A3091F03017090000431C96 /* aibo-hook */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		A1B0D5H13017090000431CB1 /* dsh-aibo in Copy DeepSeek Plugin */ = {isa = PBXBuildFile; fileRef = A1B0D5H13017090000431CA1 /* dsh-aibo */; };
+		E1E0E1A13017090000431CE2 /* Extensions in Copy Prototype Extensions */ = {isa = PBXBuildFile; fileRef = E1E0E1A13017090000431CE1 /* Extensions */; };
 		A1B0P0W43017080000431C96 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = A1B0P0W23017080000431C96 /* Pow */; };
 		A2D0A1B03017090000431DA2 /* default-aibo in Copy Default Aibo */ = {isa = PBXBuildFile; fileRef = A2D0A1B03017090000431DA1 /* default-aibo */; };
 		B2C0M3D13017310000431C96 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; };
@@ -49,6 +50,15 @@
 			);
 			name = "Copy DeepSeek Plugin";
 		};
+		E1E0E1A13017090000431CE3 /* Copy Prototype Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = Resources;
+			files = (
+				E1E0E1A13017090000431CE2 /* Extensions in Copy Prototype Extensions */,
+			);
+			name = "Copy Prototype Extensions";
+		};
 		A2D0A1B03017090000431DA3 /* Copy Default Aibo */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
@@ -75,6 +85,7 @@
 		3A3091F03017090000431C96 /* aibo-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "aibo-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3A3091F43017090000431C96 /* AiboHook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiboHook.swift; sourceTree = "<group>"; };
 		A1B0D5H13017090000431CA1 /* dsh-aibo */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "dsh-aibo"; sourceTree = "<group>"; };
+		E1E0E1A13017090000431CE1 /* Extensions */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Extensions; sourceTree = "<group>"; };
 		A2D0A1B03017090000431DA1 /* default-aibo */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "default-aibo"; path = "App/Aibo/default-aibo"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -152,6 +163,7 @@
 				A1B0D5H13017090000431CA0 /* Plugins */,
 				A2D0A1B03017090000431DA1 /* default-aibo */,
 				3A301DB3301C678F004C7B4D /* heart.icon */,
+				E1E0E1A13017090000431CE1 /* Extensions */,
 				3A3091CE3017070E00431C96 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -193,6 +205,7 @@
 				3A3091CB3017070E00431C96 /* Resources */,
 				3A3091F73017090000431C96 /* Copy Helpers */,
 				A1B0D5H13017090000431CB0 /* Copy DeepSeek Plugin */,
+				E1E0E1A13017090000431CE3 /* Copy Prototype Extensions */,
 				A2D0A1B03017090000431DA3 /* Copy Default Aibo */,
 				B2C0M3D33017310000431C96 /* Embed Frameworks */,
 			);
