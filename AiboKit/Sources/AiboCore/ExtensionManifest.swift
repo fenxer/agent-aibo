@@ -89,6 +89,9 @@ public struct ExtensionObjectSchema: Sendable, Equatable {
     public var order: [String]
     public var properties: [String: ExtensionFieldSchema]
     public var required: [String]
+    /// Plates that hold more than one field. Each entry is a section (`{ "fields": [...] }`).
+    /// A field that belongs to no section is its own plate, placed where `order` puts it.
+    public var sections: [ExtensionFieldSection]
 
     public var orderedKeys: [String] {
         let known = order.filter { properties[$0] != nil }
@@ -96,21 +99,62 @@ public struct ExtensionObjectSchema: Sendable, Equatable {
         return known + rest
     }
 
+    /// Field keys grouped into plates. A section is emitted at its first member.
+    public func fieldGroups() -> [[String]] {
+        var sectionIndex: [String: Int] = [:]
+        for (index, section) in sections.enumerated() {
+            for key in section.fields where properties[key] != nil {
+                if sectionIndex[key] == nil {
+                    sectionIndex[key] = index
+                }
+            }
+        }
+        var emitted: Set<Int> = []
+        var groups: [[String]] = []
+        for key in orderedKeys {
+            guard let index = sectionIndex[key] else {
+                groups.append([key])
+                continue
+            }
+            if emitted.contains(index) { continue }
+            emitted.insert(index)
+            let keys = sections[index].fields.filter { properties[$0] != nil && sectionIndex[$0] == index }
+            if !keys.isEmpty {
+                groups.append(keys)
+            }
+        }
+        return groups
+    }
+
     public init(
         type: String = "object",
         order: [String] = [],
         properties: [String: ExtensionFieldSchema],
-        required: [String] = []
+        required: [String] = [],
+        sections: [ExtensionFieldSection] = []
     ) {
         self.type = type
         self.order = order
         self.properties = properties
         self.required = required
+        self.sections = sections
+    }
+}
+
+/// One prompt plate that holds several fields. JSON: `{ "fields": ["tone", "formal"] }`.
+public struct ExtensionFieldSection: Codable, Sendable, Equatable {
+    public var fields: [String]
+
+    public init(fields: [String]) {
+        self.fields = fields
     }
 }
 
 public struct ExtensionFieldSchema: Sendable, Equatable {
     public var type: String
+    /// Prompt widget. `line`, `text`, `menu`, `radio`, `switch`, or `image`.
+    /// Omitted: a field with `oneOf` is a menu, `boolean` is a switch, anything else is multiline text.
+    public var control: String?
     public var title: String?
     public var summary: String?
     public var defaultValue: ExtensionValue?
@@ -121,6 +165,7 @@ public struct ExtensionFieldSchema: Sendable, Equatable {
 
     public init(
         type: String,
+        control: String? = nil,
         title: String? = nil,
         summary: String? = nil,
         defaultValue: ExtensionValue? = nil,
@@ -130,6 +175,7 @@ public struct ExtensionFieldSchema: Sendable, Equatable {
         maxLength: Int? = nil
     ) {
         self.type = type
+        self.control = control
         self.title = title
         self.summary = summary
         self.defaultValue = defaultValue
@@ -228,6 +274,7 @@ extension ExtensionObjectSchema: Codable {
         case order
         case properties
         case required
+        case sections
     }
 
     public init(from decoder: Decoder) throws {
@@ -236,6 +283,7 @@ extension ExtensionObjectSchema: Codable {
         order = try container.decodeIfPresent([String].self, forKey: .order) ?? []
         properties = try container.decodeIfPresent([String: ExtensionFieldSchema].self, forKey: .properties) ?? [:]
         required = try container.decodeIfPresent([String].self, forKey: .required) ?? []
+        sections = try container.decodeIfPresent([ExtensionFieldSection].self, forKey: .sections) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -244,12 +292,16 @@ extension ExtensionObjectSchema: Codable {
         try container.encode(order, forKey: .order)
         try container.encode(properties, forKey: .properties)
         try container.encode(required, forKey: .required)
+        if !sections.isEmpty {
+            try container.encode(sections, forKey: .sections)
+        }
     }
 }
 
 extension ExtensionFieldSchema: Codable {
     enum CodingKeys: String, CodingKey {
         case type
+        case control
         case title
         case summary = "description"
         case defaultValue = "default"
@@ -262,6 +314,7 @@ extension ExtensionFieldSchema: Codable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         type = try container.decode(String.self, forKey: .type)
+        control = try container.decodeIfPresent(String.self, forKey: .control)
         title = try container.decodeIfPresent(String.self, forKey: .title)
         summary = try container.decodeIfPresent(String.self, forKey: .summary)
         defaultValue = try container.decodeIfPresent(ExtensionValue.self, forKey: .defaultValue)
@@ -275,6 +328,7 @@ extension ExtensionFieldSchema: Codable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(control, forKey: .control)
         try container.encodeIfPresent(title, forKey: .title)
         try container.encodeIfPresent(summary, forKey: .summary)
         try container.encodeIfPresent(defaultValue, forKey: .defaultValue)
@@ -326,11 +380,35 @@ public enum ExtensionManifestValidator {
                 return error
             }
         }
-        if let settings = manifest.settings, settings.type != "object" {
-            return .invalidSchema
+        if let settings = manifest.settings, let error = schemaError(settings) {
+            return error
         }
-        if let prompt = manifest.prompt, prompt.type != "object" {
-            return .invalidSchema
+        if let prompt = manifest.prompt, let error = schemaError(prompt) {
+            return error
+        }
+        return nil
+    }
+
+    private static let promptControls: Set<String> = ["line", "text", "menu", "radio", "switch", "image"]
+
+    private static func schemaError(_ schema: ExtensionObjectSchema) -> ExtensionManifestError? {
+        if schema.type != "object" { return .invalidSchema }
+        for field in schema.properties.values {
+            if let control = field.control {
+                if !Self.promptControls.contains(control) { return .invalidSchema }
+                if (control == "menu" || control == "radio"), field.oneOf.isEmpty {
+                    return .invalidSchema
+                }
+            }
+        }
+        var seen: Set<String> = []
+        for section in schema.sections {
+            if section.fields.isEmpty { return .invalidSchema }
+            for key in section.fields {
+                if schema.properties[key] == nil || !seen.insert(key).inserted {
+                    return .invalidSchema
+                }
+            }
         }
         return nil
     }

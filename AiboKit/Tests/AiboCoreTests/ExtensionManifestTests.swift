@@ -21,6 +21,52 @@ import Testing
     #expect(manifest.hasManualTrigger)
     #expect(manifest.usesModel)
     #expect(manifest.prompt?.properties["target"]?.oneOf.map(\.value) == ["zh-Hans", "en", "ja"])
+    #expect(manifest.prompt?.fieldGroups() == [["text", "target"]])
+}
+
+@Test func extensionPromptSectionsGroupFields() throws {
+    let json = """
+    {
+      "type": "object",
+      "order": ["text", "tone", "formal", "notify"],
+      "sections": [{ "fields": ["tone", "formal"] }],
+      "properties": {
+        "text": { "type": "string", "control": "text" },
+        "tone": {
+          "type": "string",
+          "control": "menu",
+          "oneOf": [{ "const": "plain", "title": "Plain" }]
+        },
+        "formal": { "type": "boolean", "control": "switch" },
+        "notify": {
+          "type": "string",
+          "control": "radio",
+          "oneOf": [
+            { "const": "a", "title": "A" },
+            { "const": "b", "title": "B" }
+          ]
+        }
+      }
+    }
+    """
+    let schema = try JSONDecoder().decode(ExtensionObjectSchema.self, from: Data(json.utf8))
+    #expect(schema.fieldGroups() == [["text"], ["tone", "formal"], ["notify"]])
+    #expect(schema.properties["formal"]?.control == "switch")
+    var manifest = sampleManifest()
+    manifest.prompt = schema
+    #expect(ExtensionManifestValidator.validate(manifest) == nil)
+
+    var broken = schema
+    broken.sections = [ExtensionFieldSection(fields: ["missing"])]
+    manifest.prompt = broken
+    #expect(ExtensionManifestValidator.validate(manifest) == .invalidSchema)
+
+    var unknown = schema
+    var textField = unknown.properties["text"] ?? ExtensionFieldSchema(type: "string")
+    textField.control = "slider"
+    unknown.properties["text"] = textField
+    manifest.prompt = unknown
+    #expect(ExtensionManifestValidator.validate(manifest) == .invalidSchema)
 }
 
 @Test func extensionManifestRejectsPathEscape() {

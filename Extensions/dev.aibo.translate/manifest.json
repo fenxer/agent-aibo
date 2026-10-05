@@ -16,6 +16,7 @@
     "type": "object",
     "order": ["text", "target"],
     "required": ["text", "target"],
+    "sections": [{ "fields": ["text", "target"] }],
     "properties": {
       "text": {
         "type": "string",

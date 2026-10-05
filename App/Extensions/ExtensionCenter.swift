@@ -3,6 +3,7 @@ import AiboIngest
 import AppKit
 import Foundation
 import Observation
+import UniformTypeIdentifiers
 
 struct ExtensionChoiceOption: Identifiable, Equatable, Sendable {
     var value: String
@@ -10,16 +11,52 @@ struct ExtensionChoiceOption: Identifiable, Equatable, Sendable {
     var id: String { value }
 }
 
+struct ExtensionPromptControl: Identifiable, Equatable, Sendable {
+    var key: String
+    var title: String
+    var kind: Kind
+    var choices: [ExtensionChoiceOption]
+    var id: String { key }
+
+    enum Kind: Equatable, Sendable {
+        case line
+        case text
+        case menu
+        case radio
+        case toggle
+        case image
+    }
+
+    static func kind(for field: ExtensionFieldSchema) -> Kind {
+        switch field.control {
+        case "line": .line
+        case "text": .text
+        case "menu": .menu
+        case "radio": .radio
+        case "switch": .toggle
+        case "image": .image
+        default:
+            if !field.oneOf.isEmpty { .menu }
+            else if field.type == "boolean" { .toggle }
+            else { .text }
+        }
+    }
+}
+
+struct ExtensionPromptGroup: Identifiable, Equatable, Sendable {
+    var controls: [ExtensionPromptControl]
+    var id: String { controls.map(\.key).joined(separator: "\u{1f}") }
+}
+
 @MainActor
 @Observable
 final class ExtensionPromptSession {
     let pluginID: String
     let pluginName: String
-    let textTitle: String
-    let choiceTitle: String
-    let choices: [ExtensionChoiceOption]
-    var text = ""
-    var target: String
+    let groups: [ExtensionPromptGroup]
+    let required: Set<String>
+    var values: [String: String]
+    var toggles: [String: Bool]
     var phase: Phase = .editing
 
     enum Phase: Equatable {
@@ -32,23 +69,69 @@ final class ExtensionPromptSession {
     init(
         pluginID: String,
         pluginName: String,
-        textTitle: String,
-        choiceTitle: String,
-        choices: [ExtensionChoiceOption],
-        target: String
+        groups: [ExtensionPromptGroup],
+        values: [String: String],
+        toggles: [String: Bool],
+        required: Set<String>
     ) {
         self.pluginID = pluginID
         self.pluginName = pluginName
-        self.textTitle = textTitle
-        self.choiceTitle = choiceTitle
-        self.choices = choices
-        self.target = target
+        self.groups = groups
+        self.values = values
+        self.toggles = toggles
+        self.required = required
+    }
+
+    var groupKinds: [[ExtensionPromptControl.Kind]] {
+        groups.map { $0.controls.map(\.kind) }
+    }
+
+    var canConfirm: Bool {
+        for control in groups.flatMap(\.controls) where required.contains(control.key) {
+            switch control.kind {
+            case .toggle:
+                continue
+            case .menu, .radio:
+                if (values[control.key] ?? "").isEmpty { return false }
+            case .text, .line, .image:
+                if (values[control.key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    func submissionInput() -> [String: ExtensionValue]? {
+        guard canConfirm else { return nil }
+        var input: [String: ExtensionValue] = [:]
+        for control in groups.flatMap(\.controls) {
+            switch control.kind {
+            case .toggle:
+                input[control.key] = .bool(toggles[control.key] ?? false)
+            case .text, .line:
+                let raw = values[control.key] ?? ""
+                input[control.key] = .string(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+            case .menu, .radio, .image:
+                input[control.key] = .string(values[control.key] ?? "")
+            }
+        }
+        return input
+    }
+
+    func chooseImage(for key: String) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        values[key] = url.path
     }
 
     var layoutHeights: [CGFloat] {
         switch phase {
         case .editing:
-            [ExtensionBubbleMetrics.formHeight]
+            [ExtensionBubbleMetrics.promptHeight(kinds: groupKinds)]
         case .running:
             [ExtensionBubbleMetrics.statusHeight(text: String(localized: "Working…"))]
         case .result(let summary, _):
@@ -273,26 +356,21 @@ final class ExtensionCenter {
         session = ExtensionPromptSession(
             pluginID: record.id,
             pluginName: record.copy.name,
-            textTitle: form.textTitle,
-            choiceTitle: form.choiceTitle,
-            choices: form.choices,
-            target: form.defaultChoice
+            groups: form.groups,
+            values: form.values,
+            toggles: form.toggles,
+            required: form.required
         )
         publishLayout()
     }
 
     func confirmPrompt() {
         guard let session, case .editing = session.phase else { return }
-        let text = session.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard let input = session.submissionInput() else { return }
         session.phase = .running
         runGeneration += 1
         let generation = runGeneration
         let pluginID = session.pluginID
-        let input: [String: ExtensionValue] = [
-            "text": .string(text),
-            "target": .string(session.target),
-        ]
         publishLayout()
         Task {
             let outcome = await run(id: pluginID, trigger: "manual", input: input, depth: 0)
@@ -330,47 +408,94 @@ final class ExtensionCenter {
     }
 
     private struct PromptForm {
-        var textTitle: String
-        var choiceTitle: String
-        var choices: [ExtensionChoiceOption]
-        var defaultChoice: String
+        var groups: [ExtensionPromptGroup]
+        var values: [String: String]
+        var toggles: [String: Bool]
+        var required: Set<String>
     }
 
     private func promptForm(for record: ExtensionRecord) -> PromptForm {
-        let schema = record.manifest.prompt
-        let textField = schema?.properties["text"]
-        let choiceField = schema?.properties["target"]
-        let textTitle = textField.map {
-            ExtensionCopyResolver.fieldTitle(group: "prompt", key: "text", field: $0, strings: record.strings)
-        } ?? String(localized: "Text to translate")
-        let choiceTitle = choiceField.map {
-            ExtensionCopyResolver.fieldTitle(group: "prompt", key: "target", field: $0, strings: record.strings)
-        } ?? String(localized: "Target language")
-        let choices = (choiceField?.oneOf ?? []).map { choice in
-            ExtensionChoiceOption(
-                value: choice.value,
-                title: ExtensionCopyResolver.choiceTitle(
-                    group: "prompt",
-                    key: "target",
-                    choice: choice,
-                    strings: record.strings
-                )
-            )
+        guard let schema = record.manifest.prompt, !schema.properties.isEmpty else {
+            return fallbackPrompt()
         }
-        let fallback = choices.first?.value ?? "en"
-        let defaultChoice = choiceField?.defaultValue?.stringValue ?? fallback
+        var values: [String: String] = [:]
+        var toggles: [String: Bool] = [:]
+        let groups = schema.fieldGroups().compactMap { keys -> ExtensionPromptGroup? in
+            let controls = keys.compactMap { key -> ExtensionPromptControl? in
+                guard let field = schema.properties[key] else { return nil }
+                let control = ExtensionPromptControl(
+                    key: key,
+                    title: ExtensionCopyResolver.fieldTitle(
+                        group: "prompt",
+                        key: key,
+                        field: field,
+                        strings: record.strings
+                    ),
+                    kind: ExtensionPromptControl.kind(for: field),
+                    choices: field.oneOf.map { choice in
+                        ExtensionChoiceOption(
+                            value: choice.value,
+                            title: ExtensionCopyResolver.choiceTitle(
+                                group: "prompt",
+                                key: key,
+                                choice: choice,
+                                strings: record.strings
+                            )
+                        )
+                    }
+                )
+                switch control.kind {
+                case .toggle:
+                    toggles[key] = boolDefault(field.defaultValue)
+                case .menu, .radio:
+                    values[key] = field.defaultValue?.stringValue ?? control.choices.first?.value ?? ""
+                case .text, .line, .image:
+                    values[key] = field.defaultValue?.stringValue ?? ""
+                }
+                return control
+            }
+            guard !controls.isEmpty else { return nil }
+            return ExtensionPromptGroup(controls: controls)
+        }
         return PromptForm(
-            textTitle: textTitle,
-            choiceTitle: choiceTitle,
-            choices: choices.isEmpty
-                ? [
-                    ExtensionChoiceOption(value: "zh-Hans", title: "简体中文"),
-                    ExtensionChoiceOption(value: "en", title: "English"),
-                    ExtensionChoiceOption(value: "ja", title: "日本語"),
-                ]
-                : choices,
-            defaultChoice: defaultChoice
+            groups: groups,
+            values: values,
+            toggles: toggles,
+            required: Set(schema.required)
         )
+    }
+
+    private func fallbackPrompt() -> PromptForm {
+        let text = ExtensionPromptControl(
+            key: "text",
+            title: String(localized: "Text to translate"),
+            kind: .text,
+            choices: []
+        )
+        let target = ExtensionPromptControl(
+            key: "target",
+            title: String(localized: "Target language"),
+            kind: .menu,
+            choices: [
+                ExtensionChoiceOption(value: "zh-Hans", title: "简体中文"),
+                ExtensionChoiceOption(value: "en", title: "English"),
+                ExtensionChoiceOption(value: "ja", title: "日本語"),
+            ]
+        )
+        return PromptForm(
+            groups: [
+                ExtensionPromptGroup(controls: [text]),
+                ExtensionPromptGroup(controls: [target]),
+            ],
+            values: ["text": "", "target": "en"],
+            toggles: [:],
+            required: ["text"]
+        )
+    }
+
+    private func boolDefault(_ value: ExtensionValue?) -> Bool {
+        if case .bool(let flag) = value { return flag }
+        return false
     }
 
     private enum RunOutcome {

@@ -7,6 +7,24 @@ import SwiftUI
 enum AiboAppearance {
     /// Pow `.movingParts.vanish` default timing.
     static let vanishAnimation: Animation = .easeOut(duration: 0.9)
+    /// Room under a plugin card so the Liquid Glass shadow is inside the window.
+    /// Only when that card is the bottom edge. A bubble underneath keeps the
+    /// normal 4pt gap; the shadow paints into that gap the way hook bubbles do.
+    static let pluginShadowRoom: CGFloat = 20
+
+    static func pluginBottomShadowRoom(
+        placement: BubblePlacement,
+        hookBubbleCount: Int
+    ) -> CGFloat {
+        switch placement {
+        case .left, .right:
+            return hookBubbleCount == 0 ? pluginShadowRoom : 0
+        case .bottom:
+            return pluginShadowRoom
+        case .top:
+            return 0
+        }
+    }
     static let vanishDuration: Duration = .milliseconds(900)
 
     /// Drop-in spring for show. Intentionally not Pow `.boing` — that GeometryEffect

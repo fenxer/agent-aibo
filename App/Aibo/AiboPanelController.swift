@@ -850,9 +850,16 @@ final class AiboPanelController {
     }
 
     /// Plugin prompt sits farther from the pet than hook bubbles. Nil when no prompt is open.
+    /// Adds shadow room only when this card is the bottom edge, matching the padding in `ExtensionBubbleColumn`.
     private var extensionLayoutHeights: [CGFloat]? {
         guard !isLaunchPortalPlaying else { return nil }
-        return ExtensionCenter.shared.layoutHeights
+        guard let heights = ExtensionCenter.shared.layoutHeights else { return nil }
+        let room = AiboAppearance.pluginBottomShadowRoom(
+            placement: AiboLibraryStore.shared.selectedRecord.bubblePlacement,
+            hookBubbleCount: effectiveBubbleCount(AiboRuntime.shared.bubbleItems)
+        )
+        guard room > 0 else { return heights }
+        return heights.map { $0 + room }
     }
 
     /// Hook bubbles, with the plugin card inserted at the far end (index 0).
