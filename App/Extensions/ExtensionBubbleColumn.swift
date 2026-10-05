@@ -102,6 +102,8 @@ struct ExtensionBubbleColumn: View {
     var showsArrow: Bool = true
     var center: ExtensionCenter
 
+    @Environment(\.suppressBubbleGlass) private var suppressBubbleGlass
+
     private var session: ExtensionPromptSession? { center.session }
 
     var body: some View {
@@ -259,7 +261,7 @@ struct ExtensionBubbleColumn: View {
                     shape,
                     style: AppSettings.shared.bubbleGlassStyle,
                     tint: AppSettings.shared.bubbleGlassTint,
-                    suppressGlass: false
+                    suppressGlass: suppressBubbleGlass
                 )
                 .frame(width: shapeWidth, height: shapeHeight)
             }

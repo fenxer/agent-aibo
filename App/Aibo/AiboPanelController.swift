@@ -75,6 +75,18 @@ final class AiboPanelController {
     private var laidOutOnboardingLayoutID = ""
     private var laidOutExtensionLayoutToken = ""
     private var laidOutAiboBubbleSpacing: CGFloat = 6
+    /// Plugin-only column kept beside the pet while that card poofs.
+    private(set) var pluginPoofSlotSize: CGSize?
+    /// Near-pet bubble kept as the side anchor while it poofs and a plugin card remains.
+    private(set) var heldNearBubble: StatusBubbleItem?
+    /// Hidden copies of bubbles removed under a plugin card, so the card does not drop.
+    private(set) var heldStackItems: [StatusBubbleItem] = []
+    /// Panel stack frozen for a poof. Cleared in the same turn as the window move.
+    @ObservationIgnored private var frozenLayoutHeights: [CGFloat]?
+    @ObservationIgnored private var frozenNearRowHeight: CGFloat?
+    /// Keeps a geometry pass during poof from seeing a token change and moving the window.
+    @ObservationIgnored private var frozenExtensionLayoutToken: String?
+    @ObservationIgnored private var pluginPoofReleaseTask: Task<Void, Never>?
 
     private let baseAiboSize: CGFloat = 96
     private let screenPadding: CGFloat = 24
@@ -630,8 +642,9 @@ final class AiboPanelController {
         let items = AiboRuntime.shared.bubbleItems
         let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
         let aiboSize = currentAiboSize
-        let extensionToken = isLaunchPortalPlaying ? "" : ExtensionCenter.shared.layoutToken
-        let bubbleCount = effectiveBubbleCount(items) + (extensionLayoutHeights == nil ? 0 : 1)
+        let extensionToken = currentExtensionLayoutToken
+        let bubbleCount = frozenLayoutHeights?.count
+            ?? (effectiveBubbleCount(items) + (extensionLayoutHeights == nil ? 0 : 1))
         let pinBubble = shouldPinOnboardingBubble
 
         let oldFrame = panel.frame
@@ -862,9 +875,114 @@ final class AiboPanelController {
         return heights.map { $0 + room }
     }
 
+    /// Side plugin-only slot. Matches the panel's row height so the pet stays centered on the card.
+    var pluginOnlyAnchorSize: CGSize? {
+        if heldNearBubble != nil { return nil }
+        if let pluginPoofSlotSize { return pluginPoofSlotSize }
+        guard AiboRuntime.shared.bubbleItems.isEmpty else { return nil }
+        guard let height = extensionLayoutHeights?.first else { return nil }
+        return CGSize(width: bubbleMaxWidth, height: height)
+    }
+
+    /// Side placements center the pet on the plugin card. Hold that slot through
+    /// poof; dropping it early lets the pet fall inside the still-tall panel.
+    func beginPluginPoofHoldIfNeeded() {
+        let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
+        guard placement == .left || placement == .right else { return }
+        // Agent poof is already holding the row. Restart the timer so the
+        // plugin cloud is not clipped, and leave the pet where it is.
+        if heldNearBubble != nil {
+            schedulePluginPoofRelease()
+            return
+        }
+        guard AiboRuntime.shared.bubbleItems.isEmpty else { return }
+        guard let height = extensionLayoutHeights?.first else { return }
+        pluginPoofSlotSize = CGSize(width: bubbleMaxWidth, height: height)
+        frozenLayoutHeights = layoutBubbleHeights(items: [])
+        frozenNearRowHeight = height
+        frozenExtensionLayoutToken = ExtensionCenter.shared.layoutToken
+        schedulePluginPoofRelease()
+    }
+
+    /// Last status bubbles are leaving while a plugin card is open. Keep the
+    /// near-pet row and the stack gap so neither the pet nor the card slides.
+    func beginStackedBubblePoofHoldIfNeeded(nearItem: StatusBubbleItem) {
+        let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
+        guard placement == .left || placement == .right else { return }
+        guard ExtensionCenter.shared.session != nil else { return }
+        let items = AiboRuntime.shared.bubbleItems
+        guard !items.isEmpty else { return }
+        frozenLayoutHeights = layoutBubbleHeights(items: items)
+        var near = nearItem
+        near.isInspecting = false
+        frozenNearRowHeight = sideNearRowHeight(for: near)
+        frozenExtensionLayoutToken = ExtensionCenter.shared.layoutToken
+        heldNearBubble = near
+        heldStackItems = items.map { item in
+            var copy = item
+            copy.isInspecting = false
+            copy.id = item.id + ".hold"
+            return copy
+        }
+        schedulePluginPoofRelease()
+    }
+
+    /// A new prompt replaces the card; don't keep the previous poof slot.
+    func discardPluginColumnSlot() {
+        pluginPoofReleaseTask?.cancel()
+        pluginPoofReleaseTask = nil
+        clearPluginPoofHold()
+    }
+
+    private func schedulePluginPoofRelease() {
+        pluginPoofReleaseTask?.cancel()
+        pluginPoofReleaseTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(420))
+            guard !Task.isCancelled else { return }
+            self.releasePluginPoofHold()
+        }
+    }
+
+    private func clearPluginPoofHold() {
+        pluginPoofSlotSize = nil
+        heldNearBubble = nil
+        heldStackItems = []
+        frozenLayoutHeights = nil
+        frozenNearRowHeight = nil
+        frozenExtensionLayoutToken = nil
+    }
+
+    private var currentExtensionLayoutToken: String {
+        if isLaunchPortalPlaying { return "" }
+        if let frozenExtensionLayoutToken { return frozenExtensionLayoutToken }
+        return ExtensionCenter.shared.layoutToken
+    }
+
+    private func releasePluginPoofHold() {
+        pluginPoofReleaseTask = nil
+        guard pluginPoofSlotSize != nil || heldNearBubble != nil || frozenLayoutHeights != nil else { return }
+        guard !isRepositioningAibo else {
+            pluginPoofReleaseTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled else { return }
+                self.releasePluginPoofHold()
+            }
+            return
+        }
+        // Drop the hold and move the window before the next display, or the
+        // pet slides inside the old frame and then snaps back.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        clearPluginPoofHold()
+        applyGeometryNow()
+        hostingView?.layoutSubtreeIfNeeded()
+        CATransaction.commit()
+    }
+
     /// Hook bubbles, with the plugin card inserted at the far end (index 0).
     /// Side layout treats the last height as the bubble centered on the pet.
     private func layoutBubbleHeights(items: [StatusBubbleItem]) -> [CGFloat] {
+        if let frozenLayoutHeights { return frozenLayoutHeights }
         var heights = items.map(estimatedBubbleHeight(for:))
         guard let pluginHeight = extensionLayoutHeights?.first else { return heights }
         if heights.isEmpty { return [pluginHeight] }
@@ -1459,6 +1577,7 @@ final class AiboPanelController {
             // Plugin prompts replace that near bubble; use their height or the
             // pet (and the hit rect) sit on the status-bubble row instead.
             let nearRow: CGFloat = {
+                if let frozenNearRowHeight { return frozenNearRowHeight }
                 let items = AiboRuntime.shared.bubbleItems
                 if items.isEmpty, let pluginHeight = extensionLayoutHeights?.last {
                     return pluginHeight

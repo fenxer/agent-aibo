@@ -26,6 +26,19 @@ enum BubbleMotion {
     /// Matches Pow `.movingParts.poof` (0.4s linear).
     static let disappear: Animation = .linear(duration: 0.4)
 
+    /// Drop glass, then play the cartoon cloud. Insertion stays identity so a
+    /// remount (inspect, phase change) does not look like a dismiss.
+    static var removal: AnyTransition {
+        .asymmetric(
+            insertion: .identity,
+            removal: AnyTransition.modifier(
+                active: BubbleGlassSuppression(isSuppressed: true),
+                identity: BubbleGlassSuppression(isSuppressed: false)
+            )
+            .combined(with: .movingParts.poof)
+        )
+    }
+
     /// Start offset: approach the final seat from the opposite direction.
     /// SwiftUI Y grows downward, so “from below” is a positive height.
     static func appearOffset(for placement: BubblePlacement) -> CGSize {
@@ -85,14 +98,7 @@ struct AnimatedStatusBubble: View {
         // this view and play poof as if the bubble had been dismissed.
         // Drop glass first: `_hasActiveAppearance` makes real NSGlassEffectView,
         // which would eat the overlay if it stayed in the tree.
-        .transition(.asymmetric(
-            insertion: .identity,
-            removal: AnyTransition.modifier(
-                active: BubbleGlassSuppression(isSuppressed: true),
-                identity: BubbleGlassSuppression(isSuppressed: false)
-            )
-            .combined(with: .movingParts.poof)
-        ))
+        .transition(BubbleMotion.removal)
         .onAppear {
             guard !hasAppeared else { return }
             // Defer so the initial opacity/offset state isn't itself inside an

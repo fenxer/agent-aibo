@@ -3,6 +3,7 @@ import AiboIngest
 import AppKit
 import Foundation
 import Observation
+import SwiftUI
 import UniformTypeIdentifiers
 
 struct ExtensionChoiceOption: Identifiable, Equatable, Sendable {
@@ -353,6 +354,7 @@ final class ExtensionCenter {
             return
         }
         let form = promptForm(for: record)
+        AiboPanelController.shared.discardPluginColumnSlot()
         session = ExtensionPromptSession(
             pluginID: record.id,
             pluginName: record.copy.name,
@@ -397,7 +399,12 @@ final class ExtensionCenter {
 
     func cancelSession() {
         runGeneration += 1
-        session = nil
+        // Hold the side row, then remove the card so its transition can poof
+        // without the pet following the collapse.
+        AiboPanelController.shared.beginPluginPoofHoldIfNeeded()
+        withAnimation(BubbleMotion.disappear) {
+            session = nil
+        }
         publishLayout()
         AiboPanelController.shared.clearExtensionCardFrame()
     }
