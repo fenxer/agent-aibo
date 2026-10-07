@@ -5,12 +5,6 @@ import SwiftUI
 
 /// Settings → Development. DEBUG-only local previews and probes.
 struct DevelopmentSettingsPane: View {
-    private enum Page {
-        case root
-        case plugins
-    }
-
-    @State private var page: Page = .root
     @State private var projectName = "design-fragments"
     @State private var modelName = "Grok 4.5 High Fast"
     @State private var agentName = "Cursor"
@@ -45,34 +39,7 @@ struct DevelopmentSettingsPane: View {
     }
 
     var body: some View {
-        switch page {
-        case .plugins:
-            ExtensionSettingsPage {
-                page = .root
-            }
-        case .root:
-            root
-        }
-    }
-
-    private var root: some View {
         Form {
-            Section {
-                Button {
-                    page = .plugins
-                } label: {
-                    HStack {
-                        Text(String(localized: "Plugins"))
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
             bubblePreviewSection
             PlaytimeDebugSection()
             MouseShakeDebugSection()

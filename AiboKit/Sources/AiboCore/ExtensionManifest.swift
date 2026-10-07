@@ -24,6 +24,8 @@ public struct ExtensionManifest: Sendable, Equatable {
     public var rewrite: Bool
     public var localization: ExtensionLocalization?
     public var io: ExtensionIO
+    /// Author-declared tile. Missing `icon` uses the default symbol and appearance colors.
+    public var icon: ExtensionIcon = .fallback
 
     public var hasManualTrigger: Bool {
         triggers.contains { $0.kind == "manual" }
@@ -203,6 +205,7 @@ public enum ExtensionManifestError: Error, Equatable {
     case unsupportedRuntime(String)
     case unsafeRelativePath(String)
     case invalidSchema
+    case invalidIcon(String)
 }
 
 extension ExtensionManifest: Codable {
@@ -225,6 +228,7 @@ extension ExtensionManifest: Codable {
         case rewrite
         case localization
         case io
+        case icon
     }
 
     public init(from decoder: Decoder) throws {
@@ -249,6 +253,157 @@ extension ExtensionManifest: Codable {
         localization = try container.decodeIfPresent(ExtensionLocalization.self, forKey: .localization)
         io = try container.decodeIfPresent(ExtensionIO.self, forKey: .io)
             ?? ExtensionIO(inputs: [], outputs: [])
+        icon = try container.decodeIfPresent(ExtensionIcon.self, forKey: .icon) ?? .fallback
+    }
+}
+
+/// Plugin tile. Authors either name a 1:1 image in the plugin folder, or a
+/// background plus an SF Symbol. A single color is used for both appearances
+/// when only one is set. Symbol ink uses the declared color, or black/white
+/// from the background contrast when it is omitted.
+public struct ExtensionIcon: Sendable, Equatable {
+    public static let defaultSymbol = "square.text.square.fill"
+    public static let fallback = ExtensionIcon()
+
+    /// Relative path of a 1:1 image inside the plugin directory.
+    public var image: String?
+    public var symbol: String
+    /// Hex `#RGB` or `#RRGGBB`. Nil means the host default for that appearance.
+    public var lightBackground: String?
+    public var darkBackground: String?
+    /// Hex for the symbol. Nil means black or white from the background contrast.
+    public var lightSymbol: String?
+    public var darkSymbol: String?
+
+    public init(
+        image: String? = nil,
+        symbol: String = defaultSymbol,
+        lightBackground: String? = nil,
+        darkBackground: String? = nil,
+        lightSymbol: String? = nil,
+        darkSymbol: String? = nil
+    ) {
+        self.image = image
+        self.symbol = symbol
+        self.lightBackground = lightBackground
+        self.darkBackground = darkBackground
+        self.lightSymbol = lightSymbol
+        self.darkSymbol = darkSymbol
+    }
+
+    /// One declared color fills the appearance that was left out.
+    public func backgroundHex(dark: Bool) -> String? {
+        appearanceHex(light: lightBackground, night: darkBackground, dark: dark)
+    }
+
+    public func symbolHex(dark: Bool) -> String? {
+        appearanceHex(light: lightSymbol, night: darkSymbol, dark: dark)
+    }
+
+    private func appearanceHex(light: String?, night: String?, dark: Bool) -> String? {
+        let day = nonempty(light)
+        let evening = nonempty(night)
+        if dark { return evening ?? day }
+        return day ?? evening
+    }
+
+    private func nonempty(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
+    }
+}
+
+extension ExtensionIcon: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case image
+        case symbol
+        case background
+        case symbolColor
+    }
+
+    private enum AppearanceKey: String, CodingKey {
+        case light
+        case dark
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let image = try container.decodeIfPresent(String.self, forKey: .image), !image.isEmpty {
+            self.image = image
+        } else {
+            self.image = nil
+        }
+        if let symbol = try container.decodeIfPresent(String.self, forKey: .symbol), !symbol.isEmpty {
+            self.symbol = symbol
+        } else {
+            self.symbol = Self.defaultSymbol
+        }
+        if container.contains(.background) {
+            switch try container.decode(ColorValue.self, forKey: .background) {
+            case .hex(let hex):
+                lightBackground = hex
+                darkBackground = hex
+            case .pair(let light, let dark):
+                lightBackground = light
+                darkBackground = dark
+            }
+        } else {
+            lightBackground = nil
+            darkBackground = nil
+        }
+        if container.contains(.symbolColor) {
+            switch try container.decode(ColorValue.self, forKey: .symbolColor) {
+            case .hex(let hex):
+                lightSymbol = hex
+                darkSymbol = hex
+            case .pair(let light, let dark):
+                lightSymbol = light
+                darkSymbol = dark
+            }
+        } else {
+            lightSymbol = nil
+            darkSymbol = nil
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(image, forKey: .image)
+        if symbol != Self.defaultSymbol {
+            try container.encode(symbol, forKey: .symbol)
+        }
+        if let light = lightBackground, let dark = darkBackground, light == dark {
+            try container.encode(light, forKey: .background)
+        } else if lightBackground != nil || darkBackground != nil {
+            var pair = container.nestedContainer(keyedBy: AppearanceKey.self, forKey: .background)
+            try pair.encodeIfPresent(lightBackground, forKey: .light)
+            try pair.encodeIfPresent(darkBackground, forKey: .dark)
+        }
+        if let light = lightSymbol, let dark = darkSymbol, light == dark {
+            try container.encode(light, forKey: .symbolColor)
+        } else if lightSymbol != nil || darkSymbol != nil {
+            var pair = container.nestedContainer(keyedBy: AppearanceKey.self, forKey: .symbolColor)
+            try pair.encodeIfPresent(lightSymbol, forKey: .light)
+            try pair.encodeIfPresent(darkSymbol, forKey: .dark)
+        }
+    }
+
+    private enum ColorValue: Decodable {
+        case hex(String)
+        case pair(light: String?, dark: String?)
+
+        init(from decoder: Decoder) throws {
+            if let container = try? decoder.container(keyedBy: AppearanceKey.self),
+               !container.allKeys.isEmpty {
+                self = .pair(
+                    light: try container.decodeIfPresent(String.self, forKey: .light),
+                    dark: try container.decodeIfPresent(String.self, forKey: .dark)
+                )
+                return
+            }
+            let single = try decoder.singleValueContainer()
+            self = .hex(try single.decode(String.self))
+        }
     }
 }
 
@@ -385,6 +540,29 @@ public enum ExtensionManifestValidator {
         }
         if let prompt = manifest.prompt, let error = schemaError(prompt) {
             return error
+        }
+        if let error = iconError(manifest.icon) {
+            return error
+        }
+        return nil
+    }
+
+    private static func iconError(_ icon: ExtensionIcon) -> ExtensionManifestError? {
+        if let image = icon.image {
+            if let error = relativePathError(image) { return error }
+        }
+        if icon.symbol.isEmpty { return .missingField("icon.symbol") }
+        if let light = icon.lightBackground, let error = colorError(light) { return error }
+        if let dark = icon.darkBackground, let error = colorError(dark) { return error }
+        if let light = icon.lightSymbol, let error = colorError(light) { return error }
+        if let dark = icon.darkSymbol, let error = colorError(dark) { return error }
+        return nil
+    }
+
+    private static func colorError(_ hex: String) -> ExtensionManifestError? {
+        let pattern = #"^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$"#
+        if hex.range(of: pattern, options: .regularExpression) == nil {
+            return .invalidIcon(hex)
         }
         return nil
     }

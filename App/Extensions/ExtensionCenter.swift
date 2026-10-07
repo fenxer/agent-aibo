@@ -165,6 +165,26 @@ struct ExtensionRecord: Identifiable, Equatable {
     }
 }
 
+/// One configured model endpoint inside the AI provider plugin.
+struct ExtensionProvider: Identifiable, Equatable {
+    var id: String
+    var displayName: String
+    var format: String
+    var baseURL: String
+    var model: String
+
+    var listTitle: String {
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty { return name }
+        return model.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var showsModelID: Bool {
+        !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 struct ExtensionPermissionFacts: Equatable {
     var networkHosts: [String]
     var allowsConfiguredEndpoint: Bool
@@ -266,34 +286,14 @@ final class ExtensionCenter {
         }
     }
 
-    func installIncludedPrototypes() {
-        guard let root = Bundle.main.resourceURL?.appendingPathComponent("Extensions", isDirectory: true) else {
-            lastError = String(localized: "Couldn't install the plugin.")
-            return
-        }
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
-        var failed = false
-        for name in names where !name.hasPrefix(".") {
-            let directory = root.appendingPathComponent(name, isDirectory: true)
-            var isDirectory: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory),
-                  isDirectory.boolValue
-            else { continue }
-            do {
-                _ = try store.install(from: directory)
-            } catch {
-                failed = true
-            }
-        }
-        lastError = failed ? String(localized: "Couldn't install the plugin.") : nil
-        reload()
-    }
-
     func uninstall(id: String) {
         if session?.pluginID == id {
             cancelSession()
         }
         let record = plugins.first { $0.id == id }
+        for provider in providers(for: id) {
+            KeychainStore.delete(account: providerKeychainAccount(pluginID: id, providerID: provider.id))
+        }
         for key in store.sensitiveKeys(in: record?.manifest.settings) {
             KeychainStore.delete(account: keychainAccount(id: id, key: key))
         }
@@ -343,6 +343,42 @@ final class ExtensionCenter {
             }
         }
         try? store.saveSettings(id: id, values: stored)
+    }
+
+    func providers(for pluginID: String) -> [ExtensionProvider] {
+        migrateLegacyProviderIfNeeded(pluginID: pluginID)
+        return decodeProviders(store.loadSettings(id: pluginID))
+    }
+
+    func providerHasSecret(pluginID: String, providerID: String) -> Bool {
+        let secret = KeychainStore.string(
+            forAccount: providerKeychainAccount(pluginID: pluginID, providerID: providerID)
+        )
+        return secret?.isEmpty == false
+    }
+
+    func saveProvider(pluginID: String, provider: ExtensionProvider, apiKeyDraft: String) {
+        var list = providers(for: pluginID)
+        if let index = list.firstIndex(where: { $0.id == provider.id }) {
+            list[index] = provider
+        } else {
+            list.append(provider)
+        }
+        let draft = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !draft.isEmpty {
+            try? KeychainStore.setString(
+                draft,
+                forAccount: providerKeychainAccount(pluginID: pluginID, providerID: provider.id)
+            )
+        }
+        writeProviders(pluginID: pluginID, list)
+    }
+
+    func deleteProvider(pluginID: String, providerID: String) {
+        var list = providers(for: pluginID)
+        list.removeAll { $0.id == providerID }
+        KeychainStore.delete(account: providerKeychainAccount(pluginID: pluginID, providerID: providerID))
+        writeProviders(pluginID: pluginID, list)
     }
 
     func beginManualPrompt(id: String) {
@@ -695,6 +731,11 @@ final class ExtensionCenter {
         if let base = settings["baseURL"]?.stringValue, let host = ExtensionURLPolicy.host(ofURLString: base) {
             hosts.insert(host)
         }
+        for provider in providers(for: record.id) {
+            if let host = ExtensionURLPolicy.host(ofURLString: provider.baseURL) {
+                hosts.insert(host.lowercased())
+            }
+        }
         if record.manifest.providesModel {
             hosts.insert("generativelanguage.googleapis.com")
             hosts.insert("api.openai.com")
@@ -704,26 +745,48 @@ final class ExtensionCenter {
 
     private func runtimeSettings(for record: ExtensionRecord) -> [String: ExtensionValue] {
         var values = store.loadSettings(id: record.id)
-        guard let schema = record.manifest.settings else { return values }
-        for key in schema.orderedKeys {
-            guard let field = schema.properties[key] else { continue }
-            if field.sensitive {
-                if let secret = KeychainStore.string(forAccount: keychainAccount(id: record.id, key: key)), !secret.isEmpty {
-                    values[key] = .string(secret)
+        if let schema = record.manifest.settings {
+            for key in schema.orderedKeys {
+                guard let field = schema.properties[key] else { continue }
+                if field.sensitive {
+                    if let secret = KeychainStore.string(forAccount: keychainAccount(id: record.id, key: key)), !secret.isEmpty {
+                        values[key] = .string(secret)
+                    }
+                } else if values[key] == nil, let fallback = field.defaultValue {
+                    values[key] = fallback
                 }
-            } else if values[key] == nil, let fallback = field.defaultValue {
-                values[key] = fallback
+            }
+        }
+        if let provider = providers(for: record.id).first {
+            values["format"] = .string(provider.format)
+            values["baseURL"] = .string(provider.baseURL)
+            values["model"] = .string(provider.model)
+            if let secret = KeychainStore.string(
+                forAccount: providerKeychainAccount(pluginID: record.id, providerID: provider.id)
+            ), !secret.isEmpty {
+                values["apiKey"] = .string(secret)
             }
         }
         return values
     }
 
     private func secretValues(for record: ExtensionRecord) -> [String] {
-        guard let schema = record.manifest.settings else { return [] }
-        return schema.properties.compactMap { key, field in
-            guard field.sensitive else { return nil }
-            return KeychainStore.string(forAccount: keychainAccount(id: record.id, key: key))
-        }.filter { !$0.isEmpty }
+        var secrets: [String] = []
+        if let schema = record.manifest.settings {
+            for (key, field) in schema.properties where field.sensitive {
+                if let secret = KeychainStore.string(forAccount: keychainAccount(id: record.id, key: key)), !secret.isEmpty {
+                    secrets.append(secret)
+                }
+            }
+        }
+        for provider in providers(for: record.id) {
+            if let secret = KeychainStore.string(
+                forAccount: providerKeychainAccount(pluginID: record.id, providerID: provider.id)
+            ), !secret.isEmpty {
+                secrets.append(secret)
+            }
+        }
+        return secrets
     }
 
     private func incrementInvocations(id: String) {
@@ -735,6 +798,73 @@ final class ExtensionCenter {
 
     private func keychainAccount(id: String, key: String) -> String {
         "extension.\(id).\(key)"
+    }
+
+    private func providerKeychainAccount(pluginID: String, providerID: String) -> String {
+        "extension.\(pluginID).provider.\(providerID).apiKey"
+    }
+
+    private func decodeProviders(_ stored: [String: ExtensionValue]) -> [ExtensionProvider] {
+        guard case .array(let items) = stored["providers"] else { return [] }
+        return items.compactMap { item in
+            guard case .object(let object) = item,
+                  let id = object["id"]?.stringValue,
+                  !id.isEmpty
+            else { return nil }
+            return ExtensionProvider(
+                id: id,
+                displayName: object["displayName"]?.stringValue ?? "",
+                format: object["format"]?.stringValue ?? "",
+                baseURL: object["baseURL"]?.stringValue ?? "",
+                model: object["model"]?.stringValue ?? ""
+            )
+        }
+    }
+
+    /// Older installs stored one provider as flat settings keys. Fold that into the list once.
+    private func migrateLegacyProviderIfNeeded(pluginID: String) {
+        let stored = store.loadSettings(id: pluginID)
+        if stored["providers"] != nil { return }
+        let format = stored["format"]?.stringValue ?? ""
+        let baseURL = stored["baseURL"]?.stringValue ?? ""
+        let model = stored["model"]?.stringValue ?? ""
+        let legacyAccount = keychainAccount(id: pluginID, key: "apiKey")
+        let legacyKey = KeychainStore.string(forAccount: legacyAccount) ?? ""
+        let hasAnything = !format.isEmpty || !baseURL.isEmpty || !model.isEmpty || !legacyKey.isEmpty
+        guard hasAnything else { return }
+        let providerID = UUID().uuidString
+        if !legacyKey.isEmpty {
+            try? KeychainStore.setString(
+                legacyKey,
+                forAccount: providerKeychainAccount(pluginID: pluginID, providerID: providerID)
+            )
+            KeychainStore.delete(account: legacyAccount)
+        }
+        writeProviders(
+            pluginID: pluginID,
+            [
+                ExtensionProvider(
+                    id: providerID,
+                    displayName: "",
+                    format: format,
+                    baseURL: baseURL,
+                    model: model
+                ),
+            ]
+        )
+    }
+
+    private func writeProviders(pluginID: String, _ list: [ExtensionProvider]) {
+        let array = list.map { provider in
+            ExtensionValue.object([
+                "id": .string(provider.id),
+                "displayName": .string(provider.displayName),
+                "format": .string(provider.format),
+                "baseURL": .string(provider.baseURL),
+                "model": .string(provider.model),
+            ])
+        }
+        try? store.saveSettings(id: pluginID, values: ["providers": .array(array)])
     }
 
     private func redact(_ text: String, secrets: [String]) -> String {

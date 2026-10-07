@@ -11,6 +11,12 @@ import Testing
     #expect(manifest.entry == "main.js")
     #expect(manifest.settings?.orderedKeys == ["format", "baseURL", "model", "apiKey"])
     #expect(manifest.settings?.properties["apiKey"]?.sensitive == true)
+    #expect(manifest.icon.symbol == "sparkle")
+    #expect(manifest.icon.backgroundHex(dark: false) == "#0088FF")
+    #expect(manifest.icon.backgroundHex(dark: true) == "#0088FF")
+    #expect(manifest.icon.symbolHex(dark: false) == "#FFFFFF")
+    #expect(manifest.icon.symbolHex(dark: true) == "#FFFFFF")
+    #expect(manifest.icon.image == nil)
 }
 
 @Test func extensionManifestDecodesPrototypeTranslator() throws {
@@ -22,6 +28,10 @@ import Testing
     #expect(manifest.usesModel)
     #expect(manifest.prompt?.properties["target"]?.oneOf.map(\.value) == ["zh-Hans", "en", "ja"])
     #expect(manifest.prompt?.fieldGroups() == [["text", "target"]])
+    #expect(manifest.icon.symbol == "character.bubble.fill")
+    #expect(manifest.icon.backgroundHex(dark: false) == nil)
+    #expect(manifest.icon.backgroundHex(dark: true) == nil)
+    #expect(manifest.icon.symbolHex(dark: false) == nil)
 }
 
 @Test func extensionPromptSectionsGroupFields() throws {
@@ -67,6 +77,40 @@ import Testing
     unknown.properties["text"] = textField
     manifest.prompt = unknown
     #expect(ExtensionManifestValidator.validate(manifest) == .invalidSchema)
+}
+
+@Test func extensionIconDecodesImageAndAppearanceColors() throws {
+    let image = try JSONDecoder().decode(
+        ExtensionIcon.self,
+        from: Data(#"{"image":"icon.png"}"#.utf8)
+    )
+    #expect(image.image == "icon.png")
+    #expect(image.symbol == ExtensionIcon.defaultSymbol)
+
+    let lightOnly = try JSONDecoder().decode(
+        ExtensionIcon.self,
+        from: Data(
+            ##"{"symbol":"sparkle","background":{"light":"#111111"}}"##.utf8
+        )
+    )
+    #expect(lightOnly.backgroundHex(dark: false) == "#111111")
+    #expect(lightOnly.backgroundHex(dark: true) == "#111111")
+
+    let darkOnly = try JSONDecoder().decode(
+        ExtensionIcon.self,
+        from: Data(
+            ##"{"background":{"dark":"#EEEEEE"}}"##.utf8
+        )
+    )
+    #expect(darkOnly.symbol == ExtensionIcon.defaultSymbol)
+    #expect(darkOnly.backgroundHex(dark: false) == "#EEEEEE")
+    #expect(darkOnly.backgroundHex(dark: true) == "#EEEEEE")
+
+    var manifest = sampleManifest()
+    manifest.icon = ExtensionIcon(image: "../icon.png")
+    #expect(ExtensionManifestValidator.validate(manifest) == .unsafeRelativePath("../icon.png"))
+    manifest.icon = ExtensionIcon(symbol: "sparkle", lightBackground: "red")
+    #expect(ExtensionManifestValidator.validate(manifest) == .invalidIcon("red"))
 }
 
 @Test func extensionManifestRejectsPathEscape() {

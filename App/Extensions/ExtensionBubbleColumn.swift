@@ -176,6 +176,7 @@ struct ExtensionBubbleColumn: View {
             ExtensionPromptForm(
                 session: session,
                 directory: center.plugins.first { $0.id == session.pluginID }?.directory,
+                icon: center.plugins.first { $0.id == session.pluginID }?.manifest.icon ?? .fallback,
                 onConfirm: { center.confirmPrompt() },
                 onClose: { center.cancelSession() }
             )
@@ -222,9 +223,11 @@ struct ExtensionBubbleColumn: View {
     }
 
     private func pluginHeader(_ session: ExtensionPromptSession) -> some View {
-        ExtensionPluginHeader(
+        let plugin = center.plugins.first { $0.id == session.pluginID }
+        return ExtensionPluginHeader(
             name: session.pluginName,
-            directory: center.plugins.first { $0.id == session.pluginID }?.directory
+            directory: plugin?.directory,
+            icon: plugin?.manifest.icon ?? .fallback
         )
     }
 
@@ -280,12 +283,13 @@ struct ExtensionBubbleColumn: View {
 private struct ExtensionPromptForm: View {
     var session: ExtensionPromptSession
     var directory: URL?
+    var icon: ExtensionIcon = .fallback
     var onConfirm: () -> Void
     var onClose: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.groupSpacing) {
-            ExtensionPluginHeader(name: session.pluginName, directory: directory)
+            ExtensionPluginHeader(name: session.pluginName, directory: directory, icon: icon)
             ForEach(session.groups) { group in
                 ExtensionPromptPlate(controls: group.controls, session: session)
             }
@@ -391,82 +395,27 @@ private struct ExtensionPromptLabeledRow<Control: View>: View {
     }
 }
 
-/// Plugin name row. Uses `icon.png` from the plugin folder when there is one.
+/// Plugin name row. Draws the author-declared icon, or the default tile.
 private struct ExtensionPluginHeader: View {
     var name: String
     var directory: URL?
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var iconImage: NSImage?
+    var icon: ExtensionIcon = .fallback
 
     var body: some View {
         HStack(spacing: 6) {
-            icon
-                .accessibilityHidden(true)
+            ExtensionIconBadge(
+                icon: icon,
+                directory: directory,
+                side: ExtensionBubbleMetrics.pluginIconSize,
+                cornerRadius: ExtensionBubbleMetrics.pluginIconCornerRadius,
+                symbolPointSize: 14
+            )
             Text(name)
                 .font(.system(size: 14))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
         }
         .frame(height: ExtensionBubbleMetrics.pluginHeaderHeight, alignment: .leading)
-        .onAppear(perform: loadIcon)
-        .onChange(of: directory) { _, _ in
-            loadIcon()
-        }
-    }
-
-    @ViewBuilder
-    private var icon: some View {
-        if let iconImage {
-            Image(nsImage: iconImage)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: ExtensionBubbleMetrics.pluginIconSize, height: ExtensionBubbleMetrics.pluginIconSize)
-                .clipShape(RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.pluginIconCornerRadius, style: .continuous))
-        } else {
-            let tile = colorScheme == .dark ? Color.white : Color.black
-            let glyph = colorScheme == .dark ? Color.black : Color.white
-            // SF Symbol layout rects sit below the ink. Draw the ink centered
-            // in the tile so the baseline inset does not shift the glyph.
-            Image(nsImage: Self.centeredSymbol)
-                .renderingMode(.template)
-                .foregroundStyle(glyph)
-                .frame(width: ExtensionBubbleMetrics.pluginIconSize, height: ExtensionBubbleMetrics.pluginIconSize)
-                .background(tile, in: RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.pluginIconCornerRadius, style: .continuous))
-        }
-    }
-
-    private static let centeredSymbol: NSImage = {
-        let side = ExtensionBubbleMetrics.pluginIconSize
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-        guard let symbol = NSImage(systemSymbolName: "square.text.square.fill", accessibilityDescription: nil)?
-            .withSymbolConfiguration(config) else {
-            return NSImage()
-        }
-        let canvas = NSImage(size: NSSize(width: side, height: side))
-        canvas.isTemplate = true
-        canvas.lockFocus()
-        let ink = symbol.alignmentRect
-        symbol.draw(
-            in: NSRect(
-                x: (side - ink.width) / 2 - ink.origin.x,
-                y: (side - ink.height) / 2 - ink.origin.y,
-                width: symbol.size.width,
-                height: symbol.size.height
-            ),
-            from: NSRect(origin: .zero, size: symbol.size),
-            operation: .sourceOver,
-            fraction: 1
-        )
-        canvas.unlockFocus()
-        return canvas
-    }()
-
-    private func loadIcon() {
-        guard let directory else {
-            iconImage = nil
-            return
-        }
-        iconImage = NSImage(contentsOf: directory.appendingPathComponent("icon.png"))
     }
 }
 

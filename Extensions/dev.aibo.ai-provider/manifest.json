@@ -5,6 +5,11 @@
   "description": "One place to configure a model API. Other plugins send completion requests here.",
   "version": "1.0.0",
   "author": "aibo",
+  "icon": {
+    "symbol": "sparkle",
+    "background": "#0088FF",
+    "symbolColor": "#FFFFFF"
+  },
   "runtime": "js",
   "entry": "main.js",
   "compatibility": { "aibo": ">=1.4.0" },

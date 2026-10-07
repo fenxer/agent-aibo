@@ -51,7 +51,7 @@ struct AiboAppMenu: View {
                     .disabled(true)
             } else {
                 ForEach(extensions.manualPlugins) { plugin in
-                    Button(plugin.copy.name) {
+                    Button(plugin.copy.name + " " + plugin.manifest.version) {
                         extensions.beginManualPrompt(id: plugin.id)
                     }
                 }

@@ -6,6 +6,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     case aibo
     case agentHook
     case webhook
+    case extensions
     case general
     case about
     #if DEBUG
@@ -19,6 +20,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .aibo: String(localized: "Aibo")
         case .agentHook: String(localized: "Agent Hook")
         case .webhook: String(localized: "Webhook")
+        case .extensions: String(localized: "Extensions")
         case .general: String(localized: "General")
         case .about: String(localized: "About")
         #if DEBUG
@@ -37,6 +39,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .aibo: .asset("HeartMenu")
         case .agentHook: .system("poweroutlet.type.b.fill")
         case .webhook: .system("globe")
+        case .extensions: .system("square.text.square.fill")
         case .general: .system("gearshape.fill")
         case .about: .system("info.circle.fill")
         #if DEBUG
@@ -50,6 +53,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .aibo: .red
         case .agentHook: .blue
         case .webhook: .blue
+        case .extensions: .teal
         case .general: .indigo
         case .about: Color(nsColor: .systemGray)
         #if DEBUG
@@ -63,6 +67,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .aibo: 18
         case .agentHook: 20
         case .webhook: 18
+        case .extensions: 16
         case .general: 18
         case .about: 16
         #if DEBUG
@@ -94,9 +99,10 @@ private struct SettingsSidebar: View {
                 }
             }
             Section {
-                SettingsSidebarRow(pane: .general)
+                SettingsSidebarRow(pane: .extensions)
             }
             Section {
+                SettingsSidebarRow(pane: .general)
                 SettingsSidebarRow(pane: .about)
             }
             #if DEBUG
@@ -214,6 +220,8 @@ struct SettingsView: View {
             GeneralSettingsPane()
         case .webhook:
             WebhookSettingsPane()
+        case .extensions:
+            ExtensionSettingsPage()
         case .about:
             AboutSettingsPane()
         #if DEBUG

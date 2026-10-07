@@ -5,6 +5,9 @@
   "description": "Translate a passage into Simplified Chinese, English, or Japanese.",
   "version": "1.0.0",
   "author": "aibo",
+  "icon": {
+    "symbol": "character.bubble.fill"
+  },
   "runtime": "js",
   "entry": "main.js",
   "compatibility": { "aibo": ">=1.4.0" },
