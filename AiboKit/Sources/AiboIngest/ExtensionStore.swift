@@ -42,6 +42,7 @@ public enum ExtensionStoreError: Error, Equatable {
     case tooLarge
     case entryMissing
     case unreadable
+    case blocked(ExtensionInstallBlock)
 }
 
 public struct ExtensionStore {
@@ -90,6 +91,12 @@ public struct ExtensionStore {
         let manifest = try readManifest(in: source)
         if let error = ExtensionManifestValidator.validate(manifest) {
             throw ExtensionStoreError.invalidManifest(error)
+        }
+        if let block = ExtensionInstallPolicy.block(
+            installing: manifest,
+            alongside: installed().map(\.manifest)
+        ) {
+            throw ExtensionStoreError.blocked(block)
         }
         let files = try collectFiles(in: source)
         let stagingParent = extensionsRoot.appendingPathComponent(".staging-\(UUID().uuidString)", isDirectory: true)

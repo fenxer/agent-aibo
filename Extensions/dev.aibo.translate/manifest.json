@@ -1,6 +1,7 @@
 {
   "apiVersion": 1,
   "id": "dev.aibo.translate",
+  "slug": "translate",
   "name": "Translate",
   "description": "Translate a passage into Simplified Chinese, English, or Japanese.",
   "version": "1.0.0",

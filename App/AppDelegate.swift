@@ -16,6 +16,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         PlaytimeStore.shared.start()
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        ExtensionLinkRouter.accept(urls)
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         AiboRuntime.shared.refreshHostAppPresence()
     }

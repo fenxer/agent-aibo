@@ -4,6 +4,7 @@ import Foundation
 ///
 /// Prototype fields beyond the v1 draft, all optional:
 /// `provides` (a capability other plugins can request, currently `llm`),
+/// `slug` (the `aibo://extension/<slug>` link),
 /// `io` (labels for the plugin list), and `prompt` (the manual-run input form).
 public struct ExtensionManifest: Sendable, Equatable {
     public var apiVersion: Int
@@ -26,6 +27,8 @@ public struct ExtensionManifest: Sendable, Equatable {
     public var io: ExtensionIO
     /// Author-declared tile. Missing `icon` uses the default symbol and appearance colors.
     public var icon: ExtensionIcon = .fallback
+    /// Path segment for `aibo://extension/<slug>`. Nil means the plugin has no link.
+    public var slug: String? = nil
 
     public var hasManualTrigger: Bool {
         triggers.contains { $0.kind == "manual" }
@@ -37,6 +40,13 @@ public struct ExtensionManifest: Sendable, Equatable {
 
     public var usesModel: Bool {
         capabilities.contains("llm") || rewrite
+    }
+
+    /// Capabilities that must already be `provides` by some other installed plugin.
+    public var requiredCapabilities: [String] {
+        var names = Set(capabilities)
+        if rewrite { names.insert("llm") }
+        return names.sorted()
     }
 }
 
@@ -206,6 +216,7 @@ public enum ExtensionManifestError: Error, Equatable {
     case unsafeRelativePath(String)
     case invalidSchema
     case invalidIcon(String)
+    case invalidSlug(String)
 }
 
 extension ExtensionManifest: Codable {
@@ -229,6 +240,7 @@ extension ExtensionManifest: Codable {
         case localization
         case io
         case icon
+        case slug
     }
 
     public init(from decoder: Decoder) throws {
@@ -254,6 +266,14 @@ extension ExtensionManifest: Codable {
         io = try container.decodeIfPresent(ExtensionIO.self, forKey: .io)
             ?? ExtensionIO(inputs: [], outputs: [])
         icon = try container.decodeIfPresent(ExtensionIcon.self, forKey: .icon) ?? .fallback
+        if let slug = try container.decodeIfPresent(String.self, forKey: .slug)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !slug.isEmpty
+        {
+            self.slug = slug
+        } else {
+            self.slug = nil
+        }
     }
 }
 
@@ -516,6 +536,9 @@ public enum ExtensionManifestValidator {
         if !isReverseDNS(manifest.id) {
             return .invalidIdentifier(manifest.id)
         }
+        if let slug = manifest.slug, !isValidSlug(slug) {
+            return .invalidSlug(slug)
+        }
         if manifest.name.isEmpty { return .missingField("name") }
         if manifest.summary.isEmpty { return .missingField("description") }
         if manifest.version.isEmpty { return .missingField("version") }
@@ -589,6 +612,19 @@ public enum ExtensionManifestValidator {
             }
         }
         return nil
+    }
+
+    /// `aibo://extension/<slug>` segment. Lowercase, 1–63 characters, hyphens allowed after the first.
+    public static func isValidSlug(_ slug: String) -> Bool {
+        guard let first = slug.first, first.isASCII, first.isLetter || first.isNumber else {
+            return false
+        }
+        guard slug.count <= 63 else { return false }
+        return slug.unicodeScalars.allSatisfy { scalar in
+            (scalar >= "a" && scalar <= "z")
+                || (scalar >= "0" && scalar <= "9")
+                || scalar == "-"
+        }
     }
 
     public static func isReverseDNS(_ id: String) -> Bool {

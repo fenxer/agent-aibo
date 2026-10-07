@@ -81,6 +81,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: self = .general
         case .webhook: self = .webhook
         case .about: self = .about
+        case .extensions: self = .extensions
         #if DEBUG
         case .development: self = .development
         #endif

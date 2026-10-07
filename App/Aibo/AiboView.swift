@@ -96,6 +96,7 @@ struct AiboView: View {
             )
             .allowsWindowActivationEvents()
             .coordinateSpace(name: AiboPanelSpace.name)
+            .background { SettingsSceneOpener() }
     }
 
     @ViewBuilder

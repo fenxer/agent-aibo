@@ -57,3 +57,76 @@ import Testing
         try store.install(from: source)
     }
 }
+
+@Test func extensionStoreStopsWhenDependencyOrSlugIsMissing() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let store = ExtensionStore(
+        extensionsRoot: root.appendingPathComponent("extensions"),
+        dataRoot: root.appendingPathComponent("data"),
+        registryURL: root.appendingPathComponent("registry.json")
+    )
+    let translate = try pluginDirectory(
+        root: root,
+        id: "dev.aibo.translate",
+        slug: "translate",
+        capabilities: ["llm"],
+        provides: []
+    )
+    #expect(throws: ExtensionStoreError.blocked(ExtensionInstallBlock(missingCapabilities: ["llm"]))) {
+        try store.install(from: translate)
+    }
+    #expect(store.installed().isEmpty)
+
+    let provider = try pluginDirectory(
+        root: root,
+        id: "dev.aibo.ai-provider",
+        slug: "ai-provider",
+        capabilities: [],
+        provides: ["llm"]
+    )
+    #expect(try store.install(from: provider).id == "dev.aibo.ai-provider")
+    #expect(try store.install(from: translate).slug == "translate")
+
+    let clash = try pluginDirectory(
+        root: root,
+        id: "dev.aibo.other",
+        slug: "translate",
+        capabilities: [],
+        provides: []
+    )
+    #expect(throws: ExtensionStoreError.blocked(ExtensionInstallBlock(duplicateSlug: "translate"))) {
+        try store.install(from: clash)
+    }
+    #expect(store.installed().map(\.manifest.id).sorted() == ["dev.aibo.ai-provider", "dev.aibo.translate"])
+
+    let updated = try pluginDirectory(
+        root: root,
+        id: "dev.aibo.translate",
+        slug: "translate",
+        capabilities: ["llm"],
+        provides: []
+    )
+    #expect(try store.install(from: updated).slug == "translate")
+}
+
+private func pluginDirectory(
+    root: URL,
+    id: String,
+    slug: String?,
+    capabilities: [String],
+    provides: [String]
+) throws -> URL {
+    let source = root.appendingPathComponent(id, isDirectory: true)
+    try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+    let slugField = slug.map { ",\"slug\":\"\($0)\"" } ?? ""
+    let manifest = """
+    {"apiVersion":1,"id":"\(id)"\(slugField),"name":"Sample","description":"A sample.","version":"1.0.0","author":"aibo","runtime":"js","entry":"main.js","triggers":[],"capabilities":\(jsonArray(capabilities)),"provides":\(jsonArray(provides))}
+    """
+    try manifest.write(to: source.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+    try "function run() {}\n".write(to: source.appendingPathComponent("main.js"), atomically: true, encoding: .utf8)
+    return source
+}
+
+private func jsonArray(_ values: [String]) -> String {
+    "[\(values.map { "\"\($0)\"" }.joined(separator: ","))]"
+}

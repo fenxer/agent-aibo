@@ -17,6 +17,8 @@ import Testing
     #expect(manifest.icon.symbolHex(dark: false) == "#FFFFFF")
     #expect(manifest.icon.symbolHex(dark: true) == "#FFFFFF")
     #expect(manifest.icon.image == nil)
+    #expect(manifest.slug == "ai-provider")
+    #expect(manifest.requiredCapabilities.isEmpty)
 }
 
 @Test func extensionManifestDecodesPrototypeTranslator() throws {
@@ -32,6 +34,8 @@ import Testing
     #expect(manifest.icon.backgroundHex(dark: false) == nil)
     #expect(manifest.icon.backgroundHex(dark: true) == nil)
     #expect(manifest.icon.symbolHex(dark: false) == nil)
+    #expect(manifest.slug == "translate")
+    #expect(manifest.requiredCapabilities == ["llm"])
 }
 
 @Test func extensionPromptSectionsGroupFields() throws {
@@ -113,6 +117,52 @@ import Testing
     #expect(ExtensionManifestValidator.validate(manifest) == .invalidIcon("red"))
 }
 
+@Test func extensionSlugAndInstallPolicy() {
+    var manifest = sampleManifest()
+    #expect(manifest.slug == nil)
+    var plain = manifest
+    plain.capabilities = []
+    #expect(ExtensionInstallPolicy.block(installing: plain, alongside: []) == nil)
+
+    manifest.slug = "Translate"
+    #expect(ExtensionManifestValidator.validate(manifest) == .invalidSlug("Translate"))
+    manifest.slug = "translate"
+    #expect(ExtensionManifestValidator.validate(manifest) == nil)
+
+    let provider = providerManifest()
+    #expect(
+        ExtensionInstallPolicy.block(installing: manifest, alongside: [])
+            == ExtensionInstallBlock(missingCapabilities: ["llm"])
+    )
+    #expect(ExtensionInstallPolicy.block(installing: manifest, alongside: [provider]) == nil)
+    #expect(ExtensionInstallPolicy.block(installing: provider, alongside: []) == nil)
+
+    var other = provider
+    other.id = "dev.aibo.other"
+    other.slug = "translate"
+    other.provides = ["llm"]
+    #expect(
+        ExtensionInstallPolicy.block(installing: manifest, alongside: [other])
+            == ExtensionInstallBlock(duplicateSlug: "translate")
+    )
+    other.provides = []
+    #expect(
+        ExtensionInstallPolicy.block(installing: manifest, alongside: [other])
+            == ExtensionInstallBlock(missingCapabilities: ["llm"], duplicateSlug: "translate")
+    )
+    #expect(ExtensionInstallPolicy.block(installing: manifest, alongside: [provider, manifest]) == nil)
+
+    manifest.rewrite = true
+    manifest.capabilities = []
+    #expect(manifest.requiredCapabilities == ["llm"])
+
+    #expect(ExtensionLink.slug(from: URL(string: "aibo://extension/Translate")!) == "translate")
+    #expect(ExtensionLink.slug(from: URL(string: "aibo://extension/translate?x=1")!) == "translate")
+    #expect(ExtensionLink.slug(from: URL(string: "aibo:///extension/translate")!) == "translate")
+    #expect(ExtensionLink.slug(from: URL(string: "aibo://extension/translate/extra")!) == nil)
+    #expect(ExtensionLink.slug(from: URL(string: "https://example.com/extension/translate")!) == nil)
+}
+
 @Test func extensionManifestRejectsPathEscape() {
     var manifest = sampleManifest()
     manifest.entry = "../main.js"
@@ -170,6 +220,16 @@ private func repositoryRoot() -> URL {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
+}
+
+private func providerManifest() -> ExtensionManifest {
+    var manifest = sampleManifest()
+    manifest.id = "dev.aibo.ai-provider"
+    manifest.slug = "ai-provider"
+    manifest.capabilities = []
+    manifest.provides = ["llm"]
+    manifest.triggers = []
+    return manifest
 }
 
 private func sampleManifest() -> ExtensionManifest {

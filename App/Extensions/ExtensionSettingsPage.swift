@@ -15,6 +15,7 @@ private struct ExtensionOffer: Identifiable, Equatable {
 
 struct ExtensionSettingsPage: View {
     @State private var center = ExtensionCenter.shared
+    @Bindable private var navigator = SettingsNavigator.shared
     @State private var detailID: String?
     @State private var installError: String?
 
@@ -35,6 +36,11 @@ struct ExtensionSettingsPage: View {
             if let detailID, !ids.contains(detailID) {
                 self.detailID = nil
             }
+        }
+        .onAppear(perform: revealPendingExtension)
+        .onChange(of: navigator.pendingExtensionID) { _, newValue in
+            guard newValue != nil else { return }
+            revealPendingExtension()
         }
     }
 
@@ -88,6 +94,10 @@ struct ExtensionSettingsPage: View {
             )
         ) {
             Button(String(localized: "Done")) { installError = nil }
+        } message: {
+            if let installError, installError != String(localized: "Couldn't install the plugin.") {
+                Text(installError)
+            }
         }
         .onChange(of: center.lastError) { _, newValue in
             installError = newValue
@@ -106,6 +116,12 @@ struct ExtensionSettingsPage: View {
     private func installOffer(_ offer: ExtensionOffer) {
         // Nothing to fetch until an external list exists.
         _ = offer
+    }
+
+    private func revealPendingExtension() {
+        guard let id = navigator.consumePendingExtensionID() else { return }
+        guard center.plugins.contains(where: { $0.id == id }) else { return }
+        detailID = id
     }
 
     private func installFromFolder() {
@@ -429,6 +445,14 @@ struct ExtensionDetailPage: View {
             }
             LabeledContent(String(localized: "Network Permission")) {
                 Text(networkPermissionText)
+            }
+            if let slug = record.manifest.slug {
+                LabeledContent(String(localized: "URL Scheme")) {
+                    HStack(spacing: 8) {
+                        Text(slug)
+                        ExtensionSlugCopyButton(slug: slug)
+                    }
+                }
             }
             LabeledContent(String(localized: "Calls")) {
                 Text("\(record.invocations)")
@@ -816,6 +840,53 @@ private struct ProviderEditorSheet: View {
             model: (values["model"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         )
         onSave(provider, values["apiKey"] ?? "")
+    }
+}
+
+private struct ExtensionSlugCopyButton: View {
+    var slug: String
+
+    @State private var didCopy = false
+    @State private var resetTask: Task<Void, Never>?
+
+    var body: some View {
+        Button {
+            guard copy(slug) else { return }
+            didCopy = true
+            resetTask?.cancel()
+            resetTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                guard !Task.isCancelled else { return }
+                didCopy = false
+            }
+        } label: {
+            // Layout stays on the copy glyph. The checkmark is taller and
+            // would stretch the form row if it participated in sizing.
+            Image(systemName: "square.on.square")
+                .font(.callout)
+                .hidden()
+                .overlay {
+                    Image(systemName: didCopy ? "checkmark" : "square.on.square")
+                        .font(.callout)
+                        .contentTransition(
+                            .symbolEffect(
+                                .replace.magic(fallback: .downUp.byLayer),
+                                options: .nonRepeating.speed(2)
+                            )
+                        )
+                }
+        }
+        .buttonStyle(.borderless)
+        .help(String(localized: "Copy"))
+        .accessibilityLabel(String(localized: "Copy"))
+        .onDisappear {
+            resetTask?.cancel()
+        }
+    }
+
+    private func copy(_ slug: String) -> Bool {
+        NSPasteboard.general.clearContents()
+        return NSPasteboard.general.setString("aibo://extension/\(slug)", forType: .string)
     }
 }
 

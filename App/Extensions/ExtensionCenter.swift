@@ -204,6 +204,7 @@ final class ExtensionCenter {
     private(set) var plugins: [ExtensionRecord] = []
     private(set) var session: ExtensionPromptSession?
     private(set) var lastError: String?
+    private(set) var isReady = false
     private var store = ExtensionStore.live()
     private var runGeneration = 0
 
@@ -239,6 +240,19 @@ final class ExtensionCenter {
 
     func start() {
         reload()
+        isReady = true
+        ExtensionLinkRouter.deliver()
+    }
+
+    /// Manual plugins open their prompt bubble. Anything else opens Settings.
+    func openLinkedPlugin(slug: String) {
+        guard let record = plugins.first(where: { $0.manifest.slug == slug }) else { return }
+        if record.enabled, record.manifest.hasManualTrigger {
+            AiboPanelController.shared.show()
+            beginManualPrompt(id: record.id)
+            return
+        }
+        SettingsNavigator.shared.openExtension(id: record.id)
     }
 
     func reload() {
@@ -281,9 +295,32 @@ final class ExtensionCenter {
             _ = try store.install(from: directory)
             lastError = nil
             reload()
+        } catch let error as ExtensionStoreError {
+            lastError = Self.installMessage(for: error)
         } catch {
             lastError = String(localized: "Couldn't install the plugin.")
         }
+    }
+
+    private static func installMessage(for error: ExtensionStoreError) -> String {
+        guard case .blocked(let block) = error else {
+            return String(localized: "Couldn't install the plugin.")
+        }
+        var parts: [String] = []
+        let missing = block.missingCapabilities
+        if missing.count == 1, let name = missing.first {
+            parts.append(String(localized: "Install a plugin that provides “\(name)” first."))
+        } else if missing.count > 1 {
+            let list = ListFormatter.localizedString(byJoining: missing.map { "“\($0)”" })
+            parts.append(String(localized: "Install plugins that provide \(list) first."))
+        }
+        if let slug = block.duplicateSlug {
+            parts.append(String(localized: "Another plugin is already using the link “\(slug)”."))
+        }
+        if parts.isEmpty {
+            return String(localized: "Couldn't install the plugin.")
+        }
+        return parts.joined(separator: "\n")
     }
 
     func uninstall(id: String) {

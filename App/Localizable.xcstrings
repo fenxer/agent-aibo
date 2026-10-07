@@ -1251,12 +1251,42 @@
         }
       }
     },
+    "Another plugin is already using the link “%@”." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已有插件使用了链接“%@”。"
+          }
+        }
+      }
+    },
+    "Install a plugin that provides “%@” first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先安装提供“%@”的插件。"
+          }
+        }
+      }
+    },
     "Install from Folder…" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "从文件夹安装…"
+          }
+        }
+      }
+    },
+    "Install plugins that provide %@ first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先安装提供%@的插件。"
           }
         }
       }
@@ -2532,6 +2562,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "立即更新"
+          }
+        }
+      }
+    },
+    "URL Scheme" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL 方案"
           }
         }
       }

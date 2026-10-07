@@ -45,13 +45,13 @@ struct AiboAppMenu: View {
         }
 
         #if DEBUG
-        Menu(String(localized: "Plugins")) {
+        Menu(String(localized: "Extensions")) {
             if extensions.manualPlugins.isEmpty {
                 Button(String(localized: "No plugins are turned on")) {}
                     .disabled(true)
             } else {
                 ForEach(extensions.manualPlugins) { plugin in
-                    Button(plugin.copy.name + " " + plugin.manifest.version) {
+                    Button(plugin.copy.name) {
                         extensions.beginManualPrompt(id: plugin.id)
                     }
                 }
