@@ -145,7 +145,7 @@ private struct ExtensionIntroRow: View {
                 .fill(Color.teal)
                 .frame(width: side, height: side)
                 .overlay {
-                    Image(systemName: "puzzlepiece.extension.fill")
+                    Image(systemName: "square.text.square.fill")
                         .font(.system(size: iconSize, weight: .medium))
                         .symbolRenderingMode(.monochrome)
                         .foregroundStyle(.white)
@@ -176,10 +176,15 @@ private struct ExtensionInstalledRow: View {
                 ExtensionRowIcon(icon: record.manifest.icon, directory: record.directory)
                 ExtensionRowCopy(name: record.copy.name, summary: record.copy.summary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Text(String(localized: "Installed"))
-                    .foregroundStyle(.green)
+                if record.enabled {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text(String(localized: "Enabled"))
+                            .foregroundStyle(.green)
+                    }
+                    .fixedSize()
+                }
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
@@ -216,7 +221,8 @@ private struct ExtensionRowCopy: View {
             Text(summary)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -286,6 +292,7 @@ struct ExtensionDetailPage: View {
         .sheet(item: $editor) { token in
             ProviderEditorSheet(
                 record: record,
+                center: center,
                 token: token,
                 hasSavedKey: center.providerHasSecret(pluginID: record.id, providerID: token.id),
                 onSave: { provider, apiKey in
@@ -343,8 +350,9 @@ struct ExtensionDetailPage: View {
                         Text(record.copy.summary)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     Spacer(minLength: 8)
                     Toggle(isOn: Binding(
                         get: { record.enabled },
@@ -435,16 +443,16 @@ struct ExtensionDetailPage: View {
                     .monospacedDigit()
             }
             LabeledContent(String(localized: "Input")) {
-                Text(joined(record.copy.inputs))
+                infoLines(record.copy.inputs)
             }
             LabeledContent(String(localized: "Output")) {
-                Text(joined(record.copy.outputs))
+                infoLines(record.copy.outputs)
             }
             LabeledContent(String(localized: "Local Permission")) {
                 Text(String(localized: "None"))
             }
             LabeledContent(String(localized: "Network Permission")) {
-                Text(networkPermissionText)
+                infoLines(networkPermissionItems)
             }
             if let slug = record.manifest.slug {
                 LabeledContent(String(localized: "URL Scheme")) {
@@ -551,18 +559,25 @@ struct ExtensionDetailPage: View {
         Set(record.manifest.provides)
     }
 
-    private var networkPermissionText: String {
+    private var networkPermissionItems: [String] {
         var parts = record.manifest.network.hosts
         if record.permissionFacts.allowsConfiguredEndpoint {
             parts.append(String(localized: "Configured endpoint"))
         }
-        return joined(parts)
+        return parts
     }
 
-    private func joined(_ items: [String]) -> String {
-        let visible = items.filter { !$0.isEmpty }
-        if visible.isEmpty { return String(localized: "None") }
-        return visible.joined(separator: ", ")
+    /// One entry per line, split on the English comma, kept on the trailing edge.
+    private func infoLines(_ items: [String]) -> some View {
+        let lines = items
+            .flatMap { $0.components(separatedBy: ",") }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let text = lines.isEmpty ? String(localized: "None") : lines.joined(separator: "\n")
+        return Text(text)
+            .multilineTextAlignment(.trailing)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     private var autoCheckUpdates: Binding<Bool> {
@@ -690,6 +705,7 @@ struct ExtensionDetailPage: View {
 
 private struct ProviderEditorSheet: View {
     var record: ExtensionRecord
+    var center: ExtensionCenter
     var token: ProviderEditorToken
     var hasSavedKey: Bool
     var onSave: (ExtensionProvider, String) -> Void
@@ -699,11 +715,14 @@ private struct ProviderEditorSheet: View {
     @State private var displayName: String
     @State private var values: [String: String]
     @State private var confirmDelete = false
+    @State private var isTesting = false
+    @State private var testAlert: ProviderTestAlert?
 
     private static let displayNameKey = "__displayName"
 
     init(
         record: ExtensionRecord,
+        center: ExtensionCenter,
         token: ProviderEditorToken,
         hasSavedKey: Bool,
         onSave: @escaping (ExtensionProvider, String) -> Void,
@@ -711,6 +730,7 @@ private struct ProviderEditorSheet: View {
         onCancel: @escaping () -> Void
     ) {
         self.record = record
+        self.center = center
         self.token = token
         self.hasSavedKey = hasSavedKey
         self.onSave = onSave
@@ -725,25 +745,37 @@ private struct ProviderEditorSheet: View {
             Form {
                 ForEach(fieldKeys, id: \.self) { key in
                     if key == Self.displayNameKey {
-                        TextField(String(localized: "Model Name"), text: $displayName)
-                        Text(String(localized: "Optional. Leave blank to show the model name."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        TextField(String(localized: "Name"), text: $displayName)
                     } else if let field = record.manifest.settings?.properties[key] {
                         editorField(key: key, field: field)
-                    }
-                }
-                if !token.isNew {
-                    Section {
-                        Button(String(localized: "Delete Provider"), role: .destructive) {
-                            confirmDelete = true
-                        }
                     }
                 }
             }
             .formStyle(.grouped)
             .navigationTitle(token.isNew ? String(localized: "New Provider") : record.copy.name)
             .toolbar {
+                ToolbarItem(placement: .destructiveAction) {
+                    HStack(spacing: 8) {
+                        if !token.isNew {
+                            Button(String(localized: "Delete"), role: .destructive) {
+                                confirmDelete = true
+                            }
+                        }
+                        Button {
+                            Task { await runTest() }
+                        } label: {
+                            Text(String(localized: "Test"))
+                                .opacity(isTesting ? 0 : 1)
+                                .overlay {
+                                    if isTesting {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    }
+                                }
+                        }
+                        .disabled(isTesting || !canSave)
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Cancel"), action: onCancel)
                 }
@@ -753,7 +785,8 @@ private struct ProviderEditorSheet: View {
                 }
             }
         }
-        .frame(minWidth: 420, minHeight: 420)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(minWidth: 420)
         .confirmationDialog(
             String(localized: "Delete Provider"),
             isPresented: $confirmDelete,
@@ -761,6 +794,21 @@ private struct ProviderEditorSheet: View {
         ) {
             Button(String(localized: "Delete"), role: .destructive, action: onDelete)
             Button(String(localized: "Cancel"), role: .cancel) {}
+        }
+        .alert(
+            testAlert?.ok == true
+                ? String(localized: "The provider responded.")
+                : String(localized: "Couldn't reach the provider."),
+            isPresented: Binding(
+                get: { testAlert != nil },
+                set: { if !$0 { testAlert = nil } }
+            )
+        ) {
+            Button(String(localized: "OK")) { testAlert = nil }
+        } message: {
+            if let detail = testAlert?.detail, !detail.isEmpty {
+                Text(detail)
+            }
         }
     }
 
@@ -789,37 +837,36 @@ private struct ProviderEditorSheet: View {
             strings: record.strings
         )
         if !field.oneOf.isEmpty {
-            Picker(title, selection: valueBinding(key)) {
-                ForEach(field.oneOf, id: \.value) { choice in
-                    Text(
-                        ExtensionCopyResolver.choiceTitle(
-                            group: "settings",
-                            key: key,
-                            choice: choice,
-                            strings: record.strings
-                        )
-                    )
-                    .tag(choice.value)
-                }
-            }
+            formatPicker(key: key, field: field)
         } else if field.sensitive {
-            SecureField(title, text: valueBinding(key))
-            if hasSavedKey {
-                Text(String(localized: "Leave blank to keep the saved key."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            LabeledContent {
+                ProviderSecretField(text: valueBinding(key), hasSavedKey: hasSavedKey)
+            } label: {
+                Text(title)
             }
         } else {
             TextField(title, text: valueBinding(key))
-            if let summary = ExtensionCopyResolver.fieldSummary(
-                group: "settings",
-                key: key,
-                field: field,
-                strings: record.strings
-            ), !summary.isEmpty {
-                Text(summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formatPicker(key: String, field: ExtensionFieldSchema) -> some View {
+        let title = ExtensionCopyResolver.fieldTitle(
+            group: "settings",
+            key: key,
+            field: field,
+            strings: record.strings
+        )
+        return Picker(title, selection: valueBinding(key)) {
+            ForEach(field.oneOf, id: \.value) { choice in
+                Text(
+                    ExtensionCopyResolver.choiceTitle(
+                        group: "settings",
+                        key: key,
+                        choice: choice,
+                        strings: record.strings
+                    )
+                )
+                .tag(choice.value)
             }
         }
     }
@@ -840,6 +887,68 @@ private struct ProviderEditorSheet: View {
             model: (values["model"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         )
         onSave(provider, values["apiKey"] ?? "")
+    }
+
+    private func runTest() async {
+        guard !isTesting else { return }
+        isTesting = true
+        defer { isTesting = false }
+        let result = await center.probeProvider(
+            pluginID: record.id,
+            providerID: token.id,
+            format: values["format"] ?? "",
+            baseURL: values["baseURL"] ?? "",
+            model: values["model"] ?? "",
+            apiKeyDraft: values["apiKey"] ?? ""
+        )
+        testAlert = ProviderTestAlert(ok: result.ok, detail: result.detail)
+    }
+}
+
+private struct ProviderTestAlert {
+    var ok: Bool
+    var detail: String
+}
+
+/// Six circles stand in for a saved or typed API key. The field stays empty of the real secret.
+private struct ProviderSecretField: View {
+    @Binding var text: String
+    var hasSavedKey: Bool
+
+    @FocusState private var focused: Bool
+
+    private var draftIsEmpty: Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Filled means a key is already saved, or the user has typed one. While replacing a saved key the field stays blank until they type.
+    private var showsCircles: Bool {
+        if !draftIsEmpty { return true }
+        return hasSavedKey && !focused
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            SecureField(text: $text) {
+                Text(verbatim: "")
+            }
+            .labelsHidden()
+            .multilineTextAlignment(.trailing)
+            .focused($focused)
+            .opacity(draftIsEmpty ? 1 : 0)
+            if showsCircles {
+                HStack(spacing: 4) {
+                    ForEach(0..<6, id: \.self) { _ in
+                        Circle()
+                            .fill(Color.primary)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 18, alignment: .trailing)
     }
 }
 

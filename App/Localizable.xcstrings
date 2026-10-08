@@ -11,6 +11,46 @@
         }
       }
     },
+    "—" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "—"
+          }
+        }
+      }
+    },
+    "“%@” is already in your library. Choose a different name to install this aibo." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”已存在。请选择其他名称以安装此 Aibo。"
+          }
+        }
+      }
+    },
+    "“%@” is already in your library. Choose a different name." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”已存在。请选择其他名称。"
+          }
+        }
+      }
+    },
+    "“%@” was not found on Petdex" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Petdex 上未找到“%@”"
+          }
+        }
+      }
+    },
     "%@ used" : {
       "localizations" : {
         "zh-Hans" : {
@@ -140,12 +180,32 @@
         }
       }
     },
+    "Aibo mainly uses bubbles to show status." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aibo 主要使用气泡来展示状态。"
+          }
+        }
+      }
+    },
     "Aibo Size" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aibo 尺寸"
+          }
+        }
+      }
+    },
+    "Aibo supports local static images (.png), or Codex-compatible desktop pet formats (spritesheet + pet.json)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aibo 支持本地静态图片（.png），或兼容 Codex 的桌面宠物格式（spritesheet + pet.json）。"
           }
         }
       }
@@ -157,26 +217,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aibo 更新"
-          }
-        }
-      }
-    },
-    "Aibo mainly uses bubbles to show status." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aibo 主要使用气泡来展示状态。"
-          }
-        }
-      }
-    },
-    "Aibo supports local static images (.png), or Codex-compatible desktop pet formats (spritesheet + pet.json)." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aibo 支持本地静态图片（.png），或兼容 Codex 的桌面宠物格式（spritesheet + pet.json）。"
           }
         }
       }
@@ -211,6 +251,16 @@
         }
       }
     },
+    "Another plugin is already using the link “%@”." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已有插件使用了链接“%@”。"
+          }
+        }
+      }
+    },
     "Appearance" : {
       "localizations" : {
         "zh-Hans" : {
@@ -221,22 +271,22 @@
         }
       }
     },
-    "Are you sure you want to delete %lld aibos?" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "确定要删除这 %lld 个 Aibo 吗？"
-          }
-        }
-      }
-    },
     "Are you sure you want to delete “%@”?" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "确定要删除“%@”吗？"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete %lld aibos?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定要删除这 %lld 个 Aibo 吗？"
           }
         }
       }
@@ -421,6 +471,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每天在后台检查。"
+          }
+        }
+      }
+    },
+    "Check the base URL." : {
+      "comment" : "Provider editor: test failed because the address is missing or not https-usable.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请检查接口地址。"
           }
         }
       }
@@ -635,6 +696,17 @@
         }
       }
     },
+    "Couldn't reach the provider." : {
+      "comment" : "Provider editor: test request failed.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连不上这个供应商。"
+          }
+        }
+      }
+    },
     "Cursor does not support approval or prompt-waiting hook events yet." : {
       "localizations" : {
         "zh-Hans" : {
@@ -837,12 +909,13 @@
         }
       }
     },
-    "Enter PetDex URL or slug to download." : {
+    "Enabled" : {
+      "comment" : "Extensions list: shown next to a plugin while its switch is on.",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "输入 PetDex URL 或 slug下载"
+            "value" : "已启用"
           }
         }
       }
@@ -863,6 +936,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "输入 PetDex URL 或 slug"
+          }
+        }
+      }
+    },
+    "Enter PetDex URL or slug to download." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入 PetDex URL 或 slug下载"
           }
         }
       }
@@ -953,6 +1036,16 @@
         }
       }
     },
+    "Failed to install aibo" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装 Aibo 失败"
+          }
+        }
+      }
+    },
     "Failed to install Codex hooks" : {
       "localizations" : {
         "zh-Hans" : {
@@ -979,16 +1072,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "安装 DeepSeek 插件失败"
-          }
-        }
-      }
-    },
-    "Failed to install aibo" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安装 Aibo 失败"
           }
         }
       }
@@ -1176,6 +1259,16 @@
         }
       }
     },
+    "Hook and style settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hook 与样式设置"
+          }
+        }
+      }
+    },
     "Hook Log" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1186,12 +1279,12 @@
         }
       }
     },
-    "Hook and style settings" : {
+    "https://…/webhook" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hook 与样式设置"
+            "value" : "https://…/webhook"
           }
         }
       }
@@ -1251,16 +1344,6 @@
         }
       }
     },
-    "Another plugin is already using the link “%@”." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已有插件使用了链接“%@”。"
-          }
-        }
-      }
-    },
     "Install a plugin that provides “%@” first." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1277,16 +1360,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从文件夹安装…"
-          }
-        }
-      }
-    },
-    "Install plugins that provide %@ first." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请先安装提供%@的插件。"
           }
         }
       }
@@ -1321,6 +1394,16 @@
         }
       }
     },
+    "Install plugins that provide %@ first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先安装提供%@的插件。"
+          }
+        }
+      }
+    },
     "Installed" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1333,6 +1416,16 @@
     },
     "Jumping" : {
       "shouldTranslate" : false
+    },
+    "just now" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刚刚"
+          }
+        }
+      }
     },
     "Keep at Least One Aibo" : {
       "localizations" : {
@@ -1476,22 +1569,22 @@
         }
       }
     },
-    "Local URL" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本地 URL"
-          }
-        }
-      }
-    },
     "Local Upload" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "本地上传"
+          }
+        }
+      }
+    },
+    "Local URL" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地 URL"
           }
         }
       }
@@ -1517,6 +1610,7 @@
       }
     },
     "Model Name" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1636,22 +1730,22 @@
         }
       }
     },
-    "No Petdex Aibo" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无 Petdex Aibo"
-          }
-        }
-      }
-    },
     "No extra permissions" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "无额外权限"
+          }
+        }
+      }
+    },
+    "No Petdex Aibo" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无 Petdex Aibo"
           }
         }
       }
@@ -1708,16 +1802,6 @@
         }
       }
     },
-    "OK" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OK"
-          }
-        }
-      }
-    },
     "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Clicking the bubble does not switch apps yet." : {
       "localizations" : {
         "zh-Hans" : {
@@ -1728,7 +1812,18 @@
         }
       }
     },
+    "OK" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
     "Optional. Leave blank to show the model name." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1755,16 +1850,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "输出：%@"
-          }
-        }
-      }
-    },
-    "PREVIEW" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "预览"
           }
         }
       }
@@ -1801,22 +1886,22 @@
         }
       }
     },
-    "PetDex URL or slug" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PetDex URL 或 slug"
-          }
-        }
-      }
-    },
     "Petdex API error" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Petdex API 错误"
+          }
+        }
+      }
+    },
+    "PetDex URL or slug" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PetDex URL 或 slug"
           }
         }
       }
@@ -1831,22 +1916,22 @@
         }
       }
     },
-    "Plugin Settings" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "插件设置"
-          }
-        }
-      }
-    },
     "Plugin failed" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "插件运行失败"
+          }
+        }
+      }
+    },
+    "Plugin Settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件设置"
           }
         }
       }
@@ -1893,7 +1978,34 @@
         }
       }
     },
+    "position.down" : {
+      "comment" : "General → Bubble → Position: bubble below aibo. Not webhook connectivity Down.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Down"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下"
+          }
+        }
+      }
+    },
     "Preview" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预览"
+          }
+        }
+      }
+    },
+    "PREVIEW" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2324,12 +2436,34 @@
         }
       }
     },
+    "Test" : {
+      "comment" : "Provider editor: button that sends a short request to the draft provider.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "测试"
+          }
+        }
+      }
+    },
     "Text to translate" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "要翻译的文字"
+          }
+        }
+      }
+    },
+    "That address can't be used." : {
+      "comment" : "Provider editor: test refused a local or private address.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不能使用这个地址。"
           }
         }
       }
@@ -2350,6 +2484,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 供应商插件未开启。"
+          }
+        }
+      }
+    },
+    "The provider responded." : {
+      "comment" : "Provider editor: test request succeeded.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供应商有响应。"
           }
         }
       }
@@ -2454,22 +2599,22 @@
         }
       }
     },
-    "Tunnel URL" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tunnel URL"
-          }
-        }
-      }
-    },
     "Tunnel is down, take a look!" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tunnel 已断开，快去查看！"
+          }
+        }
+      }
+    },
+    "Tunnel URL" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tunnel URL"
           }
         }
       }
@@ -2566,6 +2711,16 @@
         }
       }
     },
+    "Updates" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "软件更新"
+          }
+        }
+      }
+    },
     "URL Scheme" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2576,12 +2731,13 @@
         }
       }
     },
-    "Updates" : {
+    "Use an https address." : {
+      "comment" : "Provider editor: test refused a non-https URL.",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "软件更新"
+            "value" : "请使用 https 地址。"
           }
         }
       }
@@ -2602,6 +2758,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "被依赖"
+          }
+        }
+      }
+    },
+    "v%@ New" : {
+      "comment" : "About → Updates: pending version badge.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ 新版本"
           }
         }
       }
@@ -2707,94 +2874,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你必须保留至少一个 Aibo。"
-          }
-        }
-      }
-    },
-    "https://…/webhook" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "https://…/webhook"
-          }
-        }
-      }
-    },
-    "just now" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刚刚"
-          }
-        }
-      }
-    },
-    "position.down" : {
-      "comment" : "General → Bubble → Position: bubble below aibo. Not webhook connectivity Down.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Down"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下"
-          }
-        }
-      }
-    },
-    "v%@ New" : {
-      "comment" : "About → Updates: pending version badge.",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@ 新版本"
-          }
-        }
-      }
-    },
-    "—" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "—"
-          }
-        }
-      }
-    },
-    "“%@” is already in your library. Choose a different name to install this aibo." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@”已存在。请选择其他名称以安装此 Aibo。"
-          }
-        }
-      }
-    },
-    "“%@” is already in your library. Choose a different name." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@”已存在。请选择其他名称。"
-          }
-        }
-      }
-    },
-    "“%@” was not found on Petdex" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Petdex 上未找到“%@”"
           }
         }
       }

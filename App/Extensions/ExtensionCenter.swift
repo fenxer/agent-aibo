@@ -166,6 +166,11 @@ struct ExtensionRecord: Identifiable, Equatable {
 }
 
 /// One configured model endpoint inside the AI provider plugin.
+struct ProviderProbeResult: Sendable, Equatable {
+    var ok: Bool
+    var detail: String
+}
+
 struct ExtensionProvider: Identifiable, Equatable {
     var id: String
     var displayName: String
@@ -409,6 +414,66 @@ final class ExtensionCenter {
             )
         }
         writeProviders(pluginID: pluginID, list)
+    }
+
+    /// One short completion against the draft provider. Does not save it.
+    func probeProvider(
+        pluginID: String,
+        providerID: String,
+        format: String,
+        baseURL: String,
+        model: String,
+        apiKeyDraft: String
+    ) async -> ProviderProbeResult {
+        let draft = apiKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey: String
+        if !draft.isEmpty {
+            apiKey = draft
+        } else if let saved = KeychainStore.string(
+            forAccount: providerKeychainAccount(pluginID: pluginID, providerID: providerID)
+        ), !saved.isEmpty {
+            apiKey = saved
+        } else {
+            return ProviderProbeResult(ok: false, detail: "")
+        }
+        let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedModel.isEmpty else {
+            return ProviderProbeResult(ok: false, detail: "")
+        }
+        guard let params = ProviderProbe.request(
+            format: format,
+            baseURL: baseURL,
+            model: trimmedModel,
+            apiKey: apiKey
+        ) else {
+            return ProviderProbeResult(ok: false, detail: String(localized: "Check the base URL."))
+        }
+        guard let url = params["url"]?.stringValue,
+              let host = ExtensionURLPolicy.host(ofURLString: url)
+        else {
+            return ProviderProbeResult(ok: false, detail: String(localized: "Check the base URL."))
+        }
+        let response = await ExtensionFetch.perform(params: params, allowedHosts: [host])
+        if let message = response["error"]?.objectValue?["message"]?.stringValue {
+            return ProviderProbeResult(ok: false, detail: ProviderProbe.localMessage(for: message))
+        }
+        let status: Int
+        if let statusValue = response["status"], case .number(let value) = statusValue {
+            status = Int(value)
+        } else {
+            status = 0
+        }
+        let body = response["body"]?.stringValue ?? ""
+        if let message = ProviderProbe.apiErrorMessage(in: body) {
+            return ProviderProbeResult(ok: false, detail: redact(message, secrets: [apiKey]))
+        }
+        if (200..<300).contains(status) {
+            return ProviderProbeResult(ok: true, detail: "")
+        }
+        if status > 0 {
+            return ProviderProbeResult(ok: false, detail: "HTTP \(status)")
+        }
+        return ProviderProbeResult(ok: false, detail: "")
     }
 
     func deleteProvider(pluginID: String, providerID: String) {
@@ -913,5 +978,107 @@ final class ExtensionCenter {
             return String(result.prefix(2000))
         }
         return result
+    }
+}
+
+/// Builds the same request the AI provider plugin sends, then reads a pass or fail.
+private enum ProviderProbe {
+    private static let openAIDefault = "https://api.openai.com/v1"
+    private static let googleDefault = "https://generativelanguage.googleapis.com/v1beta"
+
+    static func request(
+        format: String,
+        baseURL: String,
+        model: String,
+        apiKey: String
+    ) -> [String: ExtensionValue]? {
+        let resolved = resolvedBase(format: format, baseURL: baseURL)
+        let url: String
+        let headers: [String: ExtensionValue]
+        let payload: [String: Any]
+        if format == "google-interactions" {
+            url = join(resolved, "/interactions")
+            headers = [
+                "Content-Type": .string("application/json"),
+                "x-goog-api-key": .string(apiKey),
+            ]
+            payload = [
+                "model": model,
+                "input": "Hi",
+                "system_instruction": "",
+                "store": false,
+            ]
+        } else {
+            url = chatURL(resolved)
+            headers = [
+                "Content-Type": .string("application/json"),
+                "Authorization": .string("Bearer \(apiKey)"),
+            ]
+            payload = [
+                "model": model,
+                "messages": [["role": "user", "content": "Hi"]],
+                "max_tokens": 16,
+            ]
+        }
+        guard let body = jsonString(payload), ExtensionURLPolicy.host(ofURLString: url) != nil else {
+            return nil
+        }
+        return [
+            "url": .string(url),
+            "method": .string("POST"),
+            "headers": .object(headers),
+            "body": .string(body),
+        ]
+    }
+
+    static func localMessage(for code: String) -> String {
+        switch code {
+        case "https-only":
+            String(localized: "Use an https address.")
+        case "invalid-url", "Missing URL", "host-not-allowed":
+            String(localized: "Check the base URL.")
+        case "local-host", "private-address":
+            String(localized: "That address can't be used.")
+        default:
+            ""
+        }
+    }
+
+    static func apiErrorMessage(in body: String) -> String? {
+        guard let data = body.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        if let error = json["error"] as? [String: Any],
+           let message = error["message"] as? String
+        {
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return nil
+    }
+
+    private static func resolvedBase(format: String, baseURL: String) -> String {
+        var base = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        while base.hasSuffix("/") { base.removeLast() }
+        if format == "google-interactions" {
+            if base.isEmpty || base == openAIDefault { return googleDefault }
+            return base
+        }
+        return base.isEmpty ? openAIDefault : base
+    }
+
+    private static func chatURL(_ base: String) -> String {
+        if base.hasSuffix("/chat/completions") { return base }
+        return base + "/chat/completions"
+    }
+
+    private static func join(_ base: String, _ path: String) -> String {
+        if base.hasSuffix(path) { return base }
+        return base + path
+    }
+
+    private static func jsonString(_ payload: [String: Any]) -> String? {
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }

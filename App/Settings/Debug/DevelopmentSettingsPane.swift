@@ -28,6 +28,7 @@ struct DevelopmentSettingsPane: View {
     @State private var ingestStatus: String?
     @State private var confirmClearIngest = false
     @State private var runtime = AiboRuntime.shared
+    @State private var playtimeAiboID: String?
 
     private var canShow: Bool {
         if isAwaitingApproval { return true }
@@ -39,9 +40,29 @@ struct DevelopmentSettingsPane: View {
     }
 
     var body: some View {
+        Group {
+            if let playtimeAiboID {
+                PlaytimeDebugDetail(aiboID: playtimeAiboID) {
+                    self.playtimeAiboID = nil
+                }
+            } else {
+                developmentForm
+            }
+        }
+        .onAppear {
+            runtime.refreshIngestLogCount()
+        }
+        .onDisappear {
+            DistributedNotificationSniffer.shared.stop()
+        }
+    }
+
+    private var developmentForm: some View {
         Form {
             bubblePreviewSection
-            PlaytimeDebugSection()
+            PlaytimeDebugSection { id in
+                playtimeAiboID = id
+            }
             MouseShakeDebugSection()
             onboardingSection
             launchEntranceSection
@@ -55,12 +76,6 @@ struct DevelopmentSettingsPane: View {
         }
         .formStyle(.grouped)
         .padding()
-        .onAppear {
-            runtime.refreshIngestLogCount()
-        }
-        .onDisappear {
-            DistributedNotificationSniffer.shared.stop()
-        }
         .settingsDetailChrome(title: String(localized: "Development"))
     }
 
