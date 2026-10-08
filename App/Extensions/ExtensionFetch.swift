@@ -28,7 +28,10 @@ enum ExtensionFetch {
             }
         }
         if let body = params["body"]?.stringValue {
-            request.httpBody = Data(body.utf8)
+            let payload = Self.sendsJSON(params["headers"]?.objectValue, body: body)
+                ? ExtensionPromptText.translatingJSONBody(body)
+                : body
+            request.httpBody = Data(payload.utf8)
         }
         let session = URLSession(
             configuration: .ephemeral,
@@ -50,6 +53,20 @@ enum ExtensionFetch {
         } catch {
             return Self.error("Request failed")
         }
+    }
+
+    /// `JSON.stringify` leaves U+2028 / U+2029 raw. Only rewrite bodies that are JSON.
+    private static func sendsJSON(_ headers: [String: ExtensionValue]?, body: String) -> Bool {
+        if let headers {
+            for (field, value) in headers {
+                guard field.caseInsensitiveCompare("Content-Type") == .orderedSame,
+                      let text = value.stringValue?.lowercased()
+                else { continue }
+                return text.contains("json")
+            }
+        }
+        let trimmed = body.drop(while: { $0 == " " || $0 == "\n" || $0 == "\r" || $0 == "\t" })
+        return trimmed.first == "{" || trimmed.first == "["
     }
 
     private static func error(_ message: String) -> [String: ExtensionValue] {

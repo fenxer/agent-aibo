@@ -56,6 +56,8 @@ final class AiboPanelController {
     private var screenObserver: NSObjectProtocol?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
+    /// Prompt field receiving a caret drag. The hook-bubble gesture must not see these events.
+    private weak var promptCaretDrag: PromptTextView?
     private let fullscreenMonitor = FullscreenSpaceMonitor()
     /// True while hide-when-fullscreen is suppressing the panel (not user Hide Aibo).
     private var isSuppressedForFullscreen = false
@@ -1268,6 +1270,39 @@ final class AiboPanelController {
         return true
     }
 
+    /// Hook-bubble taps use a SwiftUI gesture on this same hosting view. That
+    /// gesture wins the click, so the prompt field keeps the caret at the end.
+    /// Place the caret from the field's drawn frame and swallow the click.
+    private func forwardPromptTextClick(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.contains(.control) == false else { return false }
+        guard let point = hostPoint(for: event) else { return false }
+        guard let textView = PromptFieldTracker.textView(at: point) else { return false }
+        if let panel = panel as? AiboPanel, panel.allowsBecomingKey, panel.isKeyWindow == false {
+            panel.makeKey()
+        }
+        panel?.makeFirstResponder(textView)
+        textView.beginClick(atHostPoint: point, clickCount: event.clickCount)
+        promptCaretDrag = textView
+        return true
+    }
+
+    private func extendPromptTextDrag(_ event: NSEvent) -> Bool {
+        guard let promptCaretDrag, let point = hostPoint(for: event) else { return false }
+        promptCaretDrag.extendClick(toHostPoint: point)
+        return true
+    }
+
+    private func hostPoint(for event: NSEvent) -> NSPoint? {
+        guard let panel, let hostingView else { return nil }
+        if event.window === panel {
+            return hostingView.convert(event.locationInWindow, from: nil)
+        }
+        let screen = NSEvent.mouseLocation
+        guard panel.frame.contains(screen) else { return nil }
+        let windowPoint = panel.convertPoint(fromScreen: screen)
+        return hostingView.convert(windowPoint, from: nil)
+    }
+
     /// Copy / Close sit in a non-activating panel; SwiftUI and `NSButton` never
     /// see the click (`hitTest` lands on a hosting descendant). Swallow here.
     private func handleInspectCardClick(with event: NSEvent) -> Bool {
@@ -1606,21 +1641,46 @@ final class AiboPanelController {
                 .rightMouseDragged,
                 .rightMouseDown,
                 .leftMouseDown,
+                .leftMouseUp,
             ]
         ) { [weak self] event in
-            self?.refreshClickThroughState()
-            if event.type == .leftMouseDown,
-               self?.handleInspectCardClick(with: event) == true
-            {
-                return nil
+            guard let self else { return event }
+            self.refreshClickThroughState()
+            switch event.type {
+            case .leftMouseDown:
+                if self.forwardPromptTextClick(event) {
+                    return nil
+                }
+                if self.handleInspectCardClick(with: event) {
+                    return nil
+                }
+            case .leftMouseDragged:
+                if self.extendPromptTextDrag(event) {
+                    return nil
+                }
+            case .leftMouseUp:
+                if self.promptCaretDrag != nil {
+                    self.promptCaretDrag = nil
+                    return nil
+                }
+            default:
+                break
             }
             return event
         }
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDragged]
-        ) { [weak self] _ in
+            matching: [.mouseMoved, .leftMouseDragged, .leftMouseUp]
+        ) { [weak self] event in
             Task { @MainActor in
-                self?.refreshClickThroughState()
+                guard let self else { return }
+                if event.type == .leftMouseUp {
+                    self.promptCaretDrag = nil
+                    return
+                }
+                if event.type == .leftMouseDragged, self.extendPromptTextDrag(event) {
+                    return
+                }
+                self.refreshClickThroughState()
             }
         }
     }

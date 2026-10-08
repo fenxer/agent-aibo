@@ -345,9 +345,17 @@ private struct ExtensionPromptPlate: View {
     private func row(_ control: ExtensionPromptControl) -> some View {
         switch control.kind {
         case .text:
-            ExtensionPromptTextRow(title: control.title, text: stringBinding(control.key))
+            ExtensionPromptTextRow(
+                title: control.title,
+                showsWell: controls.count == 1,
+                text: stringBinding(control.key, multiline: true)
+            )
         case .line:
-            ExtensionPromptLineRow(title: control.title, text: stringBinding(control.key))
+            ExtensionPromptLineRow(
+                title: control.title,
+                showsWell: controls.count == 1,
+                text: stringBinding(control.key, multiline: false)
+            )
         case .menu:
             ExtensionPromptMenuRow(title: control.title, choices: control.choices, selection: stringBinding(control.key))
         case .radio:
@@ -361,10 +369,14 @@ private struct ExtensionPromptPlate: View {
         }
     }
 
-    private func stringBinding(_ key: String) -> Binding<String> {
+    private func stringBinding(_ key: String, multiline: Bool? = nil) -> Binding<String> {
         Binding(
             get: { session.values[key] ?? "" },
-            set: { session.values[key] = $0 }
+            set: { newValue in
+                let next = multiline.map { ExtensionPromptText.normalized(newValue, multiline: $0) } ?? newValue
+                guard session.values[key] != next else { return }
+                session.values[key] = next
+            }
         )
     }
 
@@ -421,6 +433,8 @@ private struct ExtensionPluginHeader: View {
 
 private struct ExtensionPromptTextRow: View {
     var title: String
+    /// Alone on its plate the well marks the field. Grouped with other rows, the plate fill is enough.
+    var showsWell: Bool
     @Binding var text: String
 
     var body: some View {
@@ -430,45 +444,50 @@ private struct ExtensionPromptTextRow: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, minHeight: ExtensionBubbleMetrics.labelLineHeight, maxHeight: ExtensionBubbleMetrics.labelLineHeight, alignment: .leading)
-            TextEditor(text: $text)
-                .font(.system(size: ExtensionBubbleMetrics.fieldFontSize))
-                .textEditorStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .scrollIndicators(.hidden)
-                .multilineTextAlignment(.leading)
-                .padding(6)
+            ExtensionPromptField(text: $text, multiline: true, inset: showsWell)
+                .padding(showsWell ? 6 : 0)
                 .frame(
                     maxWidth: .infinity,
                     minHeight: ExtensionBubbleMetrics.multilineWellHeight,
                     maxHeight: ExtensionBubbleMetrics.multilineWellHeight,
                     alignment: .topLeading
                 )
-                .background {
-                    RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.inputCornerRadius, style: .continuous)
-                        .fill(Color(nsColor: .secondarySystemFill))
-                }
+                .background { well }
                 .accessibilityLabel(title)
         }
         .padding(ExtensionBubbleMetrics.textGroupPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    @ViewBuilder
+    private var well: some View {
+        if showsWell {
+            RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.inputCornerRadius, style: .continuous)
+                .fill(Color(nsColor: .secondarySystemFill))
+        }
+    }
 }
 
 private struct ExtensionPromptLineRow: View {
     var title: String
+    /// Alone on its plate the well marks the field. Grouped with other rows, the plate fill is enough.
+    var showsWell: Bool
     @Binding var text: String
 
     var body: some View {
         ExtensionPromptLabeledRow(title: title) {
-            TextField("", text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: ExtensionBubbleMetrics.fieldFontSize))
-                .padding(.horizontal, 8)
+            ExtensionPromptField(text: $text, multiline: false, inset: showsWell)
+                .padding(.horizontal, showsWell ? 8 : 0)
                 .frame(width: 132, height: 28)
-                .background {
-                    RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.inputCornerRadius, style: .continuous)
-                        .fill(Color(nsColor: .secondarySystemFill))
-                }
+                .background { well }
+        }
+    }
+
+    @ViewBuilder
+    private var well: some View {
+        if showsWell {
+            RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.inputCornerRadius, style: .continuous)
+                .fill(Color(nsColor: .secondarySystemFill))
         }
     }
 }

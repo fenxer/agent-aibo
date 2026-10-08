@@ -111,7 +111,7 @@ final class ExtensionPromptSession {
             case .toggle:
                 input[control.key] = .bool(toggles[control.key] ?? false)
             case .text, .line:
-                let raw = values[control.key] ?? ""
+                let raw = ExtensionPromptText.normalized(values[control.key] ?? "", multiline: control.kind == .text)
                 input[control.key] = .string(raw.trimmingCharacters(in: .whitespacesAndNewlines))
             case .menu, .radio, .image:
                 input[control.key] = .string(values[control.key] ?? "")

@@ -62,6 +62,13 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard bounds.contains(point) else { return nil }
+        PromptFieldTracker.host = self
+        // The field's SwiftUI frame, not the view AppKit would hit. A hook
+        // bubble under the card makes the ancestor miss, and its tap gesture
+        // then keeps the caret at the end of the text.
+        if let text = PromptFieldTracker.textView(at: point) {
+            return text
+        }
         let p = pointInBottomLeft(point)
 
         if aiboHitRect.isNull == false, aiboHitRect.contains(p) {
@@ -83,8 +90,11 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
         // A plugin card reports where it was actually drawn. That rect wins over
         // the height estimate, which is only used to size the panel.
+        // Beside a hook bubble the card is drawn in an overlay past the anchor's
+        // bounds, so AppKit's hit walk stops at that ancestor and the click never
+        // reaches the field. Search descendants anyway.
         if measuredBubbleHitRects.contains(where: { $0.contains(point) }) {
-            return super.hitTest(point)
+            return super.hitTest(point) ?? deepestDescendant(containing: point) ?? self
         }
 
         // Bubbles only — empty padding / music overflow / infinity frames pass through.
@@ -137,6 +147,25 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
             }
         }
         super.scrollWheel(with: event)
+    }
+
+    /// Deepest visible descendant whose own bounds contain `point`, even when an
+    /// ancestor's bounds do not. `point` is in this view's coordinates.
+    private func deepestDescendant(containing point: NSPoint) -> NSView? {
+        func walk(_ view: NSView, pointInView: NSPoint) -> NSView? {
+            for subview in view.subviews.reversed() {
+                guard subview.isHidden == false, subview.alphaValue > 0.01 else { continue }
+                let local = view.convert(pointInView, to: subview)
+                if let found = walk(subview, pointInView: local) {
+                    return found
+                }
+            }
+            if view !== self, view.bounds.contains(pointInView) {
+                return view
+            }
+            return nil
+        }
+        return walk(self, pointInView: point)
     }
 
     /// Consume bubble right-clicks here so SwiftUI never tries to key the panel.
