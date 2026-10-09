@@ -130,7 +130,7 @@ struct ExtensionDependencyCard: View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
             ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: .warning)
             Text("Missing Dependency")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: ExtensionBubbleMetrics.fieldFontSize))
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, minHeight: ExtensionBubbleMetrics.dependencyTitleHeight, alignment: .leading)
             VStack(spacing: ExtensionBubbleMetrics.dependencyRowSpacing) {
@@ -278,7 +278,8 @@ private struct ExtensionDependencyRow: View {
                     Text(row.issue.summary)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

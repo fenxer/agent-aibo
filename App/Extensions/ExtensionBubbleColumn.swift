@@ -162,6 +162,7 @@ struct ExtensionBubbleColumn: View {
         // uses for its triangle, so the two bodies line up.
         .padding(arrowSlotEdges, showsArrow ? 0 : ExtensionBubbleMetrics.arrowExtent)
         .frame(width: 320, alignment: frameAlignment)
+        .buttonBorderShape(.capsule)
     }
 
     /// Pet side only. Left placement reserves the trailing edge; right reserves leading.
