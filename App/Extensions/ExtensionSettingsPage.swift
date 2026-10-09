@@ -721,7 +721,9 @@ struct ExtensionDetailPage: View {
             field: field,
             strings: record.strings
         )
-        if !field.oneOf.isEmpty {
+        if let source = field.source, !source.isEmpty {
+            modelSourcePicker(key: key, title: title, capability: source)
+        } else if !field.oneOf.isEmpty {
             Picker(title, selection: draftBinding(key)) {
                 ForEach(field.oneOf, id: \.value) { choice in
                     Text(
@@ -750,6 +752,45 @@ struct ExtensionDetailPage: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// Choices come from the plugin that provides `capability`. An empty or stale value stays on the first provider.
+    @ViewBuilder
+    private func modelSourcePicker(key: String, title: String, capability: String) -> some View {
+        let models = center.modelOfferings(capability: capability)
+        if models.isEmpty {
+            LabeledContent(title) {
+                Text(String(localized: "No providers yet"))
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Picker(title, selection: modelSelection(key: key, models: models)) {
+                ForEach(models) { model in
+                    Text(modelMenuTitle(model))
+                        .tag(model.id)
+                }
+            }
+        }
+    }
+
+    /// A custom name keeps the model id beside it, the same way the provider list does.
+    private func modelMenuTitle(_ model: ExtensionProvidedModel) -> String {
+        let name = (model.fields["displayName"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let modelID = (model.fields["model"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty, !modelID.isEmpty {
+            return "\(name) · \(modelID)"
+        }
+        if !model.title.isEmpty { return model.title }
+        return model.providerID
+    }
+
+    private func modelSelection(key: String, models: [ExtensionProvidedModel]) -> Binding<String> {
+        Binding(
+            get: {
+                ExtensionModelExport.resolve(saved: drafts[key], models: models)?.id ?? ""
+            },
+            set: { drafts[key] = $0 }
+        )
     }
 
     private func draftBinding(_ key: String) -> Binding<String> {
@@ -967,21 +1008,25 @@ private struct ProviderTestAlert {
     var detail: String
 }
 
-/// Six circles stand in for a saved or typed API key. The field stays empty of the real secret.
+/// While focused, the secure field shows one bullet per typed character.
+/// A saved key is never copied in. Circles stand in until the user clicks to type a replacement;
+/// leaving the field blank keeps the key already stored.
 private struct ProviderSecretField: View {
     @Binding var text: String
     var hasSavedKey: Bool
 
     @FocusState private var focused: Bool
+    /// Set on click, before focus moves, so the field is on screen when it becomes first responder.
+    @State private var replacing = false
 
     private var draftIsEmpty: Bool {
         text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// Filled means a key is already saved, or the user has typed one. While replacing a saved key the field stays blank until they type.
+    /// Circles cover a saved key, and a typed replacement after focus leaves.
     private var showsCircles: Bool {
-        if !draftIsEmpty { return true }
-        return hasSavedKey && !focused
+        if focused || replacing { return false }
+        return !draftIsEmpty || hasSavedKey
     }
 
     var body: some View {
@@ -992,20 +1037,40 @@ private struct ProviderSecretField: View {
             .labelsHidden()
             .multilineTextAlignment(.trailing)
             .focused($focused)
-            .opacity(draftIsEmpty ? 1 : 0)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .opacity(showsCircles ? 0 : 1)
+            .allowsHitTesting(!showsCircles)
             if showsCircles {
-                HStack(spacing: 4) {
-                    ForEach(0..<6, id: \.self) { _ in
-                        Circle()
-                            .fill(Color.primary)
-                            .frame(width: 8, height: 8)
+                Button(action: beginReplacing) {
+                    HStack(spacing: 3) {
+                        ForEach(0..<6, id: \.self) { _ in
+                            Circle()
+                                .fill(Color.primary)
+                                .frame(width: 5, height: 5)
+                        }
                     }
+                    .frame(maxWidth: .infinity, minHeight: 18, alignment: .trailing)
+                    .contentShape(Rectangle())
                 }
-                .allowsHitTesting(false)
+                .buttonStyle(.plain)
                 .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 18, alignment: .trailing)
+        .onChange(of: replacing) { _, isReplacing in
+            if isReplacing {
+                focused = true
+            }
+        }
+        .onChange(of: focused) { _, isFocused in
+            if !isFocused {
+                replacing = false
+            }
+        }
+    }
+
+    private func beginReplacing() {
+        replacing = true
     }
 }
 

@@ -809,6 +809,7 @@ final class ExtensionCenter {
                 return .failed(String(localized: "Plugin failed"))
             }
             var parameters = runParameters(
+                record: record,
                 trigger: trigger,
                 settings: settings,
                 input: input,
@@ -881,10 +882,18 @@ final class ExtensionCenter {
             guard depth == 0 else {
                 return .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
             }
-            guard let provider = plugins.first(where: { $0.enabled && $0.manifest.providesModel }) else {
+            let models = modelOfferings(capability: "llm")
+            let saved = savedCapabilitySelection(for: caller, capability: "llm")
+            guard let model = ExtensionModelExport.resolve(saved: saved, models: models) else {
+                if plugins.contains(where: { $0.enabled && $0.manifest.providesModel }) {
+                    return .object(["error": .object(["message": .string(String(localized: "Add a provider in AI Provider."))])])
+                }
                 return .object(["error": .object(["message": .string(String(localized: "The AI provider plugin is off."))])])
             }
-            return await providerOutput(id: provider.id, params: request.params)
+            guard let plugin = plugins.first(where: { $0.id == model.pluginID }), plugin.enabled else {
+                return .object(["error": .object(["message": .string(String(localized: "The AI provider plugin is off."))])])
+            }
+            return await providerOutput(id: plugin.id, providerID: model.providerID, params: request.params)
         case "aibo/fetch":
             let hosts = allowedHosts(for: caller)
             let response = await ExtensionFetch.perform(params: request.params, allowedHosts: hosts)
@@ -894,7 +903,7 @@ final class ExtensionCenter {
         }
     }
 
-    private func providerOutput(id: String, params: [String: ExtensionValue]) async -> ExtensionValue {
+    private func providerOutput(id: String, providerID: String, params: [String: ExtensionValue]) async -> ExtensionValue {
         guard let record = plugins.first(where: { $0.id == id }) else {
             return .object(["error": .object(["message": .string(String(localized: "The AI provider plugin is off."))])])
         }
@@ -902,7 +911,7 @@ final class ExtensionCenter {
             return .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
         }
         incrementInvocations(id: id)
-        let settings = runtimeSettings(for: record)
+        let settings = runtimeSettings(for: record, providerID: providerID)
         let generation = runGeneration
         var responses: [String: ExtensionValue] = [:]
         var requestState = ""
@@ -911,6 +920,7 @@ final class ExtensionCenter {
                 return .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
             }
             let parameters = runParameters(
+                record: record,
                 trigger: "llm",
                 settings: settings,
                 input: params,
@@ -947,6 +957,7 @@ final class ExtensionCenter {
     }
 
     private func runParameters(
+        record: ExtensionRecord,
         trigger: String,
         settings: [String: ExtensionValue],
         input: [String: ExtensionValue],
@@ -963,7 +974,47 @@ final class ExtensionCenter {
         if !responses.isEmpty {
             parameters["inputResponses"] = .object(responses)
         }
+        let provided = providedParameters(for: record)
+        if !provided.isEmpty {
+            parameters["provided"] = .object(provided)
+        }
         return parameters
+    }
+
+    /// Configured models published by plugins that `provide` this capability.
+    /// Enabled plugins come first so the default selection is one that can run.
+    func modelOfferings(capability: String) -> [ExtensionProvidedModel] {
+        let matching = plugins.filter { $0.manifest.provides.contains(capability) }
+        let ordered = matching.sorted { lhs, rhs in
+            if lhs.enabled != rhs.enabled { return lhs.enabled && !rhs.enabled }
+            return lhs.id < rhs.id
+        }
+        return ordered.flatMap { record in
+            let declared = record.manifest.exports.first { $0.capability == capability }?.fields ?? []
+            guard !declared.isEmpty else { return [ExtensionProvidedModel]() }
+            let sensitive = Set(
+                record.manifest.settings?.properties.compactMap { key, field in
+                    field.sensitive ? key : nil
+                } ?? []
+            )
+            let records = providers(for: record.id).map { provider in
+                ExtensionProviderRecord(
+                    id: provider.id,
+                    displayName: provider.displayName,
+                    values: [
+                        "format": provider.format,
+                        "baseURL": provider.baseURL,
+                        "model": provider.model,
+                    ]
+                )
+            }
+            return ExtensionModelExport.models(
+                pluginID: record.id,
+                declaredFields: declared,
+                providers: records,
+                sensitiveKeys: sensitive
+            )
+        }
     }
 
     private func allowedHosts(for record: ExtensionRecord) -> Set<String> {
@@ -984,7 +1035,7 @@ final class ExtensionCenter {
         return hosts
     }
 
-    private func runtimeSettings(for record: ExtensionRecord) -> [String: ExtensionValue] {
+    private func runtimeSettings(for record: ExtensionRecord, providerID: String? = nil) -> [String: ExtensionValue] {
         var values = store.loadSettings(id: record.id)
         if let schema = record.manifest.settings {
             for key in schema.orderedKeys {
@@ -998,7 +1049,14 @@ final class ExtensionCenter {
                 }
             }
         }
-        if let provider = providers(for: record.id).first {
+        let list = providers(for: record.id)
+        let provider: ExtensionProvider?
+        if let providerID {
+            provider = list.first { $0.id == providerID }
+        } else {
+            provider = list.first
+        }
+        if let provider {
             values["format"] = .string(provider.format)
             values["baseURL"] = .string(provider.baseURL)
             values["model"] = .string(provider.model)
@@ -1009,6 +1067,43 @@ final class ExtensionCenter {
             }
         }
         return values
+    }
+
+    /// `params.provided.<capability>` for a dependent plugin: the selected model and each exported field.
+    private func providedParameters(for record: ExtensionRecord) -> [String: ExtensionValue] {
+        var object: [String: ExtensionValue] = [:]
+        for capability in record.manifest.requiredCapabilities {
+            let models = modelOfferings(capability: capability)
+            guard !models.isEmpty || record.manifest.settings?.properties.values.contains(where: { $0.source == capability }) == true else {
+                continue
+            }
+            let selected = ExtensionModelExport.resolve(
+                saved: savedCapabilitySelection(for: record, capability: capability),
+                models: models
+            )
+            object[capability] = .object([
+                "selected": .string(selected?.id ?? ""),
+                "models": .array(models.map(providedModelValue)),
+            ])
+        }
+        return object
+    }
+
+    private func providedModelValue(_ model: ExtensionProvidedModel) -> ExtensionValue {
+        .object([
+            "id": .string(model.id),
+            "title": .string(model.title),
+            "fields": .object(model.fields.mapValues { .string($0) }),
+        ])
+    }
+
+    private func savedCapabilitySelection(for record: ExtensionRecord, capability: String) -> String? {
+        guard let schema = record.manifest.settings else { return nil }
+        guard let key = schema.orderedKeys.first(where: { schema.properties[$0]?.source == capability }) else {
+            return nil
+        }
+        let saved = store.loadSettings(id: record.id)[key]?.stringValue ?? ""
+        return saved.isEmpty ? nil : saved
     }
 
     private func secretValues(for record: ExtensionRecord) -> [String] {

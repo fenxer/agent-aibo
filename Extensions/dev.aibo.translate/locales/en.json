@@ -3,6 +3,7 @@
   "description": "Translate a passage into Simplified Chinese, English, or Japanese.",
   "io.inputs.text": "Text",
   "io.outputs.text": "Text",
+  "settings.provider.title": "AI Provider",
   "prompt.text.title": "Text",
   "prompt.target.title": "Target language",
   "prompt.target.oneOf.zh-Hans": "Simplified Chinese",

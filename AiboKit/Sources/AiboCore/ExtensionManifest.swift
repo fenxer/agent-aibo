@@ -4,6 +4,7 @@ import Foundation
 ///
 /// Prototype fields beyond the v1 draft, all optional:
 /// `provides` (a capability other plugins can request, currently `llm`),
+/// `exports` (non-secret fields of that capability, published to dependents),
 /// `slug` (the `aibo://extension/<slug>` link),
 /// `io` (labels for the plugin list), and `prompt` (the manual-run input form).
 public struct ExtensionManifest: Sendable, Equatable {
@@ -19,6 +20,8 @@ public struct ExtensionManifest: Sendable, Equatable {
     public var accepts: [String]
     public var capabilities: [String]
     public var provides: [String]
+    /// Non-secret fields this plugin publishes for each capability it `provides`.
+    public var exports: [ExtensionExport] = []
     public var network: ExtensionNetwork
     public var settings: ExtensionObjectSchema?
     public var prompt: ExtensionObjectSchema?
@@ -174,6 +177,8 @@ public struct ExtensionFieldSchema: Sendable, Equatable {
     public var oneOf: [ExtensionChoice]
     public var minLength: Int?
     public var maxLength: Int?
+    /// Capability whose providing plugin fills this field's choices. The stored value is `pluginID/providerID`.
+    public var source: String?
 
     public init(
         type: String,
@@ -184,7 +189,8 @@ public struct ExtensionFieldSchema: Sendable, Equatable {
         sensitive: Bool = false,
         oneOf: [ExtensionChoice] = [],
         minLength: Int? = nil,
-        maxLength: Int? = nil
+        maxLength: Int? = nil,
+        source: String? = nil
     ) {
         self.type = type
         self.control = control
@@ -195,6 +201,19 @@ public struct ExtensionFieldSchema: Sendable, Equatable {
         self.oneOf = oneOf
         self.minLength = minLength
         self.maxLength = maxLength
+        self.source = source
+    }
+}
+
+/// Fields a plugin publishes to dependents that request `capability`.
+/// The host fills these from the plugin's saved providers. Secrets are never copied.
+public struct ExtensionExport: Codable, Sendable, Equatable {
+    public var capability: String
+    public var fields: [String]
+
+    public init(capability: String, fields: [String]) {
+        self.capability = capability
+        self.fields = fields
     }
 }
 
@@ -233,6 +252,7 @@ extension ExtensionManifest: Codable {
         case accepts
         case capabilities
         case provides
+        case exports
         case network
         case settings
         case prompt
@@ -257,6 +277,7 @@ extension ExtensionManifest: Codable {
         accepts = try container.decodeIfPresent([String].self, forKey: .accepts) ?? []
         capabilities = try container.decodeIfPresent([String].self, forKey: .capabilities) ?? []
         provides = try container.decodeIfPresent([String].self, forKey: .provides) ?? []
+        exports = try container.decodeIfPresent([ExtensionExport].self, forKey: .exports) ?? []
         network = try container.decodeIfPresent(ExtensionNetwork.self, forKey: .network)
             ?? ExtensionNetwork(hosts: [])
         settings = try container.decodeIfPresent(ExtensionObjectSchema.self, forKey: .settings)
@@ -484,6 +505,7 @@ extension ExtensionFieldSchema: Codable {
         case oneOf
         case minLength
         case maxLength
+        case source
     }
 
     public init(from decoder: Decoder) throws {
@@ -498,6 +520,9 @@ extension ExtensionFieldSchema: Codable {
         oneOf = choices.map { ExtensionChoice(value: $0.value, title: $0.title) }
         minLength = try container.decodeIfPresent(Int.self, forKey: .minLength)
         maxLength = try container.decodeIfPresent(Int.self, forKey: .maxLength)
+        let source = try container.decodeIfPresent(String.self, forKey: .source)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        self.source = (source?.isEmpty == false) ? source : nil
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -515,6 +540,7 @@ extension ExtensionFieldSchema: Codable {
         }
         try container.encodeIfPresent(minLength, forKey: .minLength)
         try container.encodeIfPresent(maxLength, forKey: .maxLength)
+        try container.encodeIfPresent(source, forKey: .source)
     }
 
     private struct RawChoice: Codable {
@@ -564,6 +590,12 @@ public enum ExtensionManifestValidator {
         if let prompt = manifest.prompt, let error = schemaError(prompt) {
             return error
         }
+        if let error = exportError(manifest) {
+            return error
+        }
+        if let error = sourceError(manifest) {
+            return error
+        }
         if let error = iconError(manifest.icon) {
             return error
         }
@@ -597,7 +629,7 @@ public enum ExtensionManifestValidator {
         for field in schema.properties.values {
             if let control = field.control {
                 if !Self.promptControls.contains(control) { return .invalidSchema }
-                if (control == "menu" || control == "radio"), field.oneOf.isEmpty {
+                if (control == "menu" || control == "radio"), field.oneOf.isEmpty, (field.source ?? "").isEmpty {
                     return .invalidSchema
                 }
             }
@@ -612,6 +644,54 @@ public enum ExtensionManifestValidator {
             }
         }
         return nil
+    }
+
+    /// An export must name a capability this plugin provides, and must not list a sensitive setting.
+    private static func exportError(_ manifest: ExtensionManifest) -> ExtensionManifestError? {
+        var seen: Set<String> = []
+        let sensitive = Set(
+            manifest.settings?.properties.compactMap { key, field in
+                field.sensitive ? key : nil
+            } ?? []
+        )
+        for export in manifest.exports {
+            if !isCapabilityName(export.capability) || export.fields.isEmpty {
+                return .invalidSchema
+            }
+            if !manifest.provides.contains(export.capability) || !seen.insert(export.capability).inserted {
+                return .invalidSchema
+            }
+            if export.fields.contains(where: { $0.isEmpty || sensitive.contains($0) }) {
+                return .invalidSchema
+            }
+        }
+        return nil
+    }
+
+    /// A sourced setting can only ask for a capability this plugin already depends on.
+    private static func sourceError(_ manifest: ExtensionManifest) -> ExtensionManifestError? {
+        let required = Set(manifest.requiredCapabilities)
+        let fields = (manifest.settings?.properties ?? [:]).merging(manifest.prompt?.properties ?? [:]) { current, _ in
+            current
+        }
+        for field in fields.values {
+            guard let source = field.source else { continue }
+            if !isCapabilityName(source) || !required.contains(source) {
+                return .invalidSchema
+            }
+        }
+        return nil
+    }
+
+    private static func isCapabilityName(_ name: String) -> Bool {
+        guard let first = name.first, first.isASCII, first.isLowercase, first.isLetter else {
+            return false
+        }
+        return name.unicodeScalars.allSatisfy { scalar in
+            (scalar >= "a" && scalar <= "z")
+                || (scalar >= "0" && scalar <= "9")
+                || scalar == "-"
+        }
     }
 
     /// `aibo://extension/<slug>` segment. Lowercase, 1–63 characters, hyphens allowed after the first.

@@ -4,7 +4,7 @@
   "slug": "translate",
   "name": "Translate",
   "description": "Translate a passage into Simplified Chinese, English, or Japanese.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "aibo",
   "icon": {
     "symbol": "character.bubble.fill"
@@ -16,6 +16,17 @@
   "capabilities": ["llm"],
   "provides": [],
   "network": { "hosts": [] },
+  "settings": {
+    "type": "object",
+    "order": ["provider"],
+    "properties": {
+      "provider": {
+        "type": "string",
+        "title": "AI Provider",
+        "source": "llm"
+      }
+    }
+  },
   "prompt": {
     "type": "object",
     "order": ["text", "target"],

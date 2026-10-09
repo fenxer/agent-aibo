@@ -120,6 +120,16 @@
         }
       }
     },
+    "Add a provider in AI Provider." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先在 AI 供应商里添加一个。"
+          }
+        }
+      }
+    },
     "Add extra capabilities for Aibo" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1899,6 +1909,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无 Petdex Aibo"
+          }
+        }
+      }
+    },
+    "No providers yet" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有供应商"
           }
         }
       }
