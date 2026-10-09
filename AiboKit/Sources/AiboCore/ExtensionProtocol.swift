@@ -16,12 +16,31 @@ public struct ExtensionCompletion: Sendable, Equatable {
     }
 }
 
+/// How the host should draw a finished bubble.
+///
+/// The plugin picks this. A summary by itself is not enough: the same sentence
+/// can be a real result or a failure, and the user cannot tell which.
+/// The host owns the badge (“Running”, “Completed”, “Warning”, “Failed”).
+/// `status` is kept so older payloads still decode; it is not shown.
+public enum ExtensionBubbleOutcome: String, Sendable, Equatable {
+    case success
+    case failure
+    case warning
+}
+
 public struct ExtensionBubbleContent: Sendable, Equatable {
+    public var outcome: ExtensionBubbleOutcome
     public var status: String?
     public var summary: String
     public var actions: [ExtensionBubbleAction]
 
-    public init(status: String? = nil, summary: String, actions: [ExtensionBubbleAction] = []) {
+    public init(
+        outcome: ExtensionBubbleOutcome = .success,
+        status: String? = nil,
+        summary: String,
+        actions: [ExtensionBubbleAction] = []
+    ) {
+        self.outcome = outcome
         self.status = status
         self.summary = summary
         self.actions = actions
@@ -89,6 +108,7 @@ public enum ExtensionRoundCodec {
                 }
                 bubbles.append(
                     ExtensionBubbleContent(
+                        outcome: outcome(from: object["outcome"]?.stringValue),
                         status: object["status"]?.stringValue,
                         summary: summary,
                         actions: actions(from: object["actions"])
@@ -98,6 +118,13 @@ public enum ExtensionRoundCodec {
         }
         let output = root["output"]?.objectValue ?? [:]
         return ExtensionCompletion(content: bubbles, output: output)
+    }
+
+    /// Missing `outcome` stays a normal result so older plugins keep working.
+    /// An unknown token is a failure: a typo must not look like real output.
+    private static func outcome(from raw: String?) -> ExtensionBubbleOutcome {
+        guard let raw, !raw.isEmpty else { return .success }
+        return ExtensionBubbleOutcome(rawValue: raw) ?? .failure
     }
 
     private static func actions(from value: ExtensionValue?) -> [ExtensionBubbleAction] {

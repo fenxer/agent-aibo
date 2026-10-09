@@ -181,7 +181,38 @@ import Testing
         return
     }
     #expect(completion.output["text"]?.stringValue == "hello")
+    #expect(completion.content.first?.outcome == .success)
     #expect(completion.content.first?.actions.first?.copyText == "hello")
+
+    let failed = """
+    {"resultType":"complete","content":[{"type":"bubble","outcome":"failure","summary":"{\\"error\\":\\"bad model\\"}"}]}
+    """
+    let failedRound = try ExtensionRoundCodec.decode(Data(failed.utf8))
+    guard case .complete(let failedCompletion) = failedRound else {
+        Issue.record("expected failure bubble")
+        return
+    }
+    #expect(failedCompletion.content.first?.outcome == .failure)
+
+    let warned = """
+    {"resultType":"complete","content":[{"type":"bubble","outcome":"warning","summary":"Check the input."}]}
+    """
+    let warnedRound = try ExtensionRoundCodec.decode(Data(warned.utf8))
+    guard case .complete(let warnedCompletion) = warnedRound else {
+        Issue.record("expected warning bubble")
+        return
+    }
+    #expect(warnedCompletion.content.first?.outcome == .warning)
+
+    let unknown = """
+    {"resultType":"complete","content":[{"type":"bubble","outcome":"partial","summary":"not a result"}]}
+    """
+    let unknownRound = try ExtensionRoundCodec.decode(Data(unknown.utf8))
+    guard case .complete(let unknownCompletion) = unknownRound else {
+        Issue.record("expected unknown outcome")
+        return
+    }
+    #expect(unknownCompletion.content.first?.outcome == .failure)
 
     let required = """
     {"resultType":"input_required","requestState":"","inputRequests":{"http":{"method":"aibo/fetch","params":{"url":"https://api.openai.com/v1/chat/completions"}}}}

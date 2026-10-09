@@ -82,6 +82,47 @@ enum ExtensionBubbleMetrics {
         statusCardHeight(text: text)
     }
 
+    static let runningWellPadding: CGFloat = 8
+    static let dependencyTitleHeight: CGFloat = 18
+    static let dependencyRowHeight: CGFloat = 52
+    static let dependencyRowSpacing: CGFloat = 8
+
+    static func runningCardHeight(text: String) -> CGFloat {
+        formPadding * 2
+            + pluginHeaderHeight
+            + pluginHeaderSpacing
+            + runningWellPadding * 2
+            + runningTextHeight(text)
+    }
+
+    /// The running note is one short line in the mockups. Don't reuse the result
+    /// block's 36pt floor or the card grows a blank band under the well.
+    static func runningTextHeight(_ text: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: fieldFontSize)
+        let width = cardWidth - formPadding * 2 - runningWellPadding * 2
+        let measured = ceil(
+            (text as NSString).boundingRect(
+                with: NSSize(width: max(1, width), height: 800),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: [.font: font]
+            ).height
+        )
+        return min(resultTextMaxHeight, max(labelLineHeight, measured))
+    }
+
+    static func dependencyCardHeight(count: Int) -> CGFloat {
+        let rows = CGFloat(max(count, 1)) * dependencyRowHeight
+            + CGFloat(max(0, count - 1)) * dependencyRowSpacing
+        return formPadding * 2
+            + pluginHeaderHeight
+            + pluginHeaderSpacing
+            + dependencyTitleHeight
+            + dependencyRowSpacing
+            + rows
+            + statusSpacing
+            + formControlHeight
+    }
+
     static func textBlockHeight(_ text: String) -> CGFloat {
         let font = NSFont.systemFont(ofSize: 14)
         let width = cardWidth - formPadding * 2
@@ -154,17 +195,99 @@ struct ExtensionBubbleColumn: View {
         switch session.phase {
         case .editing:
             formCard(session)
-        case .running:
-            statusCard(
-                text: String(localized: "Working…"),
-                copyText: nil,
-                showsClose: true,
+        case .running(let message):
+            card(height: ExtensionBubbleMetrics.runningCardHeight(text: message), arrow: showsArrow) {
+                ExtensionRunningCard(
+                    name: session.pluginName,
+                    directory: pluginDirectory(session),
+                    icon: pluginIcon(session),
+                    message: message,
+                    onClose: { center.cancelSession() }
+                )
+            }
+        case .result(let summary, _):
+            outcomeCard(session, kind: .completed, text: summary, copiesIssue: false)
+        case .failed(let message, _):
+            outcomeCard(session, kind: .failed, text: message, copiesIssue: true)
+        case .notice(let summary, _):
+            outcomeCard(session, kind: .warning, text: summary, copiesIssue: true)
+        case .dependency(let issues):
+            card(
+                height: ExtensionBubbleMetrics.dependencyCardHeight(count: issues.count),
                 arrow: showsArrow
+            ) {
+                ExtensionDependencyCard(
+                    name: session.pluginName,
+                    directory: pluginDirectory(session),
+                    icon: pluginIcon(session),
+                    rows: dependencyRows(issues),
+                    installingID: ExtensionCatalogClient.shared.installingID,
+                    onInstall: { center.installDependency(catalogID: $0) },
+                    onEnabled: { enabled, pluginID in
+                        center.setDependencyEnabled(enabled, pluginID: pluginID)
+                    },
+                    onCopy: { center.copyResult() },
+                    onClose: { center.cancelSession() }
+                )
+            }
+        }
+    }
+
+    private func outcomeCard(
+        _ session: ExtensionPromptSession,
+        kind: ExtensionOutcomeKind,
+        text: String,
+        copiesIssue: Bool
+    ) -> some View {
+        card(height: ExtensionBubbleMetrics.statusCardHeight(text: text), arrow: showsArrow) {
+            ExtensionOutcomeCard(
+                name: session.pluginName,
+                directory: pluginDirectory(session),
+                icon: pluginIcon(session),
+                kind: kind,
+                text: text,
+                copiesIssue: copiesIssue,
+                onCopy: { center.copyResult() },
+                onClose: { center.cancelSession() }
             )
-        case .result(let summary, let copyText):
-            statusCard(text: summary, copyText: copyText, showsClose: true, arrow: showsArrow)
-        case .failed(let message):
-            statusCard(text: message, copyText: nil, showsClose: true, arrow: showsArrow)
+        }
+    }
+
+    private func pluginIcon(_ session: ExtensionPromptSession) -> ExtensionIcon {
+        center.plugins.first { $0.id == session.pluginID }?.manifest.icon ?? .fallback
+    }
+
+    private func pluginDirectory(_ session: ExtensionPromptSession) -> URL? {
+        center.plugins.first { $0.id == session.pluginID }?.directory
+    }
+
+    private func dependencyRows(_ issues: [ExtensionDependencyIssue]) -> [ExtensionDependencyRowModel] {
+        issues.map { issue in
+            let presented = dependencyPresentation(issue)
+            let enabled: Bool = if case .enable(let id) = issue.remedy {
+                center.plugins.first { $0.id == id }?.enabled ?? false
+            } else {
+                false
+            }
+            return ExtensionDependencyRowModel(
+                issue: issue,
+                icon: presented.icon,
+                directory: presented.directory,
+                enabled: enabled
+            )
+        }
+    }
+
+    private func dependencyPresentation(_ issue: ExtensionDependencyIssue) -> (icon: ExtensionIcon, directory: URL?) {
+        switch issue.remedy {
+        case .enable(let id):
+            let plugin = center.plugins.first { $0.id == id }
+            return (plugin?.manifest.icon ?? .fallback, plugin?.directory)
+        case .install(let id):
+            let entry = ExtensionCatalogClient.shared.entries.first { $0.id == id }
+            return (entry?.icon ?? .fallback, ExtensionCatalogClient.shared.localPackageURL(id: id))
+        case .unavailable:
+            return (.fallback, nil)
         }
     }
 
@@ -181,54 +304,6 @@ struct ExtensionBubbleColumn: View {
                 onClose: { center.cancelSession() }
             )
         }
-    }
-
-    private func statusCard(text: String, copyText: String?, showsClose: Bool, arrow: Bool) -> some View {
-        card(height: ExtensionBubbleMetrics.statusCardHeight(text: text), arrow: arrow) {
-            VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
-                if let session {
-                    pluginHeader(session)
-                }
-                statusBody(text: text, copyText: copyText, showsClose: showsClose)
-            }
-        }
-    }
-
-    private func statusBody(text: String, copyText: String?, showsClose: Bool) -> some View {
-        let textHeight = ExtensionBubbleMetrics.textBlockHeight(text)
-        return VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.statusSpacing) {
-            ScrollView {
-                Text(text)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .textSelection(.enabled)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(height: textHeight)
-            HStack(spacing: 8) {
-                if copyText != nil {
-                    Button(String(localized: "Copy")) {
-                        center.copyResult()
-                    }
-                }
-                if showsClose {
-                    Button(String(localized: "Close")) {
-                        center.cancelSession()
-                    }
-                }
-            }
-            .frame(height: ExtensionBubbleMetrics.formControlHeight, alignment: .leading)
-        }
-    }
-
-    private func pluginHeader(_ session: ExtensionPromptSession) -> some View {
-        let plugin = center.plugins.first { $0.id == session.pluginID }
-        return ExtensionPluginHeader(
-            name: session.pluginName,
-            directory: plugin?.directory,
-            icon: plugin?.manifest.icon ?? .fallback
-        )
     }
 
     private func card<Content: View>(

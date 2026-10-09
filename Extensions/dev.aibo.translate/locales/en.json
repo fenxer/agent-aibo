@@ -7,5 +7,6 @@
   "prompt.target.title": "Target language",
   "prompt.target.oneOf.zh-Hans": "Simplified Chinese",
   "prompt.target.oneOf.en": "English",
-  "prompt.target.oneOf.ja": "Japanese"
+  "prompt.target.oneOf.ja": "Japanese",
+  "status.running": "Translating…"
 }

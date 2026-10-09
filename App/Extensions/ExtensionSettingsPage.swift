@@ -485,9 +485,19 @@ struct ExtensionDetailPage: View {
                         .disabled(catalogClient.installingID != nil)
                         .accessibilityLabel(String(localized: "Version \(updateVersion) is available"))
                     } else {
-                        Button(String(localized: "Check")) {
+                        Button {
                             Task { await catalogClient.checkForUpdates() }
+                        } label: {
+                            Text(String(localized: "Check"))
+                                .opacity(catalogClient.isCheckingUpdates ? 0 : 1)
+                                .overlay {
+                                    if catalogClient.isCheckingUpdates {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    }
+                                }
                         }
+                        .allowsHitTesting(!catalogClient.isCheckingUpdates)
                         .disabled(catalogClient.installingID != nil)
                     }
                 }

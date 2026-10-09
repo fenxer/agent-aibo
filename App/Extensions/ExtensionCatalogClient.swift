@@ -18,6 +18,7 @@ final class ExtensionCatalogClient {
 
     private(set) var entries: [ExtensionCatalogEntry] = []
     private(set) var installingID: String?
+    private(set) var isCheckingUpdates = false
     private(set) var statusText = ""
     #if DEBUG
     private(set) var source: ExtensionCatalogSource
@@ -76,8 +77,17 @@ final class ExtensionCatalogClient {
     }
 
     func checkForUpdates() async {
-        guard installingID == nil else { return }
+        guard installingID == nil, !isCheckingUpdates else { return }
+        isCheckingUpdates = true
+        let started = ContinuousClock.now
+        defer { isCheckingUpdates = false }
+        await Task.yield()
         await reload()
+        let minimum = Duration.milliseconds(450)
+        let elapsed = started.duration(to: .now)
+        if elapsed < minimum {
+            try? await Task.sleep(for: minimum - elapsed)
+        }
         if loadFailed {
             center.noteInstallFailure(String(localized: "Couldn't read the extension catalog."))
         }

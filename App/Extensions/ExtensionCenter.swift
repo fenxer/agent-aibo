@@ -62,9 +62,13 @@ final class ExtensionPromptSession {
 
     enum Phase: Equatable {
         case editing
-        case running
+        /// `message` is the plugin's `status.running` line, or the host fallback.
+        case running(message: String)
         case result(summary: String, copyText: String?)
-        case failed(String)
+        case failed(message: String, copyText: String)
+        /// Plugin-declared warning that is not a missing dependency.
+        case notice(summary: String, copyText: String)
+        case dependency([ExtensionDependencyIssue])
     }
 
     init(
@@ -133,12 +137,16 @@ final class ExtensionPromptSession {
         switch phase {
         case .editing:
             [ExtensionBubbleMetrics.promptHeight(kinds: groupKinds)]
-        case .running:
-            [ExtensionBubbleMetrics.statusHeight(text: String(localized: "Working…"))]
+        case .running(let message):
+            [ExtensionBubbleMetrics.runningCardHeight(text: message)]
         case .result(let summary, _):
             [ExtensionBubbleMetrics.statusHeight(text: summary)]
-        case .failed(let message):
+        case .failed(let message, _):
             [ExtensionBubbleMetrics.statusHeight(text: message)]
+        case .notice(let summary, _):
+            [ExtensionBubbleMetrics.statusHeight(text: summary)]
+        case .dependency(let issues):
+            [ExtensionBubbleMetrics.dependencyCardHeight(count: issues.count)]
         }
     }
 }
@@ -223,18 +231,26 @@ final class ExtensionCenter {
         switch session.phase {
         case .editing:
             return "\(session.pluginID)-editing"
-        case .running:
-            return "\(session.pluginID)-running"
+        case .running(let message):
+            return "\(session.pluginID)-running-\(message.count)"
         case .result(let summary, _):
             return "\(session.pluginID)-result-\(summary.count)"
-        case .failed(let message):
+        case .failed(let message, _):
             return "\(session.pluginID)-failed-\(message.count)"
+        case .notice(let summary, _):
+            return "\(session.pluginID)-notice-\(summary.count)"
+        case .dependency(let issues):
+            return "\(session.pluginID)-dependency-\(issues.map(\.id).joined(separator: ","))"
         }
     }
 
     var needsKeyWindow: Bool {
-        if case .editing = session?.phase { return true }
-        return false
+        switch session?.phase {
+        case .editing, .dependency:
+            return true
+        default:
+            return false
+        }
     }
 
     var manualPlugins: [ExtensionRecord] {
@@ -505,38 +521,50 @@ final class ExtensionCenter {
             toggles: form.toggles,
             required: form.required
         )
-        publishLayout()
+        applyDependencyGate()
+        let needsCatalog = !record.manifest.requiredCapabilities.isEmpty
+            && ExtensionCatalogClient.shared.entries.isEmpty
+        guard needsCatalog else { return }
+        Task {
+            await ExtensionCatalogClient.shared.reload()
+            guard self.session?.pluginID == id else { return }
+            applyDependencyGate()
+        }
     }
 
     func confirmPrompt() {
         guard let session, case .editing = session.phase else { return }
         guard let input = session.submissionInput() else { return }
-        session.phase = .running
+        let pluginID = session.pluginID
+        session.phase = .running(message: runningStatus(for: pluginID))
         runGeneration += 1
         let generation = runGeneration
-        let pluginID = session.pluginID
         publishLayout()
         Task {
             let outcome = await run(id: pluginID, trigger: "manual", input: input, depth: 0)
             guard generation == runGeneration, self.session?.pluginID == pluginID else { return }
-            switch outcome {
-            case .bubbles(let bubbles):
-                let bubble = bubbles.first
-                let summary = bubble?.summary ?? String(localized: "Plugin failed")
-                let copyText = bubble?.actions.first { $0.copyText != nil }?.copyText ?? summary
-                self.session?.phase = .result(summary: summary, copyText: copyText)
-            case .failed(let message):
-                self.session?.phase = .failed(message)
-            }
+            present(outcome)
             publishLayout()
         }
     }
 
+    func installDependency(catalogID: String) {
+        Task {
+            await ExtensionCatalogClient.shared.install(id: catalogID)
+            applyDependencyGate()
+        }
+    }
+
+    func setDependencyEnabled(_ enabled: Bool, pluginID: String) {
+        setEnabled(enabled, id: pluginID)
+        applyDependencyGate()
+    }
+
     func copyResult() {
-        guard case .result(_, let copyText) = session?.phase, let copyText else { return }
+        guard let text = copyPayload(), !text.isEmpty else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(copyText, forType: .string)
+        pasteboard.setString(text, forType: .string)
     }
 
     func cancelSession() {
@@ -549,6 +577,112 @@ final class ExtensionCenter {
         }
         publishLayout()
         AiboPanelController.shared.clearExtensionCardFrame()
+    }
+
+    private func present(_ outcome: RunOutcome) {
+        switch outcome {
+        case .bubbles(let bubbles):
+            guard let bubble = bubbles.first else {
+                let message = String(localized: "Plugin failed")
+                session?.phase = .failed(message: message, copyText: message)
+                return
+            }
+            let summary = bubble.summary
+            let copyText = bubble.actions.first { $0.copyText != nil }?.copyText ?? summary
+            switch bubble.outcome {
+            case .success:
+                session?.phase = .result(summary: summary, copyText: copyText)
+            case .failure:
+                session?.phase = .failed(message: summary, copyText: copyText)
+            case .warning:
+                session?.phase = .notice(summary: summary, copyText: copyText)
+            }
+        case .failed(let message):
+            session?.phase = .failed(message: message, copyText: message)
+        }
+    }
+
+    private func runningStatus(for pluginID: String) -> String {
+        let custom = plugins.first { $0.id == pluginID }?.strings["status.running"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !custom.isEmpty { return custom }
+        return String(localized: "Working…")
+    }
+
+    private func applyDependencyGate() {
+        guard let session else { return }
+        switch session.phase {
+        case .editing, .dependency:
+            break
+        default:
+            return
+        }
+        let issues = dependencyIssues(for: session.pluginID)
+        if issues.isEmpty {
+            if case .dependency = session.phase {
+                session.phase = .editing
+            }
+        } else {
+            session.phase = .dependency(issues)
+        }
+        publishLayout()
+    }
+
+    private func dependencyIssues(for pluginID: String) -> [ExtensionDependencyIssue] {
+        guard let record = plugins.first(where: { $0.id == pluginID }) else { return [] }
+        let installed = plugins.filter { $0.id != pluginID }.map { plugin in
+            ExtensionDependencyGate.Installed(
+                id: plugin.id,
+                name: plugin.copy.name,
+                summary: plugin.copy.summary,
+                provides: plugin.manifest.provides,
+                enabled: plugin.enabled
+            )
+        }
+        let language = Locale.preferredLanguages.first ?? "en"
+        let catalog = ExtensionCatalogClient.shared.entries.map { entry in
+            let copy = entry.displayCopy(preferredLanguage: language)
+            return ExtensionDependencyGate.Listed(
+                id: entry.id,
+                name: copy.name,
+                summary: copy.summary,
+                provides: entry.provides
+            )
+        }
+        return ExtensionDependencyGate.issues(
+            required: record.manifest.requiredCapabilities,
+            installed: installed,
+            catalog: catalog
+        )
+    }
+
+    private func copyPayload() -> String? {
+        guard let session else { return nil }
+        switch session.phase {
+        case .result(_, let copyText):
+            return copyText
+        case .failed(_, let copyText), .notice(_, let copyText):
+            return copyText
+        case .dependency(let issues):
+            return dependencyReport(pluginName: session.pluginName, issues: issues)
+        case .editing, .running:
+            return nil
+        }
+    }
+
+    private func dependencyReport(pluginName: String, issues: [ExtensionDependencyIssue]) -> String {
+        issues.map { issue in
+            let need = String(localized: "\(pluginName) needs a plugin that provides “\(issue.capability)”.")
+            let state: String = switch issue.remedy {
+            case .install:
+                String(localized: "\(issue.name) is not installed.")
+            case .enable:
+                String(localized: "\(issue.name) is turned off.")
+            case .unavailable:
+                String(localized: "No plugin provides “\(issue.capability)”.")
+            }
+            return [need, state, issue.summary].filter { !$0.isEmpty }.joined(separator: "\n")
+        }.joined(separator: "\n\n")
     }
 
     private func publishLayout() {
@@ -697,6 +831,7 @@ final class ExtensionCenter {
                 }
                 let bubbles = completion.content.map { bubble in
                     ExtensionBubbleContent(
+                        outcome: bubble.outcome,
                         status: bubble.status,
                         summary: redact(bubble.summary, secrets: secrets),
                         actions: bubble.actions.map { action in

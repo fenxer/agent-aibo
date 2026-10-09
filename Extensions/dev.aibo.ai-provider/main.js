@@ -12,9 +12,14 @@ export function run(params) {
     if (prior.error) {
       return completeError(prior.error.message || say(params, "Request failed", "请求失败"));
     }
-    const parsed = extract(settings.format, prior.body || "", params);
-    if (parsed.error) return completeError(parsed.error);
-    return { resultType: "complete", output: { text: parsed.text } };
+    const body = String(prior.body || "");
+    const status = Number(prior.status || 0);
+    if (status !== 0 && (status < 200 || status >= 300)) {
+      return completeError(clip(body) || say(params, "Request failed", "请求失败"));
+    }
+    const text = extract(settings.format, body);
+    if (!text) return completeError(clip(body) || say(params, "The model returned no text.", "模型没有返回文本。"));
+    return { resultType: "complete", output: { text: text } };
   }
 
   const missing = missingField(settings, params);
@@ -116,40 +121,38 @@ function userText(input) {
   return parts.join("\n\n");
 }
 
-function extract(format, body, params) {
+// Expected success is a text reply. Anything else — an error object, a
+// non-JSON body, a different vendor shape — is handed back whole. Callers
+// show that payload as a failure instead of guessing each provider's fields.
+function extract(format, body) {
   let json;
   try {
     json = JSON.parse(body);
   } catch (error) {
-    return { error: say(params, "The model response was not JSON.", "模型返回的不是 JSON。") };
+    return "";
   }
-  if (json && json.error) {
-    return { error: (json.error && json.error.message) || say(params, "Request failed", "请求失败") };
-  }
-  if (format === "google-interactions") return interactionsText(json, params);
-  return chatText(json, params);
+  if (format === "google-interactions") return interactionsText(json);
+  return chatText(json);
 }
 
-function chatText(json, params) {
-  const choice = json.choices && json.choices[0];
+function chatText(json) {
+  const choice = json && json.choices && json.choices[0];
   const message = choice && choice.message;
   const content = message && message.content;
-  if (typeof content === "string" && content.trim()) return { text: content.trim() };
+  if (typeof content === "string" && content.trim()) return content.trim();
   if (Array.isArray(content)) {
     let text = "";
     for (let i = 0; i < content.length; i++) {
       const part = content[i];
       if (part && part.text) text += part.text;
     }
-    if (text.trim()) return { text: text.trim() };
+    if (text.trim()) return text.trim();
   }
-  return { error: say(params, "The model returned no text.", "模型没有返回文本。") };
+  return "";
 }
 
-function interactionsText(json, params) {
-  if (json.status && json.status !== "completed" && json.status !== "incomplete") {
-    return { error: "Interaction status: " + json.status };
-  }
+function interactionsText(json) {
+  if (!json || (json.status && json.status !== "completed" && json.status !== "incomplete")) return "";
   const steps = json.steps || [];
   let text = "";
   for (let i = 0; i < steps.length; i++) {
@@ -161,8 +164,13 @@ function interactionsText(json, params) {
       if (part && part.type === "text" && part.text) text += part.text;
     }
   }
-  if (!text.trim()) return { error: say(params, "The model returned no text.", "模型没有返回文本。") };
-  return { text: text.trim() };
+  return text.trim();
+}
+
+function clip(text) {
+  const value = String(text || "").trim();
+  if (value.length <= 4000) return value;
+  return value.slice(0, 4000);
 }
 
 function say(params, en, zh) {

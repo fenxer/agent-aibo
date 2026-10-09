@@ -676,6 +676,137 @@
         }
       }
     },
+    "Copy Issue" : {
+      "comment" : "Copies the warning or failure details from a plugin bubble.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制详情"
+          }
+        }
+      }
+    },
+    "Missing Dependency" : {
+      "comment" : "Heading on a plugin bubble when another plugin is missing or turned off.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少依赖"
+          }
+        }
+      }
+    },
+    "%@ needs a plugin that provides “%@”." : {
+      "comment" : "First argument is the plugin that was opened. Second is the capability name.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@需要一个提供“%2$@”的插件。"
+          }
+        }
+      }
+    },
+    "%@ is not installed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未安装%@。"
+          }
+        }
+      }
+    },
+    "%@ is turned off." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@尚未开启。"
+          }
+        }
+      }
+    },
+    "No plugin provides “%@”." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有插件提供“%@”。"
+          }
+        }
+      }
+    },
+    "extension-outcome-running" : {
+      "comment" : "Badge on a plugin bubble while the plugin is working.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Running"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行中"
+          }
+        }
+      }
+    },
+    "extension-outcome-completed" : {
+      "comment" : "Badge on a plugin bubble after a normal result.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已完成"
+          }
+        }
+      }
+    },
+    "extension-outcome-warning" : {
+      "comment" : "Badge on a plugin bubble for a warning, including a missing dependency.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warning"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "警告"
+          }
+        }
+      }
+    },
+    "extension-outcome-failed" : {
+      "comment" : "Badge on a plugin bubble when the result was not the expected output.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "失败"
+          }
+        }
+      }
+    },
     "Couldn't Install Aibo" : {
       "localizations" : {
         "zh-Hans" : {
