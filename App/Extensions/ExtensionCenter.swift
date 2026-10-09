@@ -295,6 +295,10 @@ final class ExtensionCenter {
         reload()
     }
 
+    func noteInstallFailure(_ message: String) {
+        lastError = message
+    }
+
     func install(from directory: URL) {
         do {
             _ = try store.install(from: directory)

@@ -3,18 +3,18 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// An extension the app can offer before it is installed.
-/// The list will come from outside the app bundle. No source is chosen yet.
+/// An extension listed in `catalog.json` and not installed yet.
 private struct ExtensionOffer: Identifiable, Equatable {
     var id: String
     var name: String
     var summary: String
-
-    static let placeholder: [ExtensionOffer] = []
+    var icon: ExtensionIcon
+    var directory: URL?
 }
 
 struct ExtensionSettingsPage: View {
     @State private var center = ExtensionCenter.shared
+    @State private var catalog = ExtensionCatalogClient.shared
     @Bindable private var navigator = SettingsNavigator.shared
     @State private var detailID: String?
     @State private var installError: String?
@@ -37,16 +37,46 @@ struct ExtensionSettingsPage: View {
                 self.detailID = nil
             }
         }
+        .task {
+            await catalog.reload()
+        }
         .onAppear(perform: revealPendingExtension)
         .onChange(of: navigator.pendingExtensionID) { _, newValue in
             guard newValue != nil else { return }
             revealPendingExtension()
         }
+        .onChange(of: center.lastError) { _, newValue in
+            installError = newValue
+        }
+        .alert(
+            String(localized: "Couldn't install the plugin."),
+            isPresented: Binding(
+                get: { installError != nil },
+                set: { if !$0 { installError = nil } }
+            )
+        ) {
+            Button(String(localized: "Done")) { installError = nil }
+        } message: {
+            if let installError, installError != String(localized: "Couldn't install the plugin.") {
+                Text(installError)
+            }
+        }
     }
 
     private var offers: [ExtensionOffer] {
         let installedIDs = Set(center.plugins.map(\.id))
-        return ExtensionOffer.placeholder.filter { !installedIDs.contains($0.id) }
+        let language = Locale.preferredLanguages.first ?? "en"
+        return catalog.entries.compactMap { entry in
+            guard !installedIDs.contains(entry.id) else { return nil }
+            let copy = entry.displayCopy(preferredLanguage: language)
+            return ExtensionOffer(
+                id: entry.id,
+                name: copy.name,
+                summary: copy.summary,
+                icon: entry.icon,
+                directory: catalog.localPackageURL(id: entry.id)
+            )
+        }
     }
 
     private var list: some View {
@@ -58,7 +88,13 @@ struct ExtensionSettingsPage: View {
             if !center.plugins.isEmpty {
                 Section {
                     ForEach(center.plugins) { record in
-                        ExtensionInstalledRow(record: record) {
+                        ExtensionInstalledRow(
+                            record: record,
+                            updateVersion: catalog.updateVersion(
+                                id: record.id,
+                                installed: record.manifest.version
+                            )
+                        ) {
                             detailID = record.id
                         }
                     }
@@ -70,7 +106,7 @@ struct ExtensionSettingsPage: View {
             if !offers.isEmpty {
                 Section {
                     ForEach(offers) { offer in
-                        ExtensionOfferRow(offer: offer) {
+                        ExtensionOfferRow(offer: offer, installDisabled: catalog.installingID != nil) {
                             installOffer(offer)
                         }
                     }
@@ -86,22 +122,6 @@ struct ExtensionSettingsPage: View {
                 installButtons
             }
         }
-        .alert(
-            String(localized: "Couldn't install the plugin."),
-            isPresented: Binding(
-                get: { installError != nil },
-                set: { if !$0 { installError = nil } }
-            )
-        ) {
-            Button(String(localized: "Done")) { installError = nil }
-        } message: {
-            if let installError, installError != String(localized: "Couldn't install the plugin.") {
-                Text(installError)
-            }
-        }
-        .onChange(of: center.lastError) { _, newValue in
-            installError = newValue
-        }
     }
 
     private var installButtons: some View {
@@ -114,8 +134,7 @@ struct ExtensionSettingsPage: View {
     }
 
     private func installOffer(_ offer: ExtensionOffer) {
-        // Nothing to fetch until an external list exists.
-        _ = offer
+        Task { await catalog.install(id: offer.id) }
     }
 
     private func revealPendingExtension() {
@@ -168,6 +187,7 @@ private struct ExtensionIntroRow: View {
 
 private struct ExtensionInstalledRow: View {
     var record: ExtensionRecord
+    var updateVersion: String?
     var onOpen: () -> Void
 
     var body: some View {
@@ -176,7 +196,12 @@ private struct ExtensionInstalledRow: View {
                 ExtensionRowIcon(icon: record.manifest.icon, directory: record.directory)
                 ExtensionRowCopy(name: record.copy.name, summary: record.copy.summary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if record.enabled {
+                if let updateVersion {
+                    Text(String(localized: "New"))
+                        .foregroundStyle(.red)
+                        .accessibilityLabel(String(localized: "Version \(updateVersion) is available"))
+                        .fixedSize()
+                } else if record.enabled {
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(.green)
@@ -197,14 +222,16 @@ private struct ExtensionInstalledRow: View {
 
 private struct ExtensionOfferRow: View {
     var offer: ExtensionOffer
+    var installDisabled: Bool
     var onInstall: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
-            ExtensionRowIcon(directory: nil)
+            ExtensionRowIcon(icon: offer.icon, directory: offer.directory)
             ExtensionRowCopy(name: offer.name, summary: offer.summary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(String(localized: "Install"), action: onInstall)
+                .disabled(installDisabled)
         }
     }
 }
@@ -273,6 +300,7 @@ struct ExtensionDetailPage: View {
     @State private var editor: ProviderEditorToken?
     @State private var confirmEnable = false
     @State private var confirmUninstall = false
+    @State private var catalogClient = ExtensionCatalogClient.shared
 
     var body: some View {
         Group {
@@ -439,9 +467,32 @@ struct ExtensionDetailPage: View {
     private var infoSection: some View {
         Section {
             LabeledContent(String(localized: "Version")) {
-                Text(record.manifest.version)
-                    .monospacedDigit()
+                HStack(spacing: 8) {
+                    Text(record.manifest.version)
+                        .monospacedDigit()
+                    if let updateVersion = catalogClient.updateVersion(
+                        id: record.id,
+                        installed: record.manifest.version
+                    ) {
+                        Button(String(localized: "Upgrade")) {
+                            Task {
+                                await catalogClient.upgrade(
+                                    id: record.id,
+                                    installedVersion: record.manifest.version
+                                )
+                            }
+                        }
+                        .disabled(catalogClient.installingID != nil)
+                        .accessibilityLabel(String(localized: "Version \(updateVersion) is available"))
+                    } else {
+                        Button(String(localized: "Check")) {
+                            Task { await catalogClient.checkForUpdates() }
+                        }
+                        .disabled(catalogClient.installingID != nil)
+                    }
+                }
             }
+            .labeledContentStyle(VerticallyCenteredLabeledContentStyle())
             LabeledContent(String(localized: "Input")) {
                 infoLines(record.copy.inputs)
             }
@@ -475,10 +526,6 @@ struct ExtensionDetailPage: View {
         Section {
             Toggle(isOn: autoCheckUpdates) {
                 Text(String(localized: "Auto-Check for Updates"))
-            }
-            LabeledContent(String(localized: "Extension Update")) {
-                Button(String(localized: "Check")) {}
-                    .disabled(true)
             }
         } header: {
             Text(String(localized: "Updates"))
@@ -996,6 +1043,18 @@ private struct ExtensionSlugCopyButton: View {
     private func copy(_ slug: String) -> Bool {
         NSPasteboard.general.clearContents()
         return NSPasteboard.general.setString("aibo://extension/\(slug)", forType: .string)
+    }
+}
+
+/// Form `LabeledContent` aligns to the title baseline, so a taller trailing
+/// button sits visually low. Center against the label instead.
+private struct VerticallyCenteredLabeledContentStyle: LabeledContentStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            configuration.label
+            Spacer(minLength: 8)
+            configuration.content
+        }
     }
 }
 

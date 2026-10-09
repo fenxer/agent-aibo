@@ -707,6 +707,16 @@
         }
       }
     },
+    "Couldn't read the extension catalog." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取插件列表。"
+          }
+        }
+      }
+    },
     "Cursor does not support approval or prompt-waiting hook events yet." : {
       "localizations" : {
         "zh-Hans" : {
@@ -961,6 +971,7 @@
       }
     },
     "Extension Update" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1686,6 +1697,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "网络：%@"
+          }
+        }
+      }
+    },
+    "New" : {
+      "comment" : "Extensions \u2192 Installed: a newer catalog version is available. Replaces the Enabled label.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "\u65b0\u7248\u672c"
           }
         }
       }
@@ -2529,6 +2551,16 @@
         }
       }
     },
+    "This plugin is not in the catalog." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件列表里没有这个插件。"
+          }
+        }
+      }
+    },
     "This removes the plugin and its settings." : {
       "localizations" : {
         "zh-Hans" : {
@@ -2717,6 +2749,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "软件更新"
+          }
+        }
+      }
+    },
+    "Upgrade" : {
+      "comment" : "Extensions → Info: install a newer catalog version.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升级"
           }
         }
       }

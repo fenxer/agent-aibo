@@ -21,6 +21,7 @@ import Testing
     let installed = try store.install(from: source)
     #expect(installed.id == "dev.aibo.sample")
     #expect(store.installed().map(\.manifest.id) == ["dev.aibo.sample"])
+    #expect(store.loadRegistry().isEnabled(installed.id))
     var registry = ExtensionRegistry(enabledIDs: ["dev.aibo.sample"], invocationCounts: ["dev.aibo.sample": 2])
     try store.saveRegistry(registry)
     try store.saveSettings(id: installed.id, values: ["model": .string("demo")])
@@ -86,6 +87,10 @@ import Testing
     )
     #expect(try store.install(from: provider).id == "dev.aibo.ai-provider")
     #expect(try store.install(from: translate).slug == "translate")
+    #expect(store.loadRegistry().enabledIDs == ["dev.aibo.ai-provider", "dev.aibo.translate"])
+    var registry = store.loadRegistry()
+    registry.enabledIDs.removeAll { $0 == "dev.aibo.translate" }
+    try store.saveRegistry(registry)
 
     let clash = try pluginDirectory(
         root: root,
@@ -107,6 +112,8 @@ import Testing
         provides: []
     )
     #expect(try store.install(from: updated).slug == "translate")
+    #expect(store.loadRegistry().isEnabled("dev.aibo.ai-provider"))
+    #expect(store.loadRegistry().isEnabled("dev.aibo.translate") == false)
 }
 
 private func pluginDirectory(

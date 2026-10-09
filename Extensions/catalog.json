@@ -1,0 +1,63 @@
+{
+  "apiVersion": 1,
+  "repository": "fenxer/agent-aibo",
+  "ref": "main",
+  "updated": "2026-10-09",
+  "revoked": [],
+  "extensions": [
+    {
+      "id": "dev.aibo.ai-provider",
+      "slug": "ai-provider",
+      "name": "AI Provider",
+      "description": "One place to configure a model API. Other plugins send completion requests here.",
+      "author": "aibo",
+      "icon": {
+        "symbol": "sparkle",
+        "background": "#0088FF",
+        "symbolColor": "#FFFFFF"
+      },
+      "locales": {
+        "en": {
+          "name": "AI Provider",
+          "description": "One place to configure a model API. Other plugins send completion requests here."
+        },
+        "zh-Hans": {
+          "name": "AI 供应商",
+          "description": "集中配置模型接口。其他插件把补全请求发到这里，再取回文本。"
+        }
+      },
+      "version": "1.0.0",
+      "extensionApiVersion": 1,
+      "compatibility": { "aibo": ">=1.1.0" },
+      "provides": ["llm"],
+      "capabilities": [],
+      "path": "Extensions/dev.aibo.ai-provider"
+    },
+    {
+      "id": "dev.aibo.translate",
+      "slug": "translate",
+      "name": "Translate",
+      "description": "Translate a passage into Simplified Chinese, English, or Japanese.",
+      "author": "aibo",
+      "icon": {
+        "symbol": "character.bubble.fill"
+      },
+      "locales": {
+        "en": {
+          "name": "Translate",
+          "description": "Translate a passage into Simplified Chinese, English, or Japanese."
+        },
+        "zh-Hans": {
+          "name": "翻译",
+          "description": "把一段文字翻译成简体中文、英文或日文。"
+        }
+      },
+      "version": "1.0.2",
+      "extensionApiVersion": 1,
+      "compatibility": { "aibo": ">=1.1.0" },
+      "provides": [],
+      "capabilities": ["llm"],
+      "path": "Extensions/dev.aibo.translate"
+    }
+  ]
+}

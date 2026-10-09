@@ -4,14 +4,14 @@
   "slug": "translate",
   "name": "Translate",
   "description": "Translate a passage into Simplified Chinese, English, or Japanese.",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "author": "aibo",
   "icon": {
     "symbol": "character.bubble.fill"
   },
   "runtime": "js",
   "entry": "main.js",
-  "compatibility": { "aibo": ">=1.4.0" },
+  "compatibility": { "aibo": ">=1.1.0" },
   "triggers": [{ "kind": "manual" }],
   "capabilities": ["llm"],
   "provides": [],

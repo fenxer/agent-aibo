@@ -120,7 +120,17 @@ public struct ExtensionStore {
             guard resolved.hasPrefix(root + "/") || resolved == root else {
                 throw ExtensionStoreError.unsafePath(manifest.entry)
             }
+            let replacing = fileManager.fileExists(
+                atPath: extensionsRoot.appendingPathComponent(manifest.id, isDirectory: true).path
+            )
             try replace(id: manifest.id, with: staging)
+            if !replacing {
+                var registry = loadRegistry()
+                if !registry.enabledIDs.contains(manifest.id) {
+                    registry.enabledIDs.append(manifest.id)
+                }
+                try saveRegistry(registry)
+            }
             try? fileManager.removeItem(at: stagingParent)
             return manifest
         } catch {
