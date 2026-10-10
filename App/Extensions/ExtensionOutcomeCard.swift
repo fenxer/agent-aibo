@@ -1,4 +1,5 @@
 import AiboCore
+import AppKit
 import SwiftUI
 
 enum ExtensionOutcomeKind: Equatable {
@@ -55,6 +56,16 @@ enum ExtensionOutcomeKind: Equatable {
         }
     }
 
+    /// Same hues as `fill`, opaque so `Glass.tint` can dye the capsule. Running stays clear.
+    var glassTint: Color? {
+        switch self {
+        case .running: nil
+        case .completed: .green
+        case .warning: .yellow
+        case .failed: .red
+        }
+    }
+
     var content: Color {
         switch self {
         case .running: .primary
@@ -80,19 +91,51 @@ struct ExtensionRunningCard: View {
     var message: String
     var onClose: () -> Void
 
+    @Environment(\.extensionBubbleChrome) private var chrome
+
     var body: some View {
+        if chrome == .window {
+            stack.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            stack
+        }
+    }
+
+    private var stack: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
             ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: .running, onClose: onClose)
+            messageWell
+                .padding(.top, chrome == .window ? -ExtensionBubbleMetrics.windowHeaderContentTrim : 0)
+        }
+    }
+
+    @ViewBuilder
+    private var messageWell: some View {
+        if chrome == .window {
+            ScrollView {
+                Text(message)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .textSelection(.enabled)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .padding(ExtensionBubbleMetrics.runningWellPadding)
+            .background { well }
+        } else {
             Text(message)
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(ExtensionBubbleMetrics.runningWellPadding)
-                .background {
-                    RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.inputCornerRadius, style: .continuous)
-                        .fill(Color(nsColor: .secondarySystemFill))
-                }
+                .background { well }
         }
+    }
+
+    private var well: some View {
+        RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.inputCornerRadius, style: .continuous)
+            .fill(Color(nsColor: .secondarySystemFill))
     }
 }
 
@@ -106,10 +149,21 @@ struct ExtensionOutcomeCard: View {
     var onCopy: () -> Void
     var onClose: () -> Void
 
+    @Environment(\.extensionBubbleChrome) private var chrome
+
     var body: some View {
+        if chrome == .window {
+            stack.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            stack
+        }
+    }
+
+    private var stack: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
             ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: kind)
             ExtensionOutcomeBody(text: text)
+                .padding(.top, chrome == .window ? -ExtensionBubbleMetrics.windowHeaderContentTrim : 0)
             ExtensionOutcomeActions(copiesIssue: copiesIssue, onCopy: onCopy, onClose: onClose)
         }
     }
@@ -126,24 +180,50 @@ struct ExtensionDependencyCard: View {
     var onCopy: () -> Void
     var onClose: () -> Void
 
+    @Environment(\.extensionBubbleChrome) private var chrome
+
     var body: some View {
+        if chrome == .window {
+            stack.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            stack
+        }
+    }
+
+    private var stack: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
             ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: .warning)
             Text("Missing Dependency")
                 .font(.system(size: ExtensionBubbleMetrics.fieldFontSize))
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, minHeight: ExtensionBubbleMetrics.dependencyTitleHeight, alignment: .leading)
-            VStack(spacing: ExtensionBubbleMetrics.dependencyRowSpacing) {
-                ForEach(rows) { row in
-                    ExtensionDependencyRow(
-                        row: row,
-                        isInstalling: installingID == row.issue.subjectID,
-                        onInstall: { onInstall(row.issue.subjectID) },
-                        onEnabled: { onEnabled($0, row.issue.subjectID) }
-                    )
-                }
-            }
+                .padding(.top, chrome == .window ? -ExtensionBubbleMetrics.windowHeaderContentTrim : 0)
+            rowList
             ExtensionOutcomeActions(copiesIssue: true, onCopy: onCopy, onClose: onClose)
+        }
+    }
+
+    private var rowStack: some View {
+        VStack(spacing: ExtensionBubbleMetrics.dependencyRowSpacing) {
+            ForEach(rows) { row in
+                ExtensionDependencyRow(
+                    row: row,
+                    isInstalling: installingID == row.issue.subjectID,
+                    onInstall: { onInstall(row.issue.subjectID) },
+                    onEnabled: { onEnabled($0, row.issue.subjectID) }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var rowList: some View {
+        if chrome == .window {
+            ScrollView { rowStack }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            rowStack
         }
     }
 }
@@ -155,7 +235,27 @@ private struct ExtensionOutcomeHeader: View {
     var kind: ExtensionOutcomeKind
     var onClose: (() -> Void)?
 
+    @Environment(\.extensionBubbleChrome) private var chrome
+
     var body: some View {
+        HStack(spacing: chrome == .window ? ExtensionBubbleMetrics.windowGlassButtonSpacing : 6) {
+            pluginMark
+            Spacer(minLength: 8)
+            if chrome == .window {
+                ExtensionOutcomeBadge(kind: kind, showsFill: false)
+                    .modifier(ExtensionWindowGlassButton(tint: kind.glassTint))
+                ExtensionBubbleCornerButton()
+                    .modifier(ExtensionWindowGlassButton())
+            } else {
+                ExtensionOutcomeBadge(kind: kind)
+                closeButton
+                ExtensionBubbleCornerButton()
+            }
+        }
+        .modifier(ExtensionWindowTitleBand(enabled: chrome == .window))
+    }
+
+    private var pluginMark: some View {
         HStack(spacing: 6) {
             ExtensionIconBadge(
                 icon: icon,
@@ -168,25 +268,28 @@ private struct ExtensionOutcomeHeader: View {
                 .font(.system(size: 14))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
-            Spacer(minLength: 8)
-            ExtensionOutcomeBadge(kind: kind)
-            if let onClose {
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text("Close"))
-            }
         }
-        .frame(height: ExtensionBubbleMetrics.pluginHeaderHeight, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var closeButton: some View {
+        if let onClose {
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16, height: 16)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Close"))
+        }
     }
 }
 
 private struct ExtensionOutcomeBadge: View {
     var kind: ExtensionOutcomeKind
+    /// Window chrome tints the glass instead of painting this fill.
+    var showsFill: Bool = true
 
     var body: some View {
         HStack(spacing: 4) {
@@ -200,7 +303,11 @@ private struct ExtensionOutcomeBadge: View {
         .padding(.trailing, 6)
         .frame(height: ExtensionBubbleMetrics.pluginHeaderHeight)
         .fixedSize(horizontal: true, vertical: false)
-        .background(kind.fill, in: Capsule())
+        .background {
+            if showsFill {
+                Capsule().fill(kind.fill)
+            }
+        }
     }
 
     @ViewBuilder
@@ -220,7 +327,20 @@ private struct ExtensionOutcomeBadge: View {
 private struct ExtensionOutcomeBody: View {
     var text: String
 
+    @Environment(\.extensionBubbleChrome) private var chrome
+
     var body: some View {
+        if chrome == .window {
+            textScroll
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .frame(minHeight: 36)
+        } else {
+            textScroll
+                .frame(height: ExtensionBubbleMetrics.textBlockHeight(text))
+        }
+    }
+
+    private var textScroll: some View {
         ScrollView {
             Text(text)
                 .font(.system(size: 14))
@@ -229,7 +349,6 @@ private struct ExtensionOutcomeBody: View {
                 .textSelection(.enabled)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(height: ExtensionBubbleMetrics.textBlockHeight(text))
     }
 }
 
@@ -250,7 +369,8 @@ private struct ExtensionOutcomeActions: View {
             Button("Close", action: onClose)
                 .buttonStyle(.bordered)
         }
-        .frame(height: ExtensionBubbleMetrics.formControlHeight, alignment: .leading)
+        .controlSize(.extraLarge)
+        .frame(height: ExtensionBubbleMetrics.buttonRowHeight, alignment: .leading)
     }
 }
 
@@ -354,6 +474,7 @@ private struct ExtensionEnableSwitch: View {
     var isOn: Bool
     var onChange: (Bool) -> Void
     @State private var token = ExtensionEnableSwitchToken()
+    @Environment(\.extensionBubbleChrome) private var chrome
 
     var body: some View {
         Toggle(
@@ -370,6 +491,11 @@ private struct ExtensionEnableSwitch: View {
         .onGeometryChange(for: CGRect.self) { proxy in
             proxy.frame(in: .named(AiboPanelSpace.name))
         } action: { frame in
+            guard chrome == .anchored else {
+                token.frame = .null
+                ExtensionEnableSwitchTracker.unregister(token)
+                return
+            }
             guard frame.width > 8, frame.height > 8, frame.width < 80, frame.height < 48 else {
                 token.frame = .null
                 return

@@ -1589,6 +1589,17 @@
         }
       }
     },
+    "Keep on Top" : {
+      "comment" : "Button that keeps the plugin window above other windows.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "窗口置顶"
+          }
+        }
+      }
+    },
     "Language" : {
       "comment" : "General → Appearance: UI language picker label.",
       "localizations" : {
@@ -1991,6 +2002,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "Open in Window" : {
+      "comment" : "Button on a plugin bubble that opens the card in its own window.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在窗口中打开"
           }
         }
       }
@@ -2571,6 +2593,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "状态"
+          }
+        }
+      }
+    },
+    "Stop Keeping on Top" : {
+      "comment" : "Button that lets the plugin window go behind other windows.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消置顶"
           }
         }
       }

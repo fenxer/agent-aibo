@@ -15,6 +15,7 @@ struct AiboView: View {
     private var switchSignal = AiboSwitchSignal.shared
     private var runtime = AiboRuntime.shared
     private var extensions = ExtensionCenter.shared
+    private var bubbleWindow = ExtensionBubbleWindowController.shared
     @Bindable private var onboarding = OnboardingController.shared
 
     @Environment(\.displayScale) private var displayScale
@@ -207,6 +208,7 @@ struct AiboView: View {
         // Layout stays put; the removed card's own transition plays the poof.
         .animation(nil, value: items.map(\.id))
         .animation(nil, value: extensions.session == nil)
+        .animation(nil, value: bubbleWindow.isDetached)
         // Hook inspect open / close: the card's height and every bubble it
         // pushes move on one curve (scoped to the card, siblings would jump).
         // Panel shrink is deferred 420ms to outlast this.
@@ -225,7 +227,7 @@ struct AiboView: View {
 
     @ViewBuilder
     private func pluginBubble(showsArrow: Bool) -> some View {
-        if extensions.session != nil {
+        if extensions.session != nil, bubbleWindow.isDetached == false {
             extensionBubble(showsArrow: showsArrow)
         }
     }
@@ -412,9 +414,16 @@ struct AiboView: View {
         bubbleItems.contains(where: { $0.kind == .onboarding }) && bubbleItems.count > 1
     }
 
+    /// The detached window is not in this stack. A live session must not keep the
+    /// side column shrink-wrapped, or the agent bubble hugs its text and the pet
+    /// leaves the hit rect.
+    private var pluginSharesPetStack: Bool {
+        extensions.session != nil && bubbleWindow.isDetached == false
+    }
+
     private var sideStackUsesPetEdgeAlignment: Bool {
         onboardingStackUsesIntrinsicWidth
-            || (extensions.session != nil && !bubbleItems.isEmpty)
+            || (pluginSharesPetStack && !bubbleItems.isEmpty)
             || panelController.heldNearBubble != nil
     }
 

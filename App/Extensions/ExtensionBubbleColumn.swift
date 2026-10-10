@@ -38,17 +38,70 @@ enum ExtensionBubbleMetrics {
         textGroupPadding * 2 + labelLineHeight + multilineSpacing + multilineWellHeight
     }
 
+    /// Detached window cannot shrink below the card width or a header-plus-actions stack.
+    static let windowMinimumSize = NSSize(width: cardWidth, height: 160)
+    /// Floor for a prompt text well once the window is shorter than the bubble.
+    static let windowMinTextWell: CGFloat = 64
+    /// Pop-out / pin hit target. Stays in the header row, which is already this tall.
+    static let cornerButtonSide: CGFloat = 24
+    /// Space between the zoom button and the plugin icon in the detached window.
+    static let windowControlGap: CGFloat = 12
+    /// Note-style title band. Traffic lights are centered in this, not in AppKit's shorter bar.
+    static let windowHeaderBand: CGFloat = 52
+    /// Window content sits this much closer to the title band than the bubble's stack spacing.
+    static let windowHeaderContentTrim: CGFloat = 12
+    /// Lights sit further in than AppKit's default so they clear the window corner.
+    static let windowTrafficLightInset: CGFloat = 20
+    /// Trailing margin of the glass control capsule, matching a note window's action group.
+    static let windowHeaderTrailing: CGFloat = 8
+    static let windowGlassPadding: CGFloat = 4
+    /// Gap between the scene-marker capsule and the pin capsule.
+    static let windowGlassButtonSpacing: CGFloat = 8
+    /// Note panel corner. The window background is clear, so this shape is the glass edge.
+    static let windowCornerRadius: CGFloat = 26
+
     static func controlHeight(_ kind: ExtensionPromptControl.Kind) -> CGFloat {
+        controlHeight(kind, textWell: multilineWellHeight)
+    }
+
+    static func controlHeight(_ kind: ExtensionPromptControl.Kind, textWell: CGFloat) -> CGFloat {
         switch kind {
-        case .text: multilineRowHeight
+        case .text:
+            textGroupPadding * 2 + labelLineHeight + multilineSpacing + textWell
         case .image: imageRowHeight
         default: rowHeight
         }
     }
 
     static func groupHeight(kinds: [ExtensionPromptControl.Kind]) -> CGFloat {
-        let rows = kinds.reduce(CGFloat(0)) { $0 + controlHeight($1) }
+        groupHeight(kinds: kinds, textWell: multilineWellHeight)
+    }
+
+    static func groupHeight(kinds: [ExtensionPromptControl.Kind], textWell: CGFloat) -> CGFloat {
+        let rows = kinds.reduce(CGFloat(0)) { $0 + controlHeight($1, textWell: textWell) }
         return rows + CGFloat(max(0, kinds.count - 1)) * separatorHeight
+    }
+
+    /// Plates only, without the header and confirm row.
+    static func promptGroupsHeight(
+        kinds: [[ExtensionPromptControl.Kind]],
+        textWell: CGFloat
+    ) -> CGFloat {
+        let stacks = kinds.map { groupHeight(kinds: $0, textWell: textWell) }
+        return stacks.reduce(0, +) + CGFloat(max(0, kinds.count - 1)) * groupSpacing
+    }
+
+    /// Share leftover window height across multiline wells. Short windows keep the floor.
+    static func windowTextWellHeight(
+        kinds: [[ExtensionPromptControl.Kind]],
+        groupsAreaHeight: CGFloat
+    ) -> CGFloat {
+        let textCount = kinds.flatMap { $0 }.filter { $0 == .text }.count
+        guard textCount > 0 else { return multilineWellHeight }
+        let base = promptGroupsHeight(kinds: kinds, textWell: windowMinTextWell)
+        let extra = groupsAreaHeight - base
+        guard extra > 0 else { return windowMinTextWell }
+        return windowMinTextWell + extra / CGFloat(textCount)
     }
 
     static func promptStackHeight(kinds: [[ExtensionPromptControl.Kind]]) -> CGFloat {
@@ -144,16 +197,25 @@ struct ExtensionBubbleColumn: View {
     var center: ExtensionCenter
 
     @Environment(\.suppressBubbleGlass) private var suppressBubbleGlass
+    @Environment(\.extensionBubbleChrome) private var chrome
 
     private var session: ExtensionPromptSession? { center.session }
 
     var body: some View {
+        if chrome == .window {
+            windowBody
+        } else {
+            anchoredBody
+        }
+    }
+
+    private var anchoredBody: some View {
         let alignment: HorizontalAlignment = switch placement {
         case .left: .trailing
         case .right: .leading
         case .top, .bottom: .center
         }
-        VStack(alignment: alignment, spacing: 4) {
+        return VStack(alignment: alignment, spacing: 4) {
             if let session {
                 cards(session: session)
             }
@@ -163,6 +225,19 @@ struct ExtensionBubbleColumn: View {
         .padding(arrowSlotEdges, showsArrow ? 0 : ExtensionBubbleMetrics.arrowExtent)
         .frame(width: 320, alignment: frameAlignment)
         .buttonBorderShape(.capsule)
+    }
+
+    private var windowBody: some View {
+        windowSession
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .buttonBorderShape(.capsule)
+    }
+
+    @ViewBuilder
+    private var windowSession: some View {
+        if let session {
+            cards(session: session)
+        }
     }
 
     /// Pet side only. Left placement reserves the trailing edge; right reserves leading.
@@ -307,9 +382,34 @@ struct ExtensionBubbleColumn: View {
         }
     }
 
+    @ViewBuilder
     private func card<Content: View>(
         height: CGFloat,
         padding: CGFloat = ExtensionBubbleMetrics.formPadding,
+        arrow: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if chrome == .window {
+            windowCard(padding: padding, content: content)
+        } else {
+            anchoredCard(height: height, padding: padding, arrow: arrow, content: content)
+        }
+    }
+
+    /// Same card, filling the detached window. The header band draws its own insets.
+    private func windowCard<Content: View>(
+        padding: CGFloat,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .padding(.horizontal, padding)
+            .padding(.bottom, padding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func anchoredCard<Content: View>(
+        height: CGFloat,
+        padding: CGFloat,
         arrow: Bool,
         @ViewBuilder content: () -> Content
     ) -> some View {
@@ -363,13 +463,73 @@ private struct ExtensionPromptForm: View {
     var onConfirm: () -> Void
     var onClose: () -> Void
 
+    @Environment(\.extensionBubbleChrome) private var chrome
+
     var body: some View {
+        if chrome == .window {
+            windowBody
+        } else {
+            anchoredBody
+        }
+    }
+
+    private var anchoredBody: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.groupSpacing) {
-            ExtensionPluginHeader(name: session.pluginName, directory: directory, icon: icon)
-            ForEach(session.groups) { group in
-                ExtensionPromptPlate(controls: group.controls, session: session)
+            header
+            groups
+            actions
+        }
+    }
+
+    /// Header and actions stay put. Extra height goes to the text wells; a short window scrolls.
+    private var windowBody: some View {
+        VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.groupSpacing) {
+            header
+            GeometryReader { geo in
+                promptGroups(in: geo.size)
             }
-            ExtensionPromptActions(session: session, onConfirm: onConfirm, onClose: onClose)
+            .frame(maxHeight: .infinity)
+            .padding(.top, -ExtensionBubbleMetrics.windowHeaderContentTrim)
+            actions
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var header: some View {
+        ExtensionPluginHeader(name: session.pluginName, directory: directory, icon: icon)
+    }
+
+    private var groups: some View {
+        ForEach(session.groups) { group in
+            ExtensionPromptPlate(controls: group.controls, session: session)
+        }
+    }
+
+    private var actions: some View {
+        ExtensionPromptActions(session: session, onConfirm: onConfirm, onClose: onClose)
+    }
+
+    @ViewBuilder
+    private func promptGroups(in size: CGSize) -> some View {
+        let well = ExtensionBubbleMetrics.windowTextWellHeight(
+            kinds: session.groupKinds,
+            groupsAreaHeight: size.height
+        ).rounded()
+        let fits = ExtensionBubbleMetrics.promptGroupsHeight(
+            kinds: session.groupKinds,
+            textWell: well
+        ) <= size.height + 1
+        let stack = VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.groupSpacing) {
+            groups
+        }
+        .environment(\.extensionTextWellHeight, well)
+        .frame(maxWidth: .infinity, alignment: .top)
+
+        if fits {
+            stack.frame(width: size.width, height: size.height, alignment: .top)
+        } else {
+            ScrollView { stack }
+                .frame(width: size.width, height: size.height)
         }
     }
 }
@@ -387,7 +547,7 @@ private struct ExtensionPromptActions: View {
             Button(String(localized: "Close"), action: onClose)
                 .buttonStyle(.bordered)
         }
-        .controlSize(.large)
+        .controlSize(.extraLarge)
         .font(.system(size: ExtensionBubbleMetrics.fieldFontSize))
         .frame(maxWidth: .infinity, minHeight: ExtensionBubbleMetrics.buttonRowHeight, maxHeight: ExtensionBubbleMetrics.buttonRowHeight, alignment: .leading)
     }
@@ -489,7 +649,23 @@ private struct ExtensionPluginHeader: View {
     var directory: URL?
     var icon: ExtensionIcon = .fallback
 
+    @Environment(\.extensionBubbleChrome) private var chrome
+
     var body: some View {
+        HStack(spacing: 6) {
+            pluginMark
+            Spacer(minLength: 8)
+            if chrome == .window {
+                ExtensionBubbleCornerButton()
+                    .modifier(ExtensionWindowGlassButton())
+            } else {
+                ExtensionBubbleCornerButton()
+            }
+        }
+        .modifier(ExtensionWindowTitleBand(enabled: chrome == .window))
+    }
+
+    private var pluginMark: some View {
         HStack(spacing: 6) {
             ExtensionIconBadge(
                 icon: icon,
@@ -503,7 +679,6 @@ private struct ExtensionPluginHeader: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
         }
-        .frame(height: ExtensionBubbleMetrics.pluginHeaderHeight, alignment: .leading)
     }
 }
 
@@ -512,6 +687,12 @@ private struct ExtensionPromptTextRow: View {
     /// Alone on its plate the well marks the field. Grouped with other rows, the plate fill is enough.
     var showsWell: Bool
     @Binding var text: String
+
+    @Environment(\.extensionTextWellHeight) private var textWellOverride
+
+    private var wellHeight: CGFloat {
+        textWellOverride ?? ExtensionBubbleMetrics.multilineWellHeight
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.multilineSpacing) {
@@ -524,8 +705,8 @@ private struct ExtensionPromptTextRow: View {
                 .padding(showsWell ? 6 : 0)
                 .frame(
                     maxWidth: .infinity,
-                    minHeight: ExtensionBubbleMetrics.multilineWellHeight,
-                    maxHeight: ExtensionBubbleMetrics.multilineWellHeight,
+                    minHeight: wellHeight,
+                    maxHeight: wellHeight,
                     alignment: .topLeading
                 )
                 .background { well }
@@ -550,10 +731,24 @@ private struct ExtensionPromptLineRow: View {
     var showsWell: Bool
     @Binding var text: String
 
+    @Environment(\.extensionBubbleChrome) private var chrome
+
     var body: some View {
         ExtensionPromptLabeledRow(title: title) {
-            ExtensionPromptField(text: $text, multiline: false, inset: showsWell)
-                .padding(.horizontal, showsWell ? 8 : 0)
+            field
+        }
+    }
+
+    @ViewBuilder
+    private var field: some View {
+        let input = ExtensionPromptField(text: $text, multiline: false, inset: showsWell)
+            .padding(.horizontal, showsWell ? 8 : 0)
+        if chrome == .window {
+            input
+                .frame(maxWidth: .infinity, minHeight: 28, maxHeight: 28)
+                .background { well }
+        } else {
+            input
                 .frame(width: 132, height: 28)
                 .background { well }
         }

@@ -30,6 +30,8 @@ enum PromptFieldTracker {
             guard token.frame.contains(point), let textView = token.textView, textView.window != nil else {
                 continue
             }
+            // A field in the detached window must not steal clicks aimed at the pet.
+            if let host, textView.window !== host.window { continue }
             return textView
         }
         return nil
@@ -49,12 +51,18 @@ struct ExtensionPromptField: View {
     /// Inset inside a well. Off when the field shares a plate, so the text lines up with the label above.
     var inset: Bool = true
     @State private var token = PromptFieldToken()
+    @Environment(\.extensionBubbleChrome) private var chrome
 
     var body: some View {
         ExtensionPromptFieldRepresentable(text: $text, multiline: multiline, inset: inset, token: token)
             .onGeometryChange(for: CGRect.self) { proxy in
                 proxy.frame(in: .named(AiboPanelSpace.name))
             } action: { frame in
+                guard chrome == .anchored else {
+                    token.frame = .null
+                    PromptFieldTracker.unregister(token)
+                    return
+                }
                 token.frame = frame
                 PromptFieldTracker.register(token)
             }

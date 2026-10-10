@@ -222,11 +222,13 @@ final class ExtensionCenter {
     private var runGeneration = 0
 
     var layoutHeights: [CGFloat]? {
+        guard !ExtensionBubbleWindowController.shared.isDetached else { return nil }
         guard let session, !session.layoutHeights.isEmpty else { return nil }
         return session.layoutHeights
     }
 
     var layoutToken: String {
+        if ExtensionBubbleWindowController.shared.isDetached { return "detached" }
         guard let session else { return "" }
         switch session.phase {
         case .editing:
@@ -245,6 +247,7 @@ final class ExtensionCenter {
     }
 
     var needsKeyWindow: Bool {
+        guard !ExtensionBubbleWindowController.shared.isDetached else { return false }
         switch session?.phase {
         case .editing, .dependency:
             return true
@@ -568,13 +571,19 @@ final class ExtensionCenter {
     }
 
     func cancelSession() {
+        guard session != nil else { return }
         runGeneration += 1
+        let detached = ExtensionBubbleWindowController.shared.isDetached
         // Hold the side row, then remove the card so its transition can poof
-        // without the pet following the collapse.
-        AiboPanelController.shared.beginPluginPoofHoldIfNeeded()
-        withAnimation(BubbleMotion.disappear) {
+        // without the pet following the collapse. A detached card is already
+        // off the pet, so there is nothing to hold.
+        if !detached {
+            AiboPanelController.shared.beginPluginPoofHoldIfNeeded()
+        }
+        withAnimation(detached ? nil : BubbleMotion.disappear) {
             session = nil
         }
+        ExtensionBubbleWindowController.shared.dismiss()
         publishLayout()
         AiboPanelController.shared.clearExtensionCardFrame()
     }

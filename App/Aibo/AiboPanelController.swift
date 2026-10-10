@@ -548,6 +548,16 @@ final class AiboPanelController {
         hostingView?.frame = bounds
     }
 
+    /// The plugin card moved to its own window. Resize on the next turn; the pet
+    /// stack has already dropped the card, and there is no poof to wait out.
+    func notePluginWindowDetached() {
+        clearExtensionCardFrame()
+        // The plugin window activates the app, so a stuck click-through flag is
+        // no longer cleared by the global mouse monitor.
+        panel?.ignoresMouseEvents = false
+        scheduleGeometryUpdate(after: .zero)
+    }
+
     /// - Parameter deferShrink: a bubble is animating to a shorter layout
     ///   (hook inspect closing); hold the panel size like a removal.
     func refreshContent(deferShrink: Bool = false) {
@@ -1206,6 +1216,10 @@ final class AiboPanelController {
     /// result used to draw Copy / Close below the estimate, and those clicks
     /// fell through to the desktop.
     func noteExtensionCardFrame(_ frame: CGRect) {
+        guard !ExtensionBubbleWindowController.shared.isDetached else {
+            clearExtensionCardFrame()
+            return
+        }
         guard let hostingView else { return }
         guard frame.width > 1, frame.height > 1 else {
             clearExtensionCardFrame()
@@ -1219,6 +1233,20 @@ final class AiboPanelController {
 
     func clearExtensionCardFrame() {
         hostingView?.measuredBubbleHitRects = []
+    }
+
+    /// Plugin card in screen coordinates (bottom-left origin), including any
+    /// shadow padding under the glass. Nil before the card has been laid out.
+    func extensionCardScreenRect() -> NSRect? {
+        guard let hostingView, let panel else { return nil }
+        guard let frame = hostingView.measuredBubbleHitRects.first,
+              frame.width > 1, frame.height > 1 else { return nil }
+        let inWindow = hostingView.convert(frame, to: nil)
+        return panel.convertToScreen(inWindow)
+    }
+
+    func petScreen() -> NSScreen? {
+        panel?.screen ?? NSScreen.main
     }
 
     private func rectsMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
