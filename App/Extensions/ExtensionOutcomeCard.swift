@@ -309,15 +309,77 @@ private struct ExtensionDependencyRow: View {
             .controlSize(.small)
             .disabled(isInstalling)
         case .enable:
-            Toggle(
-                "Turn On",
-                isOn: Binding(get: { row.enabled }, set: onEnabled)
-            )
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.small)
+            ExtensionEnableSwitch(isOn: row.enabled, onChange: onEnabled)
         case .unavailable:
             EmptyView()
+        }
+    }
+}
+
+/// Switch frame in the pet panel, top-left, same space as prompt fields.
+///
+/// A click on this control asks the bubble's `_NSGlassEffectWindow` to become
+/// key. That window refuses, and AppKit drops the click, so the switch never
+/// toggles. The panel's mouse monitor turns the dependency on and swallows
+/// the event before it reaches the glass window.
+final class ExtensionEnableSwitchToken {
+    var frame: CGRect = .null
+    var turnOn: @MainActor () -> Void = {}
+}
+
+enum ExtensionEnableSwitchTracker {
+    private static var tokens: [ExtensionEnableSwitchToken] = []
+
+    static func register(_ token: ExtensionEnableSwitchToken) {
+        guard tokens.contains(where: { $0 === token }) == false else { return }
+        tokens.append(token)
+    }
+
+    static func unregister(_ token: ExtensionEnableSwitchToken) {
+        tokens.removeAll { $0 === token }
+    }
+
+    @MainActor
+    static func turnOn(at point: NSPoint) -> Bool {
+        for token in tokens.reversed() where token.frame.contains(point) {
+            token.turnOn()
+            return true
+        }
+        return false
+    }
+}
+
+/// Small system switch. The pet panel enables the dependency itself.
+private struct ExtensionEnableSwitch: View {
+    var isOn: Bool
+    var onChange: (Bool) -> Void
+    @State private var token = ExtensionEnableSwitchToken()
+
+    var body: some View {
+        Toggle(
+            "Turn On",
+            isOn: Binding(
+                get: { isOn },
+                set: { onChange($0) }
+            )
+        )
+        .labelsHidden()
+        .toggleStyle(.switch)
+        .controlSize(.small)
+        .fixedSize()
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .named(AiboPanelSpace.name))
+        } action: { frame in
+            guard frame.width > 8, frame.height > 8, frame.width < 80, frame.height < 48 else {
+                token.frame = .null
+                return
+            }
+            token.frame = frame.insetBy(dx: -4, dy: -4)
+            token.turnOn = { onChange(true) }
+            ExtensionEnableSwitchTracker.register(token)
+        }
+        .onDisappear {
+            ExtensionEnableSwitchTracker.unregister(token)
         }
     }
 }

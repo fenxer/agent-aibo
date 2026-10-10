@@ -1270,6 +1270,15 @@ final class AiboPanelController {
         return true
     }
 
+    /// The dependency switch sits on Liquid Glass. The click asks
+    /// `_NSGlassEffectWindow` to become key, that window returns NO, and AppKit
+    /// drops the event. Turn the plugin on here and swallow the click.
+    private func turnOnExtensionDependency(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.contains(.control) == false else { return false }
+        guard let point = hostPoint(for: event) else { return false }
+        return ExtensionEnableSwitchTracker.turnOn(at: point)
+    }
+
     /// Hook-bubble taps use a SwiftUI gesture on this same hosting view. That
     /// gesture wins the click, so the prompt field keeps the caret at the end.
     /// Place the caret from the field's drawn frame and swallow the click.
@@ -1649,6 +1658,9 @@ final class AiboPanelController {
             switch event.type {
             case .leftMouseDown:
                 if self.forwardPromptTextClick(event) {
+                    return nil
+                }
+                if self.turnOnExtensionDependency(with: event) {
                     return nil
                 }
                 if self.handleInspectCardClick(with: event) {
