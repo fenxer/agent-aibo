@@ -1986,12 +1986,12 @@
         }
       }
     },
-    "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Clicking the bubble does not switch apps yet." : {
+    "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Click the bubble to open DSH." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "仅供观察的 Cordis 插件。会在 ~/.dsh/cordis.patch.yml（或 $DSH_HOME）中写入标记代码块。安装后请重启 `dsh`。请勿同时使用 `dsh plugin add` 添加同一插件。点击气泡暂不支持切换应用。"
+            "value" : "仅供观察的 Cordis 插件。会在 ~/.dsh/cordis.patch.yml（或 $DSH_HOME）中写入标记代码块。安装后请重启 `dsh`。请勿同时使用 `dsh plugin add` 添加同一插件。点击气泡可打开 DSH。"
           }
         }
       }
