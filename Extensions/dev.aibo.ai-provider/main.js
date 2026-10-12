@@ -56,7 +56,7 @@ function buildRequest(settings, input) {
       },
       body: JSON.stringify({
         model: settings.model,
-        input: userText(input),
+        input: googleInput(input),
         system_instruction: input.system || "",
         store: false
       })
@@ -104,21 +104,47 @@ function chatMessages(input) {
     const row = rows[i] || {};
     messages.push({
       role: row.role || "user",
-      content: row.text || row.content || ""
+      content: chatContent(row)
     });
   }
   return messages;
 }
 
-function userText(input) {
+function chatContent(row) {
+  const text = row.text || (typeof row.content === "string" ? row.content : "") || "";
+  const image = row.image;
+  if (!image || !image.data) return text;
+  const mime = image.mime || "image/png";
+  const parts = [];
+  if (text) parts.push({ type: "text", text: text });
+  parts.push({
+    type: "image_url",
+    image_url: { url: "data:" + mime + ";base64," + image.data }
+  });
+  return parts;
+}
+
+// Text-only stays a string, matching the probe request. An image becomes the
+// Interactions parts array: text, then inline image bytes.
+function googleInput(input) {
   const rows = input.messages || [];
   const parts = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i] || {};
-    const text = row.text || row.content || "";
-    if (text) parts.push(text);
+    const text = row.text || (typeof row.content === "string" ? row.content : "") || "";
+    if (text) parts.push({ type: "text", text: text });
+    const image = row.image;
+    if (image && image.data) {
+      parts.push({
+        type: "image",
+        data: image.data,
+        mime_type: image.mime || "image/png"
+      });
+    }
   }
-  return parts.join("\n\n");
+  if (!parts.length) return "";
+  if (parts.length === 1 && parts[0].type === "text") return parts[0].text;
+  return parts;
 }
 
 // Expected success is a text reply. Anything else — an error object, a

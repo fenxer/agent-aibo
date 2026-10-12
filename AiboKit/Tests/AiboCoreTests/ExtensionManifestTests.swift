@@ -40,6 +40,27 @@ import Testing
     #expect(manifest.icon.symbolHex(dark: false) == nil)
     #expect(manifest.slug == "translate")
     #expect(manifest.requiredCapabilities == ["llm"])
+    #expect(manifest.accepts.isEmpty)
+}
+
+@Test func extensionManifestDecodesAltText() throws {
+    let url = repositoryRoot()
+        .appendingPathComponent("Extensions/dev.aibo.alt-text/manifest.json")
+    let manifest = try JSONDecoder().decode(ExtensionManifest.self, from: Data(contentsOf: url))
+    #expect(ExtensionManifestValidator.validate(manifest) == nil)
+    #expect(manifest.slug == "alt-text")
+    #expect(manifest.hasManualTrigger)
+    #expect(manifest.accepts == ["png", "jpg", "jpeg"])
+    #expect(manifest.requiredCapabilities == ["llm"])
+    #expect(manifest.settings?.orderedKeys == ["prompt", "model", "language"])
+    #expect(manifest.settings?.properties["model"]?.source == "llm")
+    #expect(manifest.settings?.properties["prompt"]?.defaultValue?.stringValue == "生成图片的 alt text，简洁一些")
+    #expect(manifest.settings?.properties["language"]?.defaultValue?.stringValue == "zh-Hans")
+    #expect(manifest.prompt?.properties["image"]?.control == "image")
+    #expect(manifest.prompt?.required == ["image"])
+    #expect(manifest.icon.symbol == "photo.on.rectangle.angled.fill")
+    #expect(manifest.icon.backgroundHex(dark: false) == "#FF9500")
+    #expect(manifest.icon.symbolHex(dark: false) == "#FFFFFF")
 }
 
 @Test func extensionPromptSectionsGroupFields() throws {

@@ -1,0 +1,67 @@
+{
+  "apiVersion": 1,
+  "id": "dev.aibo.alt-text",
+  "slug": "alt-text",
+  "name": "Alt Text",
+  "description": "Write alt text for a PNG or JPEG image.",
+  "version": "1.0.0",
+  "author": "aibo",
+  "icon": {
+    "symbol": "photo.on.rectangle.angled.fill",
+    "background": "#FF9500",
+    "symbolColor": "#FFFFFF"
+  },
+  "runtime": "js",
+  "entry": "main.js",
+  "compatibility": { "aibo": ">=1.1.0" },
+  "triggers": [{ "kind": "manual" }],
+  "accepts": ["png", "jpg", "jpeg"],
+  "capabilities": ["llm"],
+  "provides": [],
+  "network": { "hosts": [] },
+  "settings": {
+    "type": "object",
+    "order": ["prompt", "model", "language"],
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "title": "Prompt",
+        "description": "Sent with the image. The model replies with the alt text only.",
+        "default": "生成图片的 alt text，简洁一些"
+      },
+      "model": {
+        "type": "string",
+        "title": "Model",
+        "source": "llm"
+      },
+      "language": {
+        "type": "string",
+        "title": "Language",
+        "default": "zh-Hans",
+        "oneOf": [
+          { "const": "zh-Hans", "title": "Simplified Chinese" },
+          { "const": "en", "title": "English" },
+          { "const": "ja", "title": "Japanese" }
+        ]
+      }
+    }
+  },
+  "prompt": {
+    "type": "object",
+    "order": ["image"],
+    "required": ["image"],
+    "properties": {
+      "image": {
+        "type": "string",
+        "title": "Image",
+        "control": "image"
+      }
+    }
+  },
+  "io": {
+    "inputs": [{ "id": "image", "kind": "image" }],
+    "outputs": [{ "id": "text", "kind": "text" }]
+  },
+  "rewrite": false,
+  "localization": { "resources": "locales/${locale}.json", "defaultLocale": "en" }
+}

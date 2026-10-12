@@ -8,14 +8,21 @@ import Testing
     #expect(catalog.apiVersion == 1)
     #expect(catalog.repository == "fenxer/agent-aibo")
     #expect(catalog.ref == "main")
-    #expect(catalog.listed.map(\.id) == ["dev.aibo.ai-provider", "dev.aibo.translate"])
-    let translate = try #require(catalog.listed.last)
+    #expect(catalog.listed.map(\.id) == ["dev.aibo.ai-provider", "dev.aibo.translate", "dev.aibo.alt-text"])
+    let translate = try #require(catalog.listed.first { $0.id == "dev.aibo.translate" })
     #expect(translate.path == "Extensions/dev.aibo.translate")
     #expect(translate.compatibilityAibo == ">=1.1.0")
     #expect(translate.capabilities == ["llm"])
     #expect(translate.displayCopy(preferredLanguage: "zh-Hans").name == "翻译")
     #expect(translate.displayCopy(preferredLanguage: "en").name == "Translate")
     #expect(translate.icon.symbol == "character.bubble.fill")
+    let altText = try #require(catalog.listed.first { $0.id == "dev.aibo.alt-text" })
+    #expect(altText.path == "Extensions/dev.aibo.alt-text")
+    #expect(altText.slug == "alt-text")
+    #expect(altText.capabilities == ["llm"])
+    #expect(altText.displayCopy(preferredLanguage: "zh-Hans").name == "替代文本")
+    #expect(altText.displayCopy(preferredLanguage: "en").name == "Alt Text")
+    #expect(altText.icon.symbol == "photo.on.rectangle.angled.fill")
 }
 
 @Test func extensionCatalogResolvesLocalRepositoryRoot() {

@@ -921,7 +921,7 @@ final class AiboPanelController {
     func beginStackedBubblePoofHoldIfNeeded(nearItem: StatusBubbleItem) {
         let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
         guard placement == .left || placement == .right else { return }
-        guard ExtensionCenter.shared.session != nil else { return }
+        guard ExtensionCenter.shared.showsPetCard else { return }
         let items = AiboRuntime.shared.bubbleItems
         guard !items.isEmpty else { return }
         frozenLayoutHeights = layoutBubbleHeights(items: items)
@@ -1769,6 +1769,15 @@ final class AiboPanelController {
             return
         }
 
+        // A file drag never reaches the pet while the panel is click-through.
+        // Hold the window in the hit path until the drag pasteboard clears.
+        if Self.fileDragIsInProgress {
+            if panel.ignoresMouseEvents {
+                panel.ignoresMouseEvents = false
+            }
+            return
+        }
+
         guard let content = panel.contentView else { return }
         let windowPoint = panel.convertPoint(fromScreen: screenPoint)
         let pointInContent = content.convert(windowPoint, from: nil)
@@ -1776,6 +1785,16 @@ final class AiboPanelController {
         if panel.ignoresMouseEvents != shouldIgnore {
             panel.ignoresMouseEvents = shouldIgnore
         }
+    }
+
+    /// Finder's drag pasteboard, and only while the mouse button is down.
+    /// A leftover pasteboard must not keep the panel from going click-through.
+    private static var fileDragIsInProgress: Bool {
+        guard NSEvent.pressedMouseButtons != 0 else { return false }
+        return NSPasteboard(name: .drag).canReadObject(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        )
     }
 
     private func startObservingScreenChangesIfNeeded() {

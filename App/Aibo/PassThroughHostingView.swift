@@ -28,6 +28,34 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     init(rootView: Content, hitTestImage: NSImage?) {
         self.alphaMask = Self.makeAlphaMask(from: hitTestImage)
         super.init(rootView: rootView)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        dropOperation(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        dropOperation(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard dropOperation(sender) != [], let url = Self.droppedFileURL(sender) else { return false }
+        ExtensionCenter.shared.receiveDroppedFile(url)
+        return true
+    }
+
+    /// Only the opaque pet, and only a file some enabled plugin listed in `accepts`.
+    private func dropOperation(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let point = convert(sender.draggingLocation, from: nil)
+        guard isOpaquePetHit(at: point), let url = Self.droppedFileURL(sender) else { return [] }
+        return ExtensionCenter.shared.canAcceptDroppedFile(url) ? .copy : []
+    }
+
+    private static func droppedFileURL(_ sender: NSDraggingInfo) -> URL? {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL]
+        return urls?.first { ExtensionCenter.shared.canAcceptDroppedFile($0) } ?? urls?.first
     }
 
     func updateHitTestImage(_ image: NSImage?) {

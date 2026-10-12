@@ -17,6 +17,9 @@ public struct ExtensionManifest: Sendable, Equatable {
     public var runtime: String
     public var entry: String
     public var triggers: [ExtensionTrigger]
+    /// File extensions this plugin opens when a file is dropped on the pet.
+    /// Lowercase, no leading dot. `jpg` and `jpeg` match each other.
+    /// Empty means the plugin does not take dropped files.
     public var accepts: [String]
     public var capabilities: [String]
     public var provides: [String]

@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "repository": "fenxer/agent-aibo",
   "ref": "main",
-  "updated": "2026-10-09",
+  "updated": "2026-10-12",
   "revoked": [],
   "extensions": [
     {
@@ -26,7 +26,7 @@
           "description": "集中配置模型接口。其他插件把补全请求发到这里，再取回文本。"
         }
       },
-      "version": "1.0.1",
+      "version": "1.0.2",
       "extensionApiVersion": 1,
       "compatibility": { "aibo": ">=1.1.0" },
       "provides": ["llm"],
@@ -58,6 +58,34 @@
       "provides": [],
       "capabilities": ["llm"],
       "path": "Extensions/dev.aibo.translate"
+    },
+    {
+      "id": "dev.aibo.alt-text",
+      "slug": "alt-text",
+      "name": "Alt Text",
+      "description": "Write alt text for a PNG or JPEG image.",
+      "author": "aibo",
+      "icon": {
+        "symbol": "photo.on.rectangle.angled.fill",
+        "background": "#FF9500",
+        "symbolColor": "#FFFFFF"
+      },
+      "locales": {
+        "en": {
+          "name": "Alt Text",
+          "description": "Write alt text for a PNG or JPEG image."
+        },
+        "zh-Hans": {
+          "name": "替代文本",
+          "description": "为 PNG 或 JPEG 图片生成替代文本。"
+        }
+      },
+      "version": "1.0.0",
+      "extensionApiVersion": 1,
+      "compatibility": { "aibo": ">=1.1.0" },
+      "provides": [],
+      "capabilities": ["llm"],
+      "path": "Extensions/dev.aibo.alt-text"
     }
   ]
 }

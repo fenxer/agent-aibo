@@ -163,6 +163,19 @@ enum ExtensionBubbleMetrics {
         return min(resultTextMaxHeight, max(labelLineHeight, measured))
     }
 
+    static let fileChoiceSubtitleHeight: CGFloat = 16
+
+    static func fileChoiceCardHeight(count: Int) -> CGFloat {
+        let rows = CGFloat(max(count, 1)) * dependencyRowHeight
+            + CGFloat(max(0, count - 1)) * dependencyRowSpacing
+        return formPadding * 2
+            + pluginHeaderHeight
+            + pluginHeaderSpacing
+            + fileChoiceSubtitleHeight
+            + pluginHeaderSpacing
+            + rows
+    }
+
     static func dependencyCardHeight(count: Int) -> CGFloat {
         let rows = CGFloat(max(count, 1)) * dependencyRowHeight
             + CGFloat(max(0, count - 1)) * dependencyRowSpacing
@@ -216,7 +229,9 @@ struct ExtensionBubbleColumn: View {
         case .top, .bottom: .center
         }
         return VStack(alignment: alignment, spacing: 4) {
-            if let session {
+            if let fileChoice = center.fileChoice {
+                fileChoiceCard(fileChoice)
+            } else if let session {
                 cards(session: session)
             }
         }
@@ -235,7 +250,9 @@ struct ExtensionBubbleColumn: View {
 
     @ViewBuilder
     private var windowSession: some View {
-        if let session {
+        if let fileChoice = center.fileChoice {
+            fileChoiceCard(fileChoice)
+        } else if let session {
             cards(session: session)
         }
     }
@@ -264,6 +281,19 @@ struct ExtensionBubbleColumn: View {
             placement: placement,
             hookBubbleCount: showsArrow ? 0 : 1
         )
+    }
+
+    private func fileChoiceCard(_ choice: ExtensionFileChoice) -> some View {
+        card(
+            height: ExtensionBubbleMetrics.fileChoiceCardHeight(count: choice.options.count),
+            arrow: showsArrow
+        ) {
+            ExtensionFileChoiceCard(
+                choice: choice,
+                onChoose: { center.chooseDroppedPlugin(id: $0) },
+                onClose: { center.cancelFileChoice() }
+            )
+        }
     }
 
     @ViewBuilder
@@ -860,6 +890,95 @@ private struct ExtensionPromptImageRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel(title)
         }
+    }
+}
+
+private struct ExtensionFileChoiceCard: View {
+    var choice: ExtensionFileChoice
+    var onChoose: (String) -> Void
+    var onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
+            HStack(spacing: 6) {
+                Text("Choose an Extension")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16, height: 16)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Close"))
+            }
+            .frame(height: ExtensionBubbleMetrics.pluginHeaderHeight)
+            Text(verbatim: choice.fileName)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: ExtensionBubbleMetrics.fileChoiceSubtitleHeight,
+                    maxHeight: ExtensionBubbleMetrics.fileChoiceSubtitleHeight,
+                    alignment: .leading
+                )
+            VStack(spacing: ExtensionBubbleMetrics.dependencyRowSpacing) {
+                ForEach(choice.options) { option in
+                    Button {
+                        onChoose(option.id)
+                    } label: {
+                        ExtensionFileChoiceRow(option: option)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct ExtensionFileChoiceRow: View {
+    var option: ExtensionDropOption
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ExtensionIconBadge(
+                icon: option.icon,
+                directory: option.directory,
+                side: 28,
+                cornerRadius: 6,
+                symbolPointSize: 14
+            )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(option.name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                if !option.summary.isEmpty {
+                    Text(option.summary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 10)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: ExtensionBubbleMetrics.dependencyRowHeight,
+            maxHeight: ExtensionBubbleMetrics.dependencyRowHeight
+        )
+        .background {
+            RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.groupCornerRadius, style: .continuous)
+                .fill(Color(nsColor: .tertiarySystemFill))
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

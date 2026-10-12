@@ -576,6 +576,17 @@
         }
       }
     },
+    "Choose an Extension" : {
+      "comment" : "Heading on the bubble that lists plugins which can open a file dropped on the pet.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择扩展"
+          }
+        }
+      }
+    },
     "Close" : {
       "localizations" : {
         "zh-Hans" : {
@@ -844,6 +855,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "连不上这个供应商。"
+          }
+        }
+      }
+    },
+    "Couldn't read the image." : {
+      "comment" : "The image chosen for a plugin could not be read.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取这张图片。"
           }
         }
       }
@@ -2725,6 +2747,17 @@
         }
       }
     },
+    "This image is too large." : {
+      "comment" : "The image chosen for a plugin is over the size limit.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张图片太大了。"
+          }
+        }
+      }
+    },
     "This file isn’t a supported image or Petdex pack" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2954,6 +2987,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "URL 方案"
+          }
+        }
+      }
+    },
+    "Use a PNG or JPEG image." : {
+      "comment" : "The file chosen for a plugin is not a PNG or JPEG.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用 PNG 或 JPEG 图片。"
           }
         }
       }

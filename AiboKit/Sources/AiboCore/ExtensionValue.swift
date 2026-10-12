@@ -19,6 +19,11 @@ public enum ExtensionValue: Sendable, Equatable {
         return nil
     }
 
+    public var arrayValue: [ExtensionValue]? {
+        if case .array(let value) = self { return value }
+        return nil
+    }
+
     public var jsonObject: Any {
         switch self {
         case .string(let value):

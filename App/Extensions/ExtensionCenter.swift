@@ -198,6 +198,22 @@ struct ExtensionProvider: Identifiable, Equatable {
     }
 }
 
+struct ExtensionDropOption: Identifiable, Equatable {
+    var id: String
+    var name: String
+    var summary: String
+    var icon: ExtensionIcon
+    var directory: URL
+}
+
+/// Several plugins can open the file that was dropped on the pet.
+struct ExtensionFileChoice: Equatable {
+    var fileURL: URL
+    var options: [ExtensionDropOption]
+
+    var fileName: String { fileURL.lastPathComponent }
+}
+
 struct ExtensionPermissionFacts: Equatable {
     var networkHosts: [String]
     var allowsConfiguredEndpoint: Bool
@@ -216,19 +232,32 @@ final class ExtensionCenter {
 
     private(set) var plugins: [ExtensionRecord] = []
     private(set) var session: ExtensionPromptSession?
+    /// Set when a dropped file matches more than one plugin. The pet shows a picker instead of a prompt.
+    private(set) var fileChoice: ExtensionFileChoice?
     private(set) var lastError: String?
     private(set) var isReady = false
     private var store = ExtensionStore.live()
     private var runGeneration = 0
 
+    /// Prompt card, or the drop picker when more than one plugin can open the file.
+    var showsPetCard: Bool {
+        fileChoice != nil || session != nil
+    }
+
     var layoutHeights: [CGFloat]? {
         guard !ExtensionBubbleWindowController.shared.isDetached else { return nil }
+        if let fileChoice {
+            return [ExtensionBubbleMetrics.fileChoiceCardHeight(count: fileChoice.options.count)]
+        }
         guard let session, !session.layoutHeights.isEmpty else { return nil }
         return session.layoutHeights
     }
 
     var layoutToken: String {
         if ExtensionBubbleWindowController.shared.isDetached { return "detached" }
+        if let fileChoice {
+            return "drop-\(fileChoice.options.map(\.id).joined(separator: ","))"
+        }
         guard let session else { return "" }
         switch session.phase {
         case .editing:
@@ -506,15 +535,22 @@ final class ExtensionCenter {
         writeProviders(pluginID: pluginID, list)
     }
 
-    func beginManualPrompt(id: String) {
+    func beginManualPrompt(id: String, fileURL: URL? = nil) {
+        fileChoice = nil
         guard let record = plugins.first(where: { $0.id == id }),
               record.enabled,
               record.manifest.hasManualTrigger
         else { return }
-        if case .running = session?.phase, session?.pluginID == id {
+        if fileURL == nil, case .running = session?.phase, session?.pluginID == id {
             return
         }
-        let form = promptForm(for: record)
+        if fileURL != nil {
+            runGeneration += 1
+        }
+        var form = promptForm(for: record)
+        if let fileURL {
+            prefillImage(fileURL, into: &form, manifest: record.manifest)
+        }
         AiboPanelController.shared.discardPluginColumnSlot()
         session = ExtensionPromptSession(
             pluginID: record.id,
@@ -525,6 +561,9 @@ final class ExtensionCenter {
             required: form.required
         )
         applyDependencyGate()
+        if fileURL != nil, case .editing = session?.phase, session?.canConfirm == true {
+            confirmPrompt()
+        }
         let needsCatalog = !record.manifest.requiredCapabilities.isEmpty
             && ExtensionCatalogClient.shared.entries.isEmpty
         guard needsCatalog else { return }
@@ -533,6 +572,49 @@ final class ExtensionCenter {
             guard self.session?.pluginID == id else { return }
             applyDependencyGate()
         }
+    }
+
+    /// Dropped on the pet. One matching plugin opens with the file filled in.
+    /// Several matching plugins show a picker first.
+    func receiveDroppedFile(_ url: URL) {
+        let options = dropOptions(for: url)
+        guard !options.isEmpty else { return }
+        AiboPanelController.shared.show()
+        if options.count == 1, let only = options.first {
+            beginManualPrompt(id: only.id, fileURL: url)
+            return
+        }
+        AiboPanelController.shared.discardPluginColumnSlot()
+        runGeneration += 1
+        if ExtensionBubbleWindowController.shared.isDetached {
+            ExtensionBubbleWindowController.shared.dismiss()
+        }
+        session = nil
+        fileChoice = ExtensionFileChoice(fileURL: url, options: options)
+        publishLayout()
+    }
+
+    func canAcceptDroppedFile(_ url: URL) -> Bool {
+        !dropOptions(for: url).isEmpty
+    }
+
+    func chooseDroppedPlugin(id: String) {
+        guard let fileChoice, fileChoice.options.contains(where: { $0.id == id }) else { return }
+        let url = fileChoice.fileURL
+        beginManualPrompt(id: id, fileURL: url)
+    }
+
+    func cancelFileChoice() {
+        guard fileChoice != nil else { return }
+        let detached = ExtensionBubbleWindowController.shared.isDetached
+        if !detached {
+            AiboPanelController.shared.beginPluginPoofHoldIfNeeded()
+        }
+        withAnimation(detached ? nil : BubbleMotion.disappear) {
+            fileChoice = nil
+        }
+        publishLayout()
+        AiboPanelController.shared.clearExtensionCardFrame()
     }
 
     func confirmPrompt() {
@@ -706,6 +788,51 @@ final class ExtensionCenter {
         var required: Set<String>
     }
 
+    private func prefillImage(_ url: URL, into form: inout PromptForm, manifest: ExtensionManifest) {
+        guard let schema = manifest.prompt else { return }
+        guard let key = schema.orderedKeys.first(where: { schema.properties[$0]?.control == "image" }) else {
+            return
+        }
+        form.values[key] = url.path
+    }
+
+    private func dropOptions(for url: URL) -> [ExtensionDropOption] {
+        plugins.compactMap { record in
+            guard record.enabled, record.manifest.hasManualTrigger else { return nil }
+            guard ExtensionFileAcceptance.matches(url: url, accepts: record.manifest.accepts) else { return nil }
+            return ExtensionDropOption(
+                id: record.id,
+                name: record.copy.name,
+                summary: record.copy.summary,
+                icon: record.manifest.icon,
+                directory: record.directory
+            )
+        }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// Paths the user put in image fields. Only these may be read for the model.
+    private static func imagePaths(in input: [String: ExtensionValue], manifest: ExtensionManifest) -> Set<String> {
+        guard let schema = manifest.prompt else { return [] }
+        var paths: Set<String> = []
+        for (key, field) in schema.properties where field.control == "image" {
+            let path = input[key]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !path.isEmpty { paths.insert(path) }
+        }
+        return paths
+    }
+
+    private static func imageMessage(_ failure: ExtensionImageInline.Failure) -> String {
+        switch failure {
+        case .tooLarge:
+            String(localized: "This image is too large.")
+        case .unsupportedType:
+            String(localized: "Use a PNG or JPEG image.")
+        case .unreadable:
+            String(localized: "Couldn't read the image.")
+        }
+    }
+
     private func promptForm(for record: ExtensionRecord) -> PromptForm {
         guard let schema = record.manifest.prompt, !schema.properties.isEmpty else {
             return fallbackPrompt()
@@ -860,8 +987,14 @@ final class ExtensionCenter {
             case .inputRequired(let requests, let state):
                 requestState = state
                 var next: [String: ExtensionValue] = [:]
+                let allowedImagePaths = Self.imagePaths(in: input, manifest: record.manifest)
                 for (key, request) in requests {
-                    next[key] = await fulfill(request, caller: record, depth: depth)
+                    next[key] = await fulfill(
+                        request,
+                        caller: record,
+                        depth: depth,
+                        allowedImagePaths: allowedImagePaths
+                    )
                 }
                 responses = next
                 if depth > 0, requests.values.contains(where: { $0.method == "aibo/llm" }) {
@@ -884,12 +1017,20 @@ final class ExtensionCenter {
     private func fulfill(
         _ request: ExtensionInputRequest,
         caller: ExtensionRecord,
-        depth: Int
+        depth: Int,
+        allowedImagePaths: Set<String>
     ) async -> ExtensionValue {
         switch request.method {
         case "aibo/llm":
             guard depth == 0 else {
                 return .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
+            }
+            let params: [String: ExtensionValue]
+            switch ExtensionImageInline.attach(params: request.params, allowedPaths: allowedImagePaths) {
+            case .success(let attached):
+                params = attached
+            case .failure(let failure):
+                return .object(["error": .object(["message": .string(Self.imageMessage(failure))])])
             }
             let models = modelOfferings(capability: "llm")
             let saved = savedCapabilitySelection(for: caller, capability: "llm")
@@ -902,7 +1043,7 @@ final class ExtensionCenter {
             guard let plugin = plugins.first(where: { $0.id == model.pluginID }), plugin.enabled else {
                 return .object(["error": .object(["message": .string(String(localized: "The AI provider plugin is off."))])])
             }
-            return await providerOutput(id: plugin.id, providerID: model.providerID, params: request.params)
+            return await providerOutput(id: plugin.id, providerID: model.providerID, params: params)
         case "aibo/fetch":
             let hosts = allowedHosts(for: caller)
             let response = await ExtensionFetch.perform(params: request.params, allowedHosts: hosts)
@@ -956,7 +1097,7 @@ final class ExtensionCenter {
                     if request.method == "aibo/llm" {
                         next[key] = .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
                     } else {
-                        next[key] = await fulfill(request, caller: record, depth: 1)
+                        next[key] = await fulfill(request, caller: record, depth: 1, allowedImagePaths: [])
                     }
                 }
                 responses = next
