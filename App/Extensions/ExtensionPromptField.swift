@@ -43,6 +43,27 @@ final class PromptFieldToken {
     var frame: CGRect = .null
 }
 
+/// `NSHostingView` is flipped, but AppKit hit-tests the embedded field in
+/// bottom-left space. The view it returns is the field mirrored across the
+/// panel, so rows under the well — and the bubble below — receive the text
+/// view. The real well is claimed from its SwiftUI frame before this runs.
+enum PromptFieldHitFilter {
+    static func isMirroredPromptHit(_ hit: NSView, host: NSView, point: NSPoint) -> Bool {
+        guard let scroll = promptScroll(in: hit, host: host) else { return false }
+        let visual = scroll.convert(scroll.bounds, to: host)
+        return visual.insetBy(dx: -2, dy: -2).contains(point) == false
+    }
+
+    private static func promptScroll(in hit: NSView, host: NSView) -> PromptScrollView? {
+        var view: NSView? = hit
+        while let current = view, current !== host {
+            if let scroll = current as? PromptScrollView { return scroll }
+            view = current.superview
+        }
+        return nil
+    }
+}
+
 /// Plain prompt field. TextKit 1 so a click can move the caret; paste is normalized
 /// before it lands, including when the cleaned string matches what is already stored.
 struct ExtensionPromptField: View {

@@ -110,7 +110,7 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
             }
             if opaque {
                 // Opaque pet pixel — accept (SwiftUI context menu / AppKit drag).
-                return super.hitTest(point) ?? self
+                return hitTestSkippingPromptMirror(point) ?? self
             }
             // Transparent corner of the pet's box. A bubble in that square
             // still needs the click; otherwise fall through to the desktop.
@@ -122,12 +122,19 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
         // bounds, so AppKit's hit walk stops at that ancestor and the click never
         // reaches the field. Search descendants anyway.
         if measuredBubbleHitRects.contains(where: { $0.contains(point) }) {
-            return super.hitTest(point) ?? deepestDescendant(containing: point) ?? self
+            if let hit = hitTestSkippingPromptMirror(point) {
+                return hit
+            }
+            if let deep = deepestDescendant(containing: point),
+               PromptFieldHitFilter.isMirroredPromptHit(deep, host: self, point: point) == false {
+                return deep
+            }
+            return self
         }
 
         // Bubbles only — empty padding / music overflow / infinity frames pass through.
         if bubbleHitRects.contains(where: { $0.contains(p) }) {
-            return super.hitTest(point)
+            return hitTestSkippingPromptMirror(point)
         }
 
         return nil
@@ -175,6 +182,17 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
             }
         }
         super.scrollWheel(with: event)
+    }
+
+    /// Drop the field's mirrored hit. `super.hitTest` reports the text view for
+    /// that band; SwiftUI controls in the same band are reached through this
+    /// hosting view, the same way a click that never touched the field is.
+    private func hitTestSkippingPromptMirror(_ point: NSPoint) -> NSView? {
+        guard let hit = super.hitTest(point) else { return nil }
+        if PromptFieldHitFilter.isMirroredPromptHit(hit, host: self, point: point) {
+            return self
+        }
+        return hit
     }
 
     /// Deepest visible descendant whose own bounds contain `point`, even when an
