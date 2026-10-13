@@ -52,6 +52,46 @@ enum BubbleMotion {
     }
 }
 
+/// Fade, scale, and a short slide into the seat the panel has already committed.
+///
+/// The panel grows on the next turn. Starting this spring before that frame
+/// lands paints the card in the old window, then it teleports. Wait until the
+/// growth pass bumps `frameGrowthEpoch`, and yield once more so the spring is
+/// not inside the layout transaction (that collapses the NSPanel).
+struct BubbleAppearMotion: ViewModifier {
+    var placement: BubblePlacement
+
+    @State private var hasAppeared = false
+    @State private var panel = AiboPanelController.shared
+
+    func body(content: Content) -> some View {
+        let offset = BubbleMotion.appearOffset(for: placement)
+        content
+            .opacity(hasAppeared ? 1 : 0)
+            .scaleEffect(hasAppeared ? 1 : 0.88)
+            .offset(
+                x: hasAppeared ? 0 : offset.width,
+                y: hasAppeared ? 0 : offset.height
+            )
+            .allowsHitTesting(hasAppeared)
+            .onAppear(perform: scheduleAppear)
+            .onChange(of: panel.frameGrowthEpoch) { _, _ in
+                scheduleAppear()
+            }
+    }
+
+    private func scheduleAppear() {
+        guard !hasAppeared, !panel.isFrameGrowthPending else { return }
+        Task { @MainActor in
+            await Task.yield()
+            guard !hasAppeared, !AiboPanelController.shared.isFrameGrowthPending else { return }
+            withAnimation(BubbleMotion.appear) {
+                hasAppeared = true
+            }
+        }
+    }
+}
+
 /// Drives appear with explicit state so NSHostingView / overlay layouts
 /// still animate (SwiftUI `.transition` is unreliable in those paths).
 struct AnimatedStatusBubble: View {
@@ -65,10 +105,7 @@ struct AnimatedStatusBubble: View {
     var glassStyle: BubbleGlassStyle = AppSettings.shared.bubbleGlassStyle
     var glassTint: Color? = AppSettings.shared.bubbleGlassTint
 
-    @State private var hasAppeared = false
-
     var body: some View {
-        let offset = BubbleMotion.appearOffset(for: placement)
         // A real layout boundary keeps StatusBubble's internal identity
         // transition from overriding this wrapper's removal transition.
         // Group is transparent here and does not isolate the two transitions.
@@ -87,27 +124,12 @@ struct AnimatedStatusBubble: View {
         // Onboarding already reserves an arrow slot inside each card.
         .padding(.leading, !showsArrow && !reservesArrowSlot && placement == .right ? 8 : 0)
         .padding(.trailing, !showsArrow && !reservesArrowSlot && placement == .left ? 8 : 0)
-        .opacity(hasAppeared ? 1 : 0)
-        .scaleEffect(hasAppeared ? 1 : 0.88)
-        .offset(
-            x: hasAppeared ? 0 : offset.width,
-            y: hasAppeared ? 0 : offset.height
-        )
+        .modifier(BubbleAppearMotion(placement: placement))
         // Appear is explicit above; dismiss uses Pow's cartoon poof cloud.
         // Insertion must stay identity — inspect open/close used to remount
         // this view and play poof as if the bubble had been dismissed.
         // Drop glass first: `_hasActiveAppearance` makes real NSGlassEffectView,
         // which would eat the overlay if it stayed in the tree.
         .transition(BubbleMotion.removal)
-        .onAppear {
-            guard !hasAppeared else { return }
-            // Defer so the initial opacity/offset state isn't itself inside an
-            // outer `withAnimation` transaction (that collapses NSPanel layout).
-            Task { @MainActor in
-                withAnimation(BubbleMotion.appear) {
-                    hasAppeared = true
-                }
-            }
-        }
     }
 }

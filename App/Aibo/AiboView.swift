@@ -29,6 +29,17 @@ struct AiboView: View {
         bubbleItemsOverride ?? runtime.bubbleItems
     }
 
+    /// While the panel is about to grow, keep new cards out of the tree.
+    /// Bubbles already on screen stay. Once the frame is committed, show the
+    /// model list — that layout is the one the spring fades into.
+    private var visibleBubbleItems: [StatusBubbleItem] {
+        if bubbleItemsOverride != nil || !panelController.isFrameGrowthPending {
+            return bubbleItems
+        }
+        let ready = panelController.presentedBubbleIDs
+        return bubbleItems.filter { ready.contains($0.id) }
+    }
+
     private var placement: BubblePlacement {
         placementOverride ?? library.selectedRecord.bubblePlacement
     }
@@ -132,7 +143,7 @@ struct AiboView: View {
         case .left:
             HStack(alignment: .center, spacing: aiboBubbleSpacing) {
                 if showsBubbles {
-                    fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                    fadingSideAnchoredBubbleStack(nearPetIndex: visibleBubbleItems.count - 1)
                 }
                 DesktopPetView(
                 layoutSize: aiboLayoutSize,
@@ -147,7 +158,7 @@ struct AiboView: View {
                 nominalSize: aiboNominalSize
             )
                 if showsBubbles {
-                    fadingSideAnchoredBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                    fadingSideAnchoredBubbleStack(nearPetIndex: visibleBubbleItems.count - 1)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -156,7 +167,7 @@ struct AiboView: View {
 
     @ViewBuilder
     private func fadingBubbleStack(nearPetIndex: Int) -> some View {
-        fadingBubbleStack(items: bubbleItems, nearPetIndex: nearPetIndex, pluginAtTop: true)
+        fadingBubbleStack(items: visibleBubbleItems, nearPetIndex: nearPetIndex, pluginAtTop: true)
     }
 
     @ViewBuilder
@@ -179,7 +190,7 @@ struct AiboView: View {
     /// The plugin card sits at the far end so it does not cover hook bubbles.
     @ViewBuilder
     private func bubbleStack(nearPetIndex: Int) -> some View {
-        bubbleStack(items: bubbleItems, nearPetIndex: nearPetIndex, pluginAtTop: true)
+        bubbleStack(items: visibleBubbleItems, nearPetIndex: nearPetIndex, pluginAtTop: true)
     }
 
     @ViewBuilder
@@ -222,12 +233,16 @@ struct AiboView: View {
             center: extensions
         )
         .fixedSize(horizontal: true, vertical: true)
+        .modifier(BubbleAppearMotion(placement: placement))
         .transition(BubbleMotion.removal)
     }
 
     @ViewBuilder
     private func pluginBubble(showsArrow: Bool) -> some View {
-        if extensions.showsPetCard, bubbleWindow.isDetached == false {
+        if extensions.showsPetCard,
+           bubbleWindow.isDetached == false,
+           panelController.isExtensionCardHeld == false
+        {
             extensionBubble(showsArrow: showsArrow)
         }
     }
@@ -295,12 +310,12 @@ struct AiboView: View {
             .accessibilityHidden(true)
         VStack(spacing: aiboBubbleSpacing) {
             if growsUpward {
-                fadingBubbleStack(nearPetIndex: bubbleItems.count - 1)
+                fadingBubbleStack(nearPetIndex: visibleBubbleItems.count - 1)
                     .fixedSize(horizontal: false, vertical: true)
                 spacer
             } else {
                 spacer
-                fadingBubbleStack(items: bubbleItems.reversed(), nearPetIndex: 0, pluginAtTop: false)
+                fadingBubbleStack(items: visibleBubbleItems.reversed(), nearPetIndex: 0, pluginAtTop: false)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -347,8 +362,8 @@ struct AiboView: View {
     private func sideAnchor(nearPetIndex: Int) -> some View {
         if let held = panelController.heldNearBubble {
             sizingBubble(Self.statusFace(of: held))
-        } else if bubbleItems.indices.contains(nearPetIndex) {
-            sizingBubble(Self.statusFace(of: bubbleItems[nearPetIndex]))
+        } else if visibleBubbleItems.indices.contains(nearPetIndex) {
+            sizingBubble(Self.statusFace(of: visibleBubbleItems[nearPetIndex]))
         } else if let slot = panelController.pluginOnlyAnchorSize {
             // Full card size, not a hairline. The overlay draws the plugin here
             // and the pet stays centered on this row through poof.
@@ -362,7 +377,7 @@ struct AiboView: View {
     /// slide down through their poof.
     @ViewBuilder
     private var heldStackSpacer: some View {
-        if bubbleItems.isEmpty, !panelController.heldStackItems.isEmpty {
+        if visibleBubbleItems.isEmpty, !panelController.heldStackItems.isEmpty {
             VStack(spacing: resolvedStackSpacing) {
                 ForEach(panelController.heldStackItems) { item in
                     sizingBubble(Self.statusFace(of: item))
@@ -411,19 +426,21 @@ struct AiboView: View {
     }
 
     private var onboardingStackUsesIntrinsicWidth: Bool {
-        bubbleItems.contains(where: { $0.kind == .onboarding }) && bubbleItems.count > 1
+        visibleBubbleItems.contains(where: { $0.kind == .onboarding }) && visibleBubbleItems.count > 1
     }
 
     /// The detached window is not in this stack. A live session must not keep the
     /// side column shrink-wrapped, or the agent bubble hugs its text and the pet
     /// leaves the hit rect.
     private var pluginSharesPetStack: Bool {
-        extensions.showsPetCard && bubbleWindow.isDetached == false
+        extensions.showsPetCard
+            && bubbleWindow.isDetached == false
+            && panelController.isExtensionCardHeld == false
     }
 
     private var sideStackUsesPetEdgeAlignment: Bool {
         onboardingStackUsesIntrinsicWidth
-            || (pluginSharesPetStack && !bubbleItems.isEmpty)
+            || (pluginSharesPetStack && !visibleBubbleItems.isEmpty)
             || panelController.heldNearBubble != nil
     }
 

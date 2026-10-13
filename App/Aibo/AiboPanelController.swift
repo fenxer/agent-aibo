@@ -77,6 +77,18 @@ final class AiboPanelController {
     private var laidOutOnboardingLayoutID = ""
     private var laidOutExtensionLayoutToken = ""
     private var laidOutAiboBubbleSpacing: CGFloat = 6
+    /// True while the next geometry pass will enlarge the panel. New cards stay
+    /// out of the tree until that frame is committed, or they paint halfway
+    /// across the old window and then jump.
+    private(set) var isFrameGrowthPending = false
+    /// Bumped when a growth pass has resized and laid out. Appear motion waits
+    /// for this so the spring starts on the final seat.
+    private(set) var frameGrowthEpoch = 0
+    /// Plugin card requested, panel not yet grown to fit it.
+    private(set) var isExtensionCardHeld = false
+    /// Status bubbles already given a frame. New ids join at the end of a
+    /// growth pass, not on the SwiftUI update that precedes it.
+    private(set) var presentedBubbleIDs: Set<String> = []
     /// Plugin-only column kept beside the pet while that card poofs.
     private(set) var pluginPoofSlotSize: CGSize?
     /// Near-pet bubble kept as the side anchor while it poofs and a plugin card remains.
@@ -616,9 +628,13 @@ final class AiboPanelController {
     }
 
     private func applyGeometryNow() {
+        // A drag owns the window origin. Cancelling the deferred pass here used
+        // to drop a card that was waiting for that frame.
+        if isRepositioningAibo { return }
         pendingGeometryTask?.cancel()
         pendingGeometryTask = nil
         let pinBubble = applyGeometryPreservingPetCenter()
+        mountPresentationAfterFrameChange()
         if !pinBubble {
             clampToVisibleScreen()
         }
@@ -626,23 +642,105 @@ final class AiboPanelController {
 
     private var pendingGeometryTask: Task<Void, Never>?
 
+    private var geometryPass = 0
+
     /// Coalesce panel resizes off the current layout/update pass.
     /// Sync `setFrame(display:)` during SwiftUI updates triggers
     /// `layoutSubtreeIfNeeded` recursion warnings and Update Constraints crashes.
     private func scheduleGeometryUpdate(after delay: Duration) {
         pendingGeometryTask?.cancel()
+        geometryPass += 1
+        let pass = geometryPass
+        beginDeferredPresentation()
         pendingGeometryTask = Task { @MainActor in
             if delay == .zero {
                 await Task.yield()
             } else {
                 try? await Task.sleep(for: delay)
             }
-            guard !Task.isCancelled, panel != nil else { return }
+            guard !Task.isCancelled, panel != nil, geometryPass == pass else { return }
+            // Drag is moving the window. Try again once it stops, still holding
+            // the card so it never paints into the pre-drag frame.
+            if isRepositioningAibo {
+                scheduleGeometryUpdate(after: .milliseconds(50))
+                return
+            }
+            // One transaction: grow the window, then mount the cards into that
+            // frame before anything is displayed. Otherwise the card is laid
+            // out in the previous window and snaps sideways on the next frame.
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             let pinBubble = applyGeometryPreservingPetCenter()
+            mountPresentationAfterFrameChange()
+            CATransaction.commit()
             if !pinBubble {
                 clampToVisibleScreen()
             }
-            pendingGeometryTask = nil
+            if geometryPass == pass {
+                pendingGeometryTask = nil
+            }
+        }
+    }
+
+    /// A larger frame is coming. Keep new cards unmounted until it lands.
+    /// A pass that already fits records every current bubble as presented so the
+    /// next growth does not hide a card that is already on screen.
+    private func beginDeferredPresentation() {
+        let incoming = Set(AiboRuntime.shared.bubbleItems.map(\.id))
+        guard isUpcomingFrameGrowth() else {
+            if presentedBubbleIDs != incoming {
+                presentedBubbleIDs = incoming
+            }
+            return
+        }
+        isFrameGrowthPending = true
+        if isNewExtensionCard {
+            isExtensionCardHeld = true
+        }
+    }
+
+    private func isUpcomingFrameGrowth() -> Bool {
+        guard let panel else { return false }
+        let size = targetPanelSize()
+        return size.width > panel.frame.width + 0.5 || size.height > panel.frame.height + 0.5
+    }
+
+    private func targetPanelSize() -> NSSize {
+        let items = AiboRuntime.shared.bubbleItems
+        let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
+        let aiboSize = currentAiboSize
+        let newSize = panelSize(items: items, aiboSize: aiboSize, placement: placement)
+        let minSize = aiboBlockMinimum(aiboSize: aiboSize)
+        return NSSize(
+            width: max(newSize.width, minSize.width),
+            height: max(newSize.height, minSize.height)
+        )
+    }
+
+    private var isNewExtensionCard: Bool {
+        isLiveExtensionToken(currentExtensionLayoutToken)
+            && !isLiveExtensionToken(laidOutExtensionLayoutToken)
+    }
+
+    private func isLiveExtensionToken(_ token: String) -> Bool {
+        !token.isEmpty && token != "detached"
+    }
+
+    /// Put cards that were waiting into the frame `applyGeometry` just set.
+    /// No-op when nothing new is pending, so portal and drag passes don't
+    /// force an extra layout.
+    private func mountPresentationAfterFrameChange() {
+        let incoming = Set(AiboRuntime.shared.bubbleItems.map(\.id))
+        let hasNewBubbles = !incoming.isSubset(of: presentedBubbleIDs)
+        guard isExtensionCardHeld || isFrameGrowthPending || hasNewBubbles else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isExtensionCardHeld = false
+            isFrameGrowthPending = false
+            frameGrowthEpoch &+= 1
+            presentedBubbleIDs.formUnion(incoming)
+            hostingView?.layoutSubtreeIfNeeded()
         }
     }
 
@@ -834,6 +932,9 @@ final class AiboPanelController {
             height: max(initialSize.height, minSize.height)
         )
         let panel = AiboPanel(contentRect: NSRect(origin: .zero, size: safeInitial))
+        // Seed before the hosting view's first layout so launch bubbles are
+        // already "presented" and a later growth can tell new ids apart.
+        presentedBubbleIDs = Set(items.map(\.id))
 
         // Hosting view must NOT be the window contentView — see AiboPanelRootView.
         let rootView = AiboPanelRootView(frame: NSRect(origin: .zero, size: safeInitial))
@@ -889,6 +990,9 @@ final class AiboPanelController {
 
     /// Side plugin-only slot. Matches the panel's row height so the pet stays centered on the card.
     var pluginOnlyAnchorSize: CGSize? {
+        // The row grows with the window, not a frame earlier. Mounting the
+        // anchor now would slide the pet inside the still-small panel.
+        if isExtensionCardHeld { return nil }
         if heldNearBubble != nil { return nil }
         if let pluginPoofSlotSize { return pluginPoofSlotSize }
         guard AiboRuntime.shared.bubbleItems.isEmpty else { return nil }
