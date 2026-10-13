@@ -48,6 +48,14 @@ final class AiboSpriteCache {
         staticImages[id] = nil
     }
 
+    /// Drops decoded artwork for aibos the desktop is not showing.
+    /// Settings previews fill this cache; closing Settings should not keep them.
+    func releasePets(keeping keepIDs: Set<String>) {
+        guard !keepIDs.isEmpty else { return }
+        pets = pets.filter { keepIDs.contains($0.key) }
+        staticImages = staticImages.filter { keepIDs.contains($0.key) }
+    }
+
     func previewImage(for record: AiboLibraryRecord) -> NSImage? {
         switch record.kind {
         case .builtInDefault:

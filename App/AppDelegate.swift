@@ -8,7 +8,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Theme + language before Sparkle / UI copy.
         _ = AppSettings.shared
         SoftwareUpdateController.shared.start()
-        SettingsNavigator.shared.start()
         OnboardingController.shared.startIfNeeded()
         AiboRuntime.shared.start()
         ExtensionCenter.shared.start()

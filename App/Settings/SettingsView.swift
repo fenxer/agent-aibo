@@ -114,8 +114,10 @@ private struct SettingsSidebar: View {
         }
         .listStyle(.sidebar)
         .environment(\.defaultMinListHeaderHeight, 0)
-        .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+        // Width must come after sidebar-toggle removal. The other way around,
+        // AppKit resets the column to its default (~144) and ignores ideal.
         .toolbar(removing: .sidebarToggle)
+        .navigationSplitViewColumnWidth(min: 160, ideal: 200, max: 220)
     }
 }
 
@@ -179,8 +181,12 @@ private struct SettingsSidebarIcon: View {
 }
 
 struct SettingsView: View {
-    @State private var selection: SettingsPane? = .aibo
+    @State private var selection: SettingsPane?
     @Bindable private var navigator = SettingsNavigator.shared
+
+    init() {
+        _selection = State(initialValue: Self.initialPane())
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -191,16 +197,33 @@ struct SettingsView: View {
             detailRoot
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        // Fixed width; unbounded max height so `.windowResizability(.contentMinSize)`
-        // reports "no maximum" and the window stays user-resizable in height.
-        .frame(width: AppSettings.settingsWindowWidth)
-        .frame(minHeight: AppSettings.settingsWindowMinHeight, maxHeight: .infinity)
-        .background { SettingsWindowConfigurator() }
-        .onAppear { applyPendingPane() }
+        // Fill the window. Size is the window's, not this view's ideal size
+        // (`SettingsWindowController` clears `sizingOptions`).
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            applyPendingPane()
+            navigator.rememberPane(id: selection?.rawValue)
+        }
         .onChange(of: navigator.pendingPane) { _, newValue in
             guard newValue != nil else { return }
             applyPendingPane()
         }
+        .onChange(of: selection) { _, newValue in
+            navigator.rememberPane(id: newValue?.rawValue)
+        }
+    }
+
+    /// Deep link wins over the pane from the last time Settings was open.
+    private static func initialPane() -> SettingsPane {
+        if let pending = SettingsNavigator.shared.pendingPane, let pane = SettingsPane(pending) {
+            return pane
+        }
+        if let id = SettingsNavigator.shared.rememberedPaneID,
+           let pane = SettingsPane(rawValue: id)
+        {
+            return pane
+        }
+        return .aibo
     }
 
     private func applyPendingPane() {

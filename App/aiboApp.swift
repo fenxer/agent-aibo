@@ -16,19 +16,16 @@ struct aiboApp: App {
         MenuBarExtra(String(localized: "Aibo"), image: "HeartMenu") {
             AiboAppMenu()
         }
-
-        Settings {
-            SettingsView()
+        .commands {
+            // No `Settings` scene, so the system Settings item is gone.
+            // The status-item menu does not get this equivalent: a global ⌘,
+            // there would steal Settings from the frontmost app.
+            CommandGroup(replacing: .appSettings) {
+                Button(String(localized: "Settings…")) {
+                    SettingsNavigator.shared.showSettings()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
-        // Settings defaults to `.contentSize` (fixed); `.contentMinSize` plus the
-        // root view's `maxHeight: .infinity` makes the height user-resizable.
-        .defaultSize(
-            width: AppSettings.settingsWindowWidth,
-            height: AppSettings.defaultSettingsWindowHeight
-        )
-        .windowResizability(.contentMinSize)
-        // Prefer leading toolbar layout (Settings scene may still force
-        // `.preference` — `SettingsWindowConfigurator` also asserts `.unified`).
-        .windowToolbarStyle(.unified(showsTitle: false))
     }
 }

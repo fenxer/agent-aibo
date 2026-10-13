@@ -7,9 +7,10 @@ import SwiftUI
 /// so repeating the title in the toolbar is noise. Show it only when
 /// `canGoBack` is true (a pushed settings page).
 ///
-/// Relies on `SettingsWindowConfigurator` forcing `NSWindow.toolbarStyle`
-/// off `.preference` (which centers items). With `.unified`, navigation
-/// placement stays at the leading edge of the detail column.
+/// Relies on `SettingsWindowController` setting `NSWindow.toolbarStyle`
+/// to `.unified` before the hosting controller mounts. `.preference`
+/// centers items. With `.unified`, navigation placement stays at the
+/// leading edge of the detail column.
 ///
 /// Keep the nav `ControlGroup` and the title in **separate** `ToolbarItem`s.
 /// Putting them in one item wraps both in the same glass capsule. Hide the

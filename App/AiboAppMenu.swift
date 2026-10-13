@@ -55,11 +55,8 @@ struct AiboAppMenu: View {
             }
         }
 
-        // Must be SettingsLink — `openSettings()` / `showSettingsWindow:` log
-        // "Please use SettingsLink…" and often no-op on current SDKs.
-        // Deep-link clear for this item is handled in `NSMenu.willSendActionNotification`.
-        SettingsLink {
-            Text(String(localized: "Settings…"))
+        Button(String(localized: "Settings…")) {
+            SettingsNavigator.shared.showSettings()
         }
 
         Divider()
@@ -87,13 +84,12 @@ struct AiboAppMenu: View {
         )
     }
 
-    /// Opens Settings via `SettingsLink`. Deep link is armed in
-    /// `NSMenu.willSendActionNotification` (menu gestures do not run).
-    ///
     /// `Label` → AppKit menu image + title (SF Symbol survives). Custom `HStack`
     /// `Image` is often stripped from menu items.
     private var webhookConnectivityItem: some View {
-        SettingsLink {
+        Button {
+            SettingsNavigator.shared.prepareRemoteWebhook()
+        } label: {
             Label(
                 String(localized: "Webhook Connectivity"),
                 systemImage: runtime.tunnelHealthStatus.menuSystemImage

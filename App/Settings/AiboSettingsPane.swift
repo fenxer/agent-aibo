@@ -606,6 +606,8 @@ private struct NewAiboToolbarMenu: View {
                 .interactive(),
             in: .capsule
         )
+        // Unified toolbar's trailing inset is tighter than the titlebar's top inset.
+        .padding(.trailing, 6)
         .disabled(isInstalling)
         .help(String(localized: "New Aibo"))
         .accessibilityLabel(String(localized: "New Aibo"))

@@ -79,9 +79,12 @@ final class AppSettings {
         blue: 229 / 255
     )
 
-    /// Settings window content width (fixed; only height is user-resizable).
+    /// Default Settings content size. The window can shrink to the minimums
+    /// and grow up to the screen it is on; the last frame is stored by AppKit autosave.
     static let settingsWindowWidth: CGFloat = 680
     static let defaultSettingsWindowHeight: CGFloat = 720
+    /// Sidebar column minimum (160) plus a usable detail column.
+    static let settingsWindowMinWidth: CGFloat = 560
     static let settingsWindowMinHeight: CGFloat = 420
 
     /// Color scheme: follow system (default), force light, or force dark.
@@ -384,9 +387,6 @@ final class AppSettings {
 
     private(set) var webhookSecret: String
 
-    /// Last Settings window content height. Width stays `settingsWindowWidth`.
-    private(set) var settingsWindowHeight: CGFloat
-
     var webhookURLString: String {
         "http://127.0.0.1:\(webhookPort)\(WebhookRequestHandler.path)"
     }
@@ -540,14 +540,6 @@ final class AppSettings {
             webhookAutoDismissSeconds = Self.defaultWebhookAutoDismissSeconds
         }
 
-        if UserDefaults.standard.object(forKey: Keys.settingsWindowHeight) != nil {
-            settingsWindowHeight = Self.clampSettingsWindowHeight(
-                CGFloat(UserDefaults.standard.double(forKey: Keys.settingsWindowHeight))
-            )
-        } else {
-            settingsWindowHeight = Self.defaultSettingsWindowHeight
-        }
-
         if let existing = KeychainStore.string(forAccount: Keys.webhookSecretAccount), !existing.isEmpty {
             webhookSecret = existing
         } else {
@@ -690,11 +682,19 @@ final class AppSettings {
         }
     }
 
-    func saveSettingsWindowHeight(_ height: CGFloat) {
-        let clamped = Self.clampSettingsWindowHeight(height)
-        guard abs(settingsWindowHeight - clamped) >= 0.5 else { return }
-        settingsWindowHeight = clamped
-        UserDefaults.standard.set(Double(clamped), forKey: Keys.settingsWindowHeight)
+    /// Content height saved by the old Settings scene. Frame autosave takes
+    /// over after the first open of the `NSWindow`; this only seeds that open.
+    static func legacySettingsContentHeight() -> CGFloat {
+        guard UserDefaults.standard.object(forKey: Keys.settingsWindowHeight) != nil else {
+            return defaultSettingsWindowHeight
+        }
+        let value = CGFloat(UserDefaults.standard.double(forKey: Keys.settingsWindowHeight))
+        let screenCap = NSScreen.main.map { screen in
+            // Leave room for the title bar; content taller than the display
+            // only allocates backing store the user cannot see.
+            max(screen.visibleFrame.height - 80, settingsWindowMinHeight)
+        } ?? defaultSettingsWindowHeight
+        return min(max(value, settingsWindowMinHeight), screenCap)
     }
 
     /// Copies pre-rename `settings.pet*` keys (and `petAccent`) into the aibo names once.
@@ -766,10 +766,6 @@ final class AppSettings {
             if left != right { return left < right }
             return lhs > rhs
         } ?? defaultAiboScalePercent
-    }
-
-    private static func clampSettingsWindowHeight(_ value: CGFloat) -> CGFloat {
-        min(max(value, settingsWindowMinHeight), 4000)
     }
 
     private static func clampWebhookAutoDismissSeconds(_ value: Int) -> Int {

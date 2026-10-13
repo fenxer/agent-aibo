@@ -108,7 +108,6 @@ struct AiboView: View {
             )
             .allowsWindowActivationEvents()
             .coordinateSpace(name: AiboPanelSpace.name)
-            .background { SettingsSceneOpener() }
     }
 
     @ViewBuilder
@@ -260,17 +259,13 @@ struct AiboView: View {
                 glassTint: glassTint(for: item)
             )
         case .warning:
-            // Warning must open Settings via SettingsLink (openSettings() warns on current SDKs).
-            SettingsLink {
+            Button {
+                SettingsNavigator.shared.prepareRemoteWebhook()
+                AiboRuntime.shared.dismissBubble(id: item.id)
+            } label: {
                 animatedBubble(item: item, showsArrow: showsArrow)
             }
             .buttonStyle(.plain)
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    SettingsNavigator.shared.prepareRemoteWebhook()
-                    AiboRuntime.shared.dismissBubble(id: item.id)
-                }
-            )
         case .agent, .webhook:
             animatedBubble(item: item, showsArrow: showsArrow)
         }
@@ -290,7 +285,7 @@ struct AiboView: View {
     }
 
     private func dismissAction(for item: StatusBubbleItem) -> (() -> Void)? {
-        // Warning dismiss is handled beside SettingsLink so we don't double-fire.
+        // Warning dismiss is handled by the button that opens Settings.
         guard item.kind != .warning, item.isDismissible else { return nil }
         return { AiboRuntime.shared.dismissBubble(id: item.id) }
     }
@@ -467,7 +462,7 @@ struct AiboView: View {
         }
         switch item.kind {
         case .warning, .onboarding:
-            // Warning opens via SettingsLink. Onboarding taps are owned by the cluster.
+            // Warning opens Settings from its own button. Onboarding taps are owned by the cluster.
             return nil
         case .agent, .webhook:
             guard item.allowsSourceAppActivation, let agent = item.agent else { return nil }
