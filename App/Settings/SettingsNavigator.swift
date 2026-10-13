@@ -18,6 +18,7 @@ final class SettingsNavigator {
         case general
         case webhook
         case about
+        case extensions
         #if DEBUG
         case development
         #endif
@@ -28,6 +29,12 @@ final class SettingsNavigator {
 
     /// Consumed by `WebhookSettingsPane` so a deep link pops Receive Logs.
     private(set) var pendingRevealWebhookRoot = false
+
+    /// Consumed by `ExtensionSettingsPage` to open one plugin.
+    private(set) var pendingExtensionID: String?
+
+    /// Bumped when a caller outside `SettingsLink` needs the Settings scene.
+    private(set) var settingsOpenTicket = 0
 
     private var bringToFrontTask: Task<Void, Never>?
     private var menuWillSendActionObserver: NSObjectProtocol?
@@ -59,16 +66,32 @@ final class SettingsNavigator {
         scheduleBringSettingsWindowToFront()
     }
 
+    /// Plugin page inside Extensions. Also asks the desktop panel to present Settings.
+    func openExtension(id: String) {
+        pendingPane = .extensions
+        pendingRevealWebhookRoot = false
+        pendingExtensionID = id
+        settingsOpenTicket += 1
+        prepareForOpeningSettings()
+    }
+
     /// Drop a stale deep link (e.g. plain Settings… after a failed hop).
     func clearPendingDeepLink() {
         pendingPane = nil
         pendingRevealWebhookRoot = false
+        pendingExtensionID = nil
     }
 
     func consumePendingPane() -> Pane? {
         let pane = pendingPane
         pendingPane = nil
         return pane
+    }
+
+    func consumePendingExtensionID() -> String? {
+        let id = pendingExtensionID
+        pendingExtensionID = nil
+        return id
     }
 
     func consumePendingRevealWebhookRoot() -> Bool {

@@ -11,8 +11,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsNavigator.shared.start()
         OnboardingController.shared.startIfNeeded()
         AiboRuntime.shared.start()
+        ExtensionCenter.shared.start()
         AiboPanelController.shared.show()
         PlaytimeStore.shared.start()
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        ExtensionLinkRouter.accept(urls)
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

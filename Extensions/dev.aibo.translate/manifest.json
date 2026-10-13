@@ -1,0 +1,59 @@
+{
+  "apiVersion": 1,
+  "id": "dev.aibo.translate",
+  "slug": "translate",
+  "name": "Translate",
+  "description": "Translate a passage into Simplified Chinese, English, or Japanese.",
+  "version": "1.0.3",
+  "author": "aibo",
+  "icon": {
+    "symbol": "character.bubble.fill"
+  },
+  "runtime": "js",
+  "entry": "main.js",
+  "compatibility": { "aibo": ">=1.1.0" },
+  "triggers": [{ "kind": "manual" }],
+  "capabilities": ["llm"],
+  "provides": [],
+  "network": { "hosts": [] },
+  "settings": {
+    "type": "object",
+    "order": ["provider"],
+    "properties": {
+      "provider": {
+        "type": "string",
+        "title": "AI Provider",
+        "source": "llm"
+      }
+    }
+  },
+  "prompt": {
+    "type": "object",
+    "order": ["text", "target"],
+    "required": ["text", "target"],
+    "sections": [{ "fields": ["text", "target"] }],
+    "properties": {
+      "text": {
+        "type": "string",
+        "title": "Text",
+        "minLength": 1
+      },
+      "target": {
+        "type": "string",
+        "title": "Target language",
+        "default": "en",
+        "oneOf": [
+          { "const": "zh-Hans", "title": "Simplified Chinese" },
+          { "const": "en", "title": "English" },
+          { "const": "ja", "title": "Japanese" }
+        ]
+      }
+    }
+  },
+  "io": {
+    "inputs": [{ "id": "text", "kind": "text" }],
+    "outputs": [{ "id": "text", "kind": "text" }]
+  },
+  "rewrite": false,
+  "localization": { "resources": "locales/${locale}.json", "defaultLocale": "en" }
+}

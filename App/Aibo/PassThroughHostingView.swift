@@ -7,7 +7,12 @@ import SwiftUI
 /// lives on the content view. The alpha mask is built once from the aibo image.
 ///
 /// `aiboHitRect` / `bubbleHitRects` use bottom-left coordinates (same as the panel).
+/// `measuredBubbleHitRects` use this view's coordinates (top-left, same as SwiftUI).
 /// `NSHostingView` is flipped (origin top-left), so hit-test points are converted first.
+enum AiboPanelSpace {
+    static let name = "aiboPanel"
+}
+
 final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     private let opaqueAlphaThreshold: UInt8 = 26 // ~10%
     private var alphaMask: AlphaMask?
@@ -16,10 +21,41 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     var aiboHitRect: CGRect = .null
     /// Approximate bubble stack rects in bottom-left content coordinates.
     var bubbleHitRects: [CGRect] = []
+    /// Plugin card frames in this view's top-left coordinates.
+    /// Estimates in `bubbleHitRects` miss buttons once a card is taller than the guess.
+    var measuredBubbleHitRects: [CGRect] = []
 
     init(rootView: Content, hitTestImage: NSImage?) {
         self.alphaMask = Self.makeAlphaMask(from: hitTestImage)
         super.init(rootView: rootView)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        dropOperation(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        dropOperation(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard dropOperation(sender) != [], let url = Self.droppedFileURL(sender) else { return false }
+        ExtensionCenter.shared.receiveDroppedFile(url)
+        return true
+    }
+
+    /// Only the opaque pet, and only a file some enabled plugin listed in `accepts`.
+    private func dropOperation(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let point = convert(sender.draggingLocation, from: nil)
+        guard isOpaquePetHit(at: point), let url = Self.droppedFileURL(sender) else { return [] }
+        return ExtensionCenter.shared.canAcceptDroppedFile(url) ? .copy : []
+    }
+
+    private static func droppedFileURL(_ sender: NSDraggingInfo) -> URL? {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: options) as? [URL]
+        return urls?.first { ExtensionCenter.shared.canAcceptDroppedFile($0) } ?? urls?.first
     }
 
     func updateHitTestImage(_ image: NSImage?) {
@@ -54,18 +90,39 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard bounds.contains(point) else { return nil }
+        PromptFieldTracker.host = self
+        // The field's SwiftUI frame, not the view AppKit would hit. A hook
+        // bubble under the card makes the ancestor miss, and its tap gesture
+        // then keeps the caret at the end of the text.
+        if let text = PromptFieldTracker.textView(at: point) {
+            return text
+        }
         let p = pointInBottomLeft(point)
 
         if aiboHitRect.isNull == false, aiboHitRect.contains(p) {
+            let opaque: Bool
             if let alphaMask {
                 let local = CGPoint(x: p.x - aiboHitRect.minX, y: p.y - aiboHitRect.minY)
                 let localBounds = CGRect(origin: .zero, size: aiboHitRect.size)
-                guard alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold) else {
-                    return nil
-                }
+                opaque = alphaMask.isOpaque(at: local, in: localBounds, threshold: opaqueAlphaThreshold)
+            } else {
+                opaque = true
             }
-            // Opaque pet pixel — accept (SwiftUI context menu / AppKit drag).
-            return super.hitTest(point) ?? self
+            if opaque {
+                // Opaque pet pixel — accept (SwiftUI context menu / AppKit drag).
+                return super.hitTest(point) ?? self
+            }
+            // Transparent corner of the pet's box. A bubble in that square
+            // still needs the click; otherwise fall through to the desktop.
+        }
+
+        // A plugin card reports where it was actually drawn. That rect wins over
+        // the height estimate, which is only used to size the panel.
+        // Beside a hook bubble the card is drawn in an overlay past the anchor's
+        // bounds, so AppKit's hit walk stops at that ancestor and the click never
+        // reaches the field. Search descendants anyway.
+        if measuredBubbleHitRects.contains(where: { $0.contains(point) }) {
+            return super.hitTest(point) ?? deepestDescendant(containing: point) ?? self
         }
 
         // Bubbles only — empty padding / music overflow / infinity frames pass through.
@@ -118,6 +175,25 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
             }
         }
         super.scrollWheel(with: event)
+    }
+
+    /// Deepest visible descendant whose own bounds contain `point`, even when an
+    /// ancestor's bounds do not. `point` is in this view's coordinates.
+    private func deepestDescendant(containing point: NSPoint) -> NSView? {
+        func walk(_ view: NSView, pointInView: NSPoint) -> NSView? {
+            for subview in view.subviews.reversed() {
+                guard subview.isHidden == false, subview.alphaValue > 0.01 else { continue }
+                let local = view.convert(pointInView, to: subview)
+                if let found = walk(subview, pointInView: local) {
+                    return found
+                }
+            }
+            if view !== self, view.bounds.contains(pointInView) {
+                return view
+            }
+            return nil
+        }
+        return walk(self, pointInView: point)
     }
 
     /// Consume bubble right-clicks here so SwiftUI never tries to key the panel.

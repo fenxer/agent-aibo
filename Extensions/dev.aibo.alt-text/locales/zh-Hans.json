@@ -1,0 +1,15 @@
+{
+  "name": "替代文本",
+  "description": "为 PNG 或 JPEG 图片生成替代文本。",
+  "io.inputs.image": "图片",
+  "io.outputs.text": "文本",
+  "settings.prompt.title": "提示词",
+  "settings.prompt.description": "和图片一起发给模型。模型只返回替代文本。",
+  "settings.model.title": "模型",
+  "settings.language.title": "语言",
+  "settings.language.oneOf.zh-Hans": "简体中文",
+  "settings.language.oneOf.en": "English",
+  "settings.language.oneOf.ja": "日本語",
+  "prompt.image.title": "图片",
+  "status.running": "正在生成替代文本…"
+}

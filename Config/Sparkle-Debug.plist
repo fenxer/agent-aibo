@@ -6,5 +6,18 @@
 	<string>zEBD9L5xaycWBWiGnvwRT7492OVBIgHf50DiFCjltsE=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>work.fenx.aibo</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>aibo</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

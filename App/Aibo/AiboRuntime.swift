@@ -1563,6 +1563,9 @@ final class AiboRuntime {
         // withAnimation fights the initial @State and can zero the NSPanel.
         let onlyRemovals = newIDs.isSubset(of: oldIDs)
         if onlyRemovals {
+            if next.isEmpty, let near = bubbleItems.last {
+                AiboPanelController.shared.beginStackedBubblePoofHoldIfNeeded(nearItem: near)
+            }
             withAnimation(BubbleMotion.disappear) {
                 bubbleItems = next
             }

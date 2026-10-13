@@ -1,0 +1,14 @@
+{
+  "name": "AI Provider",
+  "description": "One place to configure a model API. Other plugins send completion requests here.",
+  "io.inputs.request": "Completion request",
+  "io.outputs.reply": "Text",
+  "settings.format.title": "API format",
+  "settings.format.oneOf.chat-completions": "Chat Completions",
+  "settings.format.oneOf.google-interactions": "Google Interactions",
+  "settings.baseURL.title": "Base URL",
+  "settings.baseURL.description": "Chat Completions root, usually ending in /v1. Leave the default when using Google Interactions.",
+  "settings.model.title": "Model",
+  "settings.model.description": "For example gpt-4o-mini, or gemini-3.6-flash.",
+  "settings.apiKey.title": "API key"
+}

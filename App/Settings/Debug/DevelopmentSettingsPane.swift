@@ -2,6 +2,7 @@
 import AppKit
 import AiboCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Settings → Development. DEBUG-only local previews and probes.
 struct DevelopmentSettingsPane: View {
@@ -28,6 +29,8 @@ struct DevelopmentSettingsPane: View {
     @State private var ingestStatus: String?
     @State private var confirmClearIngest = false
     @State private var runtime = AiboRuntime.shared
+    @State private var playtimeAiboID: String?
+    @State private var extensionCatalog = ExtensionCatalogClient.shared
 
     private var canShow: Bool {
         if isAwaitingApproval { return true }
@@ -39,9 +42,29 @@ struct DevelopmentSettingsPane: View {
     }
 
     var body: some View {
+        Group {
+            if let playtimeAiboID {
+                PlaytimeDebugDetail(aiboID: playtimeAiboID) {
+                    self.playtimeAiboID = nil
+                }
+            } else {
+                developmentForm
+            }
+        }
+        .onAppear {
+            runtime.refreshIngestLogCount()
+        }
+        .onDisappear {
+            DistributedNotificationSniffer.shared.stop()
+        }
+    }
+
+    private var developmentForm: some View {
         Form {
             bubblePreviewSection
-            PlaytimeDebugSection()
+            PlaytimeDebugSection { id in
+                playtimeAiboID = id
+            }
             MouseShakeDebugSection()
             onboardingSection
             launchEntranceSection
@@ -52,15 +75,11 @@ struct DevelopmentSettingsPane: View {
             musicNotesSection
             MediaRemotePayloadDebugSection()
             DistributedNotificationSnifferSection()
+            extensionCatalogSection
         }
         .formStyle(.grouped)
         .padding()
-        .onAppear {
-            runtime.refreshIngestLogCount()
-        }
-        .onDisappear {
-            DistributedNotificationSniffer.shared.stop()
-        }
+        .settingsDetailChrome(title: String(localized: "Development"))
     }
 
     private var bubblePreviewSection: some View {
@@ -363,6 +382,72 @@ struct DevelopmentSettingsPane: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         ingestStatus = "Copied \(runtime.ingestLogEntryCount) lines"
+    }
+
+    private var extensionCatalogSection: some View {
+        Section {
+            Picker(selection: Binding(
+                get: { extensionCatalog.source },
+                set: { extensionCatalog.setSource($0) }
+            )) {
+                Text(verbatim: "Local").tag(ExtensionCatalogSource.local)
+                Text(verbatim: "Online").tag(ExtensionCatalogSource.online)
+            } label: {
+                Text(verbatim: "Source")
+            }
+            .pickerStyle(.segmented)
+
+            if extensionCatalog.source == .local {
+                LabeledContent {
+                    Button {
+                        chooseExtensionCatalog()
+                    } label: {
+                        Text(verbatim: "Choose…")
+                    }
+                } label: {
+                    Text(verbatim: "Catalog")
+                }
+                if let path = extensionCatalog.catalogFilePath {
+                    Text(verbatim: path)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                }
+            } else if let url = ExtensionCatalogLocation.rawCatalogURL {
+                Text(verbatim: url.absoluteString)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+
+            if !extensionCatalog.statusText.isEmpty {
+                Text(verbatim: extensionCatalog.statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text(verbatim: "Extension Catalog")
+        } footer: {
+            Text(verbatim: "Local reads Extensions/catalog.json and installs those folders. Online reads the same file on main. A newer catalog version shows on the installed row and as Upgrade next to Info → Version.")
+        }
+        .task {
+            await extensionCatalog.reload()
+        }
+    }
+
+    private func chooseExtensionCatalog() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.json]
+        panel.prompt = "Choose"
+        if let path = extensionCatalog.catalogFilePath {
+            panel.directoryURL = URL(fileURLWithPath: path).deletingLastPathComponent()
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        extensionCatalog.setLocalCatalogFile(url)
     }
 }
 #endif

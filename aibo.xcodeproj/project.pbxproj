@@ -17,6 +17,7 @@
 		A2D0A1B03017090000431DA2 /* default-aibo in Copy Default Aibo */ = {isa = PBXBuildFile; fileRef = A2D0A1B03017090000431DA1 /* default-aibo */; };
 		B2C0M3D13017310000431C96 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; };
 		B2C0M3D43017310000431C96 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = B2C0M3D23017310000431C96 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E1E0E1A13017090000431CE2 /* Extensions in Copy Prototype Extensions */ = {isa = PBXBuildFile; fileRef = E1E0E1A13017090000431CE1 /* Extensions */; };
 		S2P0K0L43017080000431C96 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = S2P0K0L23017080000431C96 /* Sparkle */; };
 /* End PBXBuildFile section */
 
@@ -67,6 +68,15 @@
 			);
 			name = "Embed Frameworks";
 		};
+		E1E0E1A13017090000431CE3 /* Copy Prototype Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = Resources;
+			files = (
+				E1E0E1A13017090000431CE2 /* Extensions in Copy Prototype Extensions */,
+			);
+			name = "Copy Prototype Extensions";
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -76,6 +86,7 @@
 		3A3091F43017090000431C96 /* AiboHook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiboHook.swift; sourceTree = "<group>"; };
 		A1B0D5H13017090000431CA1 /* dsh-aibo */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "dsh-aibo"; sourceTree = "<group>"; };
 		A2D0A1B03017090000431DA1 /* default-aibo */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "default-aibo"; path = "App/Aibo/default-aibo"; sourceTree = "<group>"; };
+		E1E0E1A13017090000431CE1 /* Extensions */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Extensions; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -152,6 +163,7 @@
 				A1B0D5H13017090000431CA0 /* Plugins */,
 				A2D0A1B03017090000431DA1 /* default-aibo */,
 				3A301DB3301C678F004C7B4D /* heart.icon */,
+				E1E0E1A13017090000431CE1 /* Extensions */,
 				3A3091CE3017070E00431C96 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -193,6 +205,7 @@
 				3A3091CB3017070E00431C96 /* Resources */,
 				3A3091F73017090000431C96 /* Copy Helpers */,
 				A1B0D5H13017090000431CB0 /* Copy DeepSeek Plugin */,
+				E1E0E1A13017090000431CE3 /* Copy Prototype Extensions */,
 				A2D0A1B03017090000431DA3 /* Copy Default Aibo */,
 				B2C0M3D33017310000431C96 /* Embed Frameworks */,
 			);

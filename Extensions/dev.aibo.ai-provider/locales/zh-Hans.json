@@ -1,0 +1,14 @@
+{
+  "name": "AI 供应商",
+  "description": "集中配置模型接口。其他插件把补全请求发到这里，再取回文本。",
+  "io.inputs.request": "补全请求",
+  "io.outputs.reply": "文本",
+  "settings.format.title": "接口格式",
+  "settings.format.oneOf.chat-completions": "Chat Completions",
+  "settings.format.oneOf.google-interactions": "Google Interactions",
+  "settings.baseURL.title": "接口地址",
+  "settings.baseURL.description": "Chat Completions 一般填到 /v1。用 Google Interactions 时可以保持默认地址。",
+  "settings.model.title": "模型",
+  "settings.model.description": "例如 gpt-4o-mini，或 gemini-3.6-flash。",
+  "settings.apiKey.title": "API 密钥"
+}

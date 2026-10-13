@@ -1,0 +1,64 @@
+{
+  "apiVersion": 1,
+  "id": "dev.aibo.ai-provider",
+  "slug": "ai-provider",
+  "name": "AI Provider",
+  "description": "One place to configure a model API. Other plugins send completion requests here.",
+  "version": "1.0.2",
+  "author": "aibo",
+  "icon": {
+    "symbol": "sparkle",
+    "background": "#0088FF",
+    "symbolColor": "#FFFFFF"
+  },
+  "runtime": "js",
+  "entry": "main.js",
+  "compatibility": { "aibo": ">=1.1.0" },
+  "triggers": [{ "kind": "provider" }],
+  "provides": ["llm"],
+  "exports": [
+    { "capability": "llm", "fields": ["displayName", "format", "baseURL", "model"] }
+  ],
+  "capabilities": [],
+  "network": {
+    "hosts": ["api.openai.com", "generativelanguage.googleapis.com"]
+  },
+  "settings": {
+    "type": "object",
+    "order": ["format", "baseURL", "model", "apiKey"],
+    "required": ["format", "model", "apiKey"],
+    "properties": {
+      "format": {
+        "type": "string",
+        "title": "API format",
+        "default": "chat-completions",
+        "oneOf": [
+          { "const": "chat-completions", "title": "Chat Completions" },
+          { "const": "google-interactions", "title": "Google Interactions" }
+        ]
+      },
+      "baseURL": {
+        "type": "string",
+        "title": "Base URL",
+        "description": "Chat Completions root, usually ending in /v1. Leave the default when using Google Interactions.",
+        "default": "https://api.openai.com/v1"
+      },
+      "model": {
+        "type": "string",
+        "title": "Model",
+        "description": "For example gpt-4o-mini, or gemini-3.6-flash."
+      },
+      "apiKey": {
+        "type": "string",
+        "title": "API key",
+        "sensitive": true
+      }
+    }
+  },
+  "io": {
+    "inputs": [{ "id": "request", "kind": "completion" }],
+    "outputs": [{ "id": "reply", "kind": "text" }]
+  },
+  "rewrite": false,
+  "localization": { "resources": "locales/${locale}.json", "defaultLocale": "en" }
+}

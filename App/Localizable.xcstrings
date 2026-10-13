@@ -11,6 +11,46 @@
         }
       }
     },
+    "—" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "—"
+          }
+        }
+      }
+    },
+    "“%@” is already in your library. Choose a different name to install this aibo." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”已存在。请选择其他名称以安装此 Aibo。"
+          }
+        }
+      }
+    },
+    "“%@” is already in your library. Choose a different name." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”已存在。请选择其他名称。"
+          }
+        }
+      }
+    },
+    "“%@” was not found on Petdex" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Petdex 上未找到“%@”"
+          }
+        }
+      }
+    },
     "%@ used" : {
       "localizations" : {
         "zh-Hans" : {
@@ -20,6 +60,9 @@
           }
         }
       }
+    },
+    "%lld" : {
+
     },
     "%lld %@" : {
       "localizations" : {
@@ -63,6 +106,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前 Aibo"
+          }
+        }
+      }
+    },
+    "Add" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加"
+          }
+        }
+      }
+    },
+    "Add a provider in AI Provider." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先在 AI 供应商里添加一个。"
+          }
+        }
+      }
+    },
+    "Add extra capabilities for Aibo" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为 Aibo 增加额外能力"
           }
         }
       }
@@ -117,12 +190,32 @@
         }
       }
     },
+    "Aibo mainly uses bubbles to show status." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aibo 主要使用气泡来展示状态。"
+          }
+        }
+      }
+    },
     "Aibo Size" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aibo 尺寸"
+          }
+        }
+      }
+    },
+    "Aibo supports local static images (.png), or Codex-compatible desktop pet formats (spritesheet + pet.json)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aibo 支持本地静态图片（.png），或兼容 Codex 的桌面宠物格式（spritesheet + pet.json）。"
           }
         }
       }
@@ -134,26 +227,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aibo 更新"
-          }
-        }
-      }
-    },
-    "Aibo mainly uses bubbles to show status." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aibo 主要使用气泡来展示状态。"
-          }
-        }
-      }
-    },
-    "Aibo supports local static images (.png), or Codex-compatible desktop pet formats (spritesheet + pet.json)." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aibo 支持本地静态图片（.png），或兼容 Codex 的桌面宠物格式（spritesheet + pet.json）。"
           }
         }
       }
@@ -188,6 +261,16 @@
         }
       }
     },
+    "Another plugin is already using the link “%@”." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已有插件使用了链接“%@”。"
+          }
+        }
+      }
+    },
     "Appearance" : {
       "localizations" : {
         "zh-Hans" : {
@@ -198,22 +281,22 @@
         }
       }
     },
-    "Are you sure you want to delete %lld aibos?" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "确定要删除这 %lld 个 Aibo 吗？"
-          }
-        }
-      }
-    },
     "Are you sure you want to delete “%@”?" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "确定要删除“%@”吗？"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete %lld aibos?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定要删除这 %lld 个 Aibo 吗？"
           }
         }
       }
@@ -309,6 +392,27 @@
         }
       }
     },
+    "Calls" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调用次数"
+          }
+        }
+      }
+    },
+    "Calls: %lld" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调用次数：%lld"
+          }
+        }
+      }
+    },
     "Can be set later in the menu" : {
       "localizations" : {
         "zh-Hans" : {
@@ -377,6 +481,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每天在后台检查。"
+          }
+        }
+      }
+    },
+    "Check the base URL." : {
+      "comment" : "Provider editor: test failed because the address is missing or not https-usable.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请检查接口地址。"
           }
         }
       }
@@ -461,6 +576,27 @@
         }
       }
     },
+    "Choose an Extension" : {
+      "comment" : "Heading on the bubble that lists plugins which can open a file dropped on the pet.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择扩展"
+          }
+        }
+      }
+    },
+    "Close" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        }
+      }
+    },
     "Close Bubble" : {
       "localizations" : {
         "zh-Hans" : {
@@ -477,6 +613,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 权限提示将显示为“请求权限”。点击气泡可打开 Codex。"
+          }
+        }
+      }
+    },
+    "Configured endpoint" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置中的接口地址"
+          }
+        }
+      }
+    },
+    "Confirm" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认"
           }
         }
       }
@@ -541,12 +697,185 @@
         }
       }
     },
+    "Copy Issue" : {
+      "comment" : "Copies the warning or failure details from a plugin bubble.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制详情"
+          }
+        }
+      }
+    },
+    "Missing Dependency" : {
+      "comment" : "Heading on a plugin bubble when another plugin is missing or turned off.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缺少依赖"
+          }
+        }
+      }
+    },
+    "%@ needs a plugin that provides “%@”." : {
+      "comment" : "First argument is the plugin that was opened. Second is the capability name.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@需要一个提供“%2$@”的插件。"
+          }
+        }
+      }
+    },
+    "%@ is not installed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未安装%@。"
+          }
+        }
+      }
+    },
+    "%@ is turned off." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@尚未开启。"
+          }
+        }
+      }
+    },
+    "No plugin provides “%@”." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有插件提供“%@”。"
+          }
+        }
+      }
+    },
+    "extension-outcome-running" : {
+      "comment" : "Badge on a plugin bubble while the plugin is working.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Running"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行中"
+          }
+        }
+      }
+    },
+    "extension-outcome-completed" : {
+      "comment" : "Badge on a plugin bubble after a normal result.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已完成"
+          }
+        }
+      }
+    },
+    "extension-outcome-warning" : {
+      "comment" : "Badge on a plugin bubble for a warning, including a missing dependency.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warning"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "警告"
+          }
+        }
+      }
+    },
+    "extension-outcome-failed" : {
+      "comment" : "Badge on a plugin bubble when the result was not the expected output.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "失败"
+          }
+        }
+      }
+    },
     "Couldn't Install Aibo" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法安装 Aibo"
+          }
+        }
+      }
+    },
+    "Couldn't install the plugin." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法安装插件。"
+          }
+        }
+      }
+    },
+    "Couldn't reach the provider." : {
+      "comment" : "Provider editor: test request failed.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连不上这个供应商。"
+          }
+        }
+      }
+    },
+    "Couldn't read the image." : {
+      "comment" : "The image chosen for a plugin could not be read.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取这张图片。"
+          }
+        }
+      }
+    },
+    "Couldn't read the extension catalog." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取插件列表。"
           }
         }
       }
@@ -641,12 +970,43 @@
         }
       }
     },
+    "Delete Provider" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除供应商"
+          }
+        }
+      }
+    },
+    "Depends On" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依赖"
+          }
+        }
+      }
+    },
     "Desktop aibo" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "桌面 Aibo"
+          }
+        }
+      }
+    },
+    "Development" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发"
           }
         }
       }
@@ -722,12 +1082,13 @@
         }
       }
     },
-    "Enter PetDex URL or slug to download." : {
+    "Enabled" : {
+      "comment" : "Extensions list: shown next to a plugin while its switch is on.",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "输入 PetDex URL 或 slug下载"
+            "value" : "已启用"
           }
         }
       }
@@ -752,12 +1113,43 @@
         }
       }
     },
+    "Enter PetDex URL or slug to download." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入 PetDex URL 或 slug下载"
+          }
+        }
+      }
+    },
     "Export" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "导出"
+          }
+        }
+      }
+    },
+    "Extension Update" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扩展更新"
+          }
+        }
+      }
+    },
+    "Extensions" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扩展"
           }
         }
       }
@@ -818,6 +1210,16 @@
         }
       }
     },
+    "Failed to install aibo" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装 Aibo 失败"
+          }
+        }
+      }
+    },
     "Failed to install Codex hooks" : {
       "localizations" : {
         "zh-Hans" : {
@@ -844,16 +1246,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "安装 DeepSeek 插件失败"
-          }
-        }
-      }
-    },
-    "Failed to install aibo" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安装 Aibo 失败"
           }
         }
       }
@@ -1041,16 +1433,6 @@
         }
       }
     },
-    "Hook Log" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hook 日志"
-          }
-        }
-      }
-    },
     "Hook and style settings" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1061,8 +1443,59 @@
         }
       }
     },
+    "Hook Log" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hook 日志"
+          }
+        }
+      }
+    },
+    "https://…/webhook" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "https://…/webhook"
+          }
+        }
+      }
+    },
     "Idle" : {
       "shouldTranslate" : false
+    },
+    "Info" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信息"
+          }
+        }
+      }
+    },
+    "Input" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入"
+          }
+        }
+      }
+    },
+    "Input: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入：%@"
+          }
+        }
+      }
     },
     "Install" : {
       "localizations" : {
@@ -1070,6 +1503,37 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "安装"
+          }
+        }
+      }
+    },
+    "Install a plugin from a folder. Plugins stay off until you turn one on." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以从文件夹安装插件。插件默认关闭，需要手动打开。"
+          }
+        }
+      }
+    },
+    "Install a plugin that provides “%@” first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先安装提供“%@”的插件。"
+          }
+        }
+      }
+    },
+    "Install from Folder…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从文件夹安装…"
           }
         }
       }
@@ -1104,6 +1568,16 @@
         }
       }
     },
+    "Install plugins that provide %@ first." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先安装提供%@的插件。"
+          }
+        }
+      }
+    },
     "Installed" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1117,12 +1591,33 @@
     "Jumping" : {
       "shouldTranslate" : false
     },
+    "just now" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刚刚"
+          }
+        }
+      }
+    },
     "Keep at Least One Aibo" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "至少保留一个 Aibo"
+          }
+        }
+      }
+    },
+    "Keep on Top" : {
+      "comment" : "Button that keeps the plugin window above other windows.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "窗口置顶"
           }
         }
       }
@@ -1134,6 +1629,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "语言"
+          }
+        }
+      }
+    },
+    "Leave blank to keep the saved key." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空则保留已保存的密钥。"
           }
         }
       }
@@ -1239,12 +1744,12 @@
         }
       }
     },
-    "Local URL" : {
+    "Local Permission" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "本地 URL"
+            "value" : "本地权限"
           }
         }
       }
@@ -1259,12 +1764,43 @@
         }
       }
     },
+    "Local URL" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地 URL"
+          }
+        }
+      }
+    },
     "Logs" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "日志"
+          }
+        }
+      }
+    },
+    "Model" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型"
+          }
+        }
+      }
+    },
+    "Model Name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型名称"
           }
         }
       }
@@ -1319,12 +1855,53 @@
         }
       }
     },
+    "Network Permission" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网络权限"
+          }
+        }
+      }
+    },
+    "Network: %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网络：%@"
+          }
+        }
+      }
+    },
+    "New" : {
+      "comment" : "Extensions \u2192 Installed: a newer catalog version is available. Replaces the Enabled label.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "\u65b0\u7248\u672c"
+          }
+        }
+      }
+    },
     "New Aibo" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加 Aibo"
+          }
+        }
+      }
+    },
+    "New Provider" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建供应商"
           }
         }
       }
@@ -1349,12 +1926,64 @@
         }
       }
     },
+    "No extra permissions" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无额外权限"
+          }
+        }
+      }
+    },
     "No Petdex Aibo" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "无 Petdex Aibo"
+          }
+        }
+      }
+    },
+    "No providers yet" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有供应商"
+          }
+        }
+      }
+    },
+    "No plugins are turned on" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有已开启的插件"
+          }
+        }
+      }
+    },
+    "No plugins installed" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未安装插件"
+          }
+        }
+      }
+    },
+    "None" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无"
           }
         }
       }
@@ -1379,6 +2008,16 @@
         }
       }
     },
+    "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Click the bubble to open DSH." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅供观察的 Cordis 插件。会在 ~/.dsh/cordis.patch.yml（或 $DSH_HOME）中写入标记代码块。安装后请重启 `dsh`。请勿同时使用 `dsh plugin add` 添加同一插件。点击气泡可打开 DSH。"
+          }
+        }
+      }
+    },
     "OK" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1389,22 +2028,67 @@
         }
       }
     },
-    "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Clicking the bubble does not switch apps yet." : {
+    "Open in Window" : {
+      "comment" : "Button on a plugin bubble that opens the card in its own window.",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "仅供观察的 Cordis 插件。会在 ~/.dsh/cordis.patch.yml（或 $DSH_HOME）中写入标记代码块。安装后请重启 `dsh`。请勿同时使用 `dsh plugin add` 添加同一插件。点击气泡暂不支持切换应用。"
+            "value" : "在窗口中打开"
           }
         }
       }
     },
-    "PREVIEW" : {
+    "Optional. Leave blank to show the model name." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "预览"
+            "value" : "选填。留空则显示模型名称。"
+          }
+        }
+      }
+    },
+    "Output" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输出"
+          }
+        }
+      }
+    },
+    "Output: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输出：%@"
+          }
+        }
+      }
+    },
+    "Permissions" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "权限"
+          }
+        }
+      }
+    },
+    "Permissions: %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "权限：%@"
           }
         }
       }
@@ -1419,16 +2103,6 @@
         }
       }
     },
-    "PetDex URL or slug" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PetDex URL 或 slug"
-          }
-        }
-      }
-    },
     "Petdex API error" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1439,12 +2113,75 @@
         }
       }
     },
+    "PetDex URL or slug" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PetDex URL 或 slug"
+          }
+        }
+      }
+    },
     "Pixel Optimization" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "像素优化"
+          }
+        }
+      }
+    },
+    "Paste" : {
+      "comment" : "Context menu on a plugin image field. Pastes the clipboard image.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴"
+          }
+        }
+      }
+    },
+    "Plugin failed" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件运行失败"
+          }
+        }
+      }
+    },
+    "Plugin Settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件设置"
+          }
+        }
+      }
+    },
+    "Plugins" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件"
+          }
+        }
+      }
+    },
+    "Plugins stay off until you turn one on." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件默认关闭，需要手动打开。"
           }
         }
       }
@@ -1469,12 +2206,59 @@
         }
       }
     },
+    "position.down" : {
+      "comment" : "General → Bubble → Position: bubble below aibo. Not webhook connectivity Down.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Down"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下"
+          }
+        }
+      }
+    },
     "Preview" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "预览"
+          }
+        }
+      }
+    },
+    "PREVIEW" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预览"
+          }
+        }
+      }
+    },
+    "Providers" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供应商"
+          }
+        }
+      }
+    },
+    "Provides a model to other plugins" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向其他插件提供模型"
           }
         }
       }
@@ -1846,6 +2630,17 @@
         }
       }
     },
+    "Stop Keeping on Top" : {
+      "comment" : "Button that lets the plugin window go behind other windows.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消置顶"
+          }
+        }
+      }
+    },
     "Stopped" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1870,12 +2665,75 @@
         }
       }
     },
+    "Target language" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目标语言"
+          }
+        }
+      }
+    },
+    "Test" : {
+      "comment" : "Provider editor: button that sends a short request to the draft provider.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "测试"
+          }
+        }
+      }
+    },
+    "Text to translate" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要翻译的文字"
+          }
+        }
+      }
+    },
+    "That address can't be used." : {
+      "comment" : "Provider editor: test refused a local or private address.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不能使用这个地址。"
+          }
+        }
+      }
+    },
     "That name is already used." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "该名称已被使用。"
+          }
+        }
+      }
+    },
+    "The AI provider plugin is off." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 供应商插件未开启。"
+          }
+        }
+      }
+    },
+    "The provider responded." : {
+      "comment" : "Provider editor: test request succeeded.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "供应商有响应。"
           }
         }
       }
@@ -1900,12 +2758,43 @@
         }
       }
     },
+    "This image is too large." : {
+      "comment" : "The image chosen for a plugin is over the size limit.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张图片太大了。"
+          }
+        }
+      }
+    },
     "This file isn’t a supported image or Petdex pack" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "该文件不是受支持的图片或 Petdex 资源包"
+          }
+        }
+      }
+    },
+    "This plugin is not in the catalog." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插件列表里没有这个插件。"
+          }
+        }
+      }
+    },
+    "This removes the plugin and its settings." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这会删除插件及其设置。"
           }
         }
       }
@@ -1970,6 +2859,16 @@
         }
       }
     },
+    "Tunnel is down, take a look!" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tunnel 已断开，快去查看！"
+          }
+        }
+      }
+    },
     "Tunnel URL" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1980,12 +2879,42 @@
         }
       }
     },
-    "Tunnel is down, take a look!" : {
+    "Turn On" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tunnel 已断开，快去查看！"
+            "value" : "开启"
+          }
+        }
+      }
+    },
+    "Turn On “%@”?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要开启“%@”吗？"
+          }
+        }
+      }
+    },
+    "Uninstall" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卸载"
+          }
+        }
+      }
+    },
+    "Uninstall “%@”?" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要卸载“%@”吗？"
           }
         }
       }
@@ -2052,12 +2981,76 @@
         }
       }
     },
+    "Upgrade" : {
+      "comment" : "Extensions → Info: install a newer catalog version.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升级"
+          }
+        }
+      }
+    },
+    "URL Scheme" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL 方案"
+          }
+        }
+      }
+    },
+    "Use a PNG or JPEG image." : {
+      "comment" : "The file chosen for a plugin is not a PNG or JPEG.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用 PNG 或 JPEG 图片。"
+          }
+        }
+      }
+    },
+    "Use an https address." : {
+      "comment" : "Provider editor: test refused a non-https URL.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请使用 https 地址。"
+          }
+        }
+      }
+    },
     "Use Default" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用默认"
+          }
+        }
+      }
+    },
+    "Used By" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "被依赖"
+          }
+        }
+      }
+    },
+    "v%@ New" : {
+      "comment" : "About → Updates: pending version badge.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@ 新版本"
           }
         }
       }
@@ -2071,6 +3064,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仅适用于 V2 资源"
+          }
+        }
+      }
+    },
+    "Version" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
           }
         }
       }
@@ -2137,100 +3140,22 @@
         }
       }
     },
+    "Working…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在处理…"
+          }
+        }
+      }
+    },
     "You must keep at least one aibo." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "你必须保留至少一个 Aibo。"
-          }
-        }
-      }
-    },
-    "https://…/webhook" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "https://…/webhook"
-          }
-        }
-      }
-    },
-    "just now" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刚刚"
-          }
-        }
-      }
-    },
-    "position.down" : {
-      "comment" : "General → Bubble → Position: bubble below aibo. Not webhook connectivity Down.",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Down"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下"
-          }
-        }
-      }
-    },
-    "v%@ New" : {
-      "comment" : "About → Updates: pending version badge.",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "v%@ 新版本"
-          }
-        }
-      }
-    },
-    "—" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "—"
-          }
-        }
-      }
-    },
-    "“%@” is already in your library. Choose a different name to install this aibo." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@”已存在。请选择其他名称以安装此 Aibo。"
-          }
-        }
-      }
-    },
-    "“%@” is already in your library. Choose a different name." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“%@”已存在。请选择其他名称。"
-          }
-        }
-      }
-    },
-    "“%@” was not found on Petdex" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Petdex 上未找到“%@”"
           }
         }
       }
