@@ -45,7 +45,6 @@ function missingField(settings, params) {
 function buildRequest(settings, input) {
   const format = settings.format || "chat-completions";
   const base = resolvedBase(settings, format);
-  const maxTokens = Math.min(Number(input.maxTokens) || 1024, 1024);
   if (format === "google-interactions") {
     return {
       url: join(base, "/interactions"),
@@ -71,8 +70,7 @@ function buildRequest(settings, input) {
     },
     body: JSON.stringify({
       model: settings.model,
-      messages: chatMessages(input),
-      max_tokens: maxTokens
+      messages: chatMessages(input)
     })
   };
 }

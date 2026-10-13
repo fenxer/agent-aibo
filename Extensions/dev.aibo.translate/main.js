@@ -37,8 +37,7 @@ export function run(params) {
             "You are a translator. Translate the user's text into " +
             language +
             ". Reply with the translation only.",
-          messages: [{ role: "user", text: text }],
-          maxTokens: 1024
+          messages: [{ role: "user", text: text }]
         }
       }
     },

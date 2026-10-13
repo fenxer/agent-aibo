@@ -4,7 +4,7 @@
   "slug": "ai-provider",
   "name": "AI Provider",
   "description": "One place to configure a model API. Other plugins send completion requests here.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "aibo",
   "icon": {
     "symbol": "sparkle",

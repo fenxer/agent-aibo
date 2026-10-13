@@ -4,7 +4,7 @@
   "slug": "alt-text",
   "name": "Alt Text",
   "description": "Write alt text for a PNG or JPEG image.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "aibo",
   "icon": {
     "symbol": "photo.on.rectangle.angled.fill",

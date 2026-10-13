@@ -41,8 +41,7 @@ export function run(params) {
             "Reply in " +
             language +
             " only, with the alt text and nothing else.",
-          messages: [{ role: "user", text: prompt, image: image }],
-          maxTokens: 512
+          messages: [{ role: "user", text: prompt, image: image }]
         }
       }
     },

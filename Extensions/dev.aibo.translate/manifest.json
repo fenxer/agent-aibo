@@ -4,7 +4,7 @@
   "slug": "translate",
   "name": "Translate",
   "description": "Translate a passage into Simplified Chinese, English, or Japanese.",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "aibo",
   "icon": {
     "symbol": "character.bubble.fill"
