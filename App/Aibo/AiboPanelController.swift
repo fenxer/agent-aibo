@@ -978,14 +978,26 @@ final class AiboPanelController {
     /// Plugin prompt sits farther from the pet than hook bubbles. Nil when no prompt is open.
     /// Adds shadow room only when this card is the bottom edge, matching the padding in `ExtensionBubbleColumn`.
     private var extensionLayoutHeights: [CGFloat]? {
+        extensionCardHeights(hookBubbleCount: effectiveBubbleCount(AiboRuntime.shared.bubbleItems))
+    }
+
+    private func extensionCardHeights(hookBubbleCount: Int) -> [CGFloat]? {
         guard !isLaunchPortalPlaying else { return nil }
         guard let heights = ExtensionCenter.shared.layoutHeights else { return nil }
         let room = AiboAppearance.pluginBottomShadowRoom(
             placement: AiboLibraryStore.shared.selectedRecord.bubblePlacement,
-            hookBubbleCount: effectiveBubbleCount(AiboRuntime.shared.bubbleItems)
+            hookBubbleCount: hookBubbleCount
         )
         guard room > 0 else { return heights }
         return heights.map { $0 + room }
+    }
+
+    /// Bubbles already given a frame. A growth pass keeps new hook cards out of
+    /// this list so the plugin row does not collapse before they mount.
+    private var presentedBubbleItems: [StatusBubbleItem] {
+        let items = AiboRuntime.shared.bubbleItems
+        guard isFrameGrowthPending else { return items }
+        return items.filter { presentedBubbleIDs.contains($0.id) }
     }
 
     /// Side plugin-only slot. Matches the panel's row height so the pet stays centered on the card.
@@ -995,8 +1007,11 @@ final class AiboPanelController {
         if isExtensionCardHeld { return nil }
         if heldNearBubble != nil { return nil }
         if let pluginPoofSlotSize { return pluginPoofSlotSize }
-        guard AiboRuntime.shared.bubbleItems.isEmpty else { return nil }
-        guard let height = extensionLayoutHeights?.first else { return nil }
+        // A hook bubble that is not on screen yet must not drop this slot.
+        // The card would lose its column and paint at the panel's leading edge,
+        // then jump again to sit above the hook bubble.
+        guard presentedBubbleItems.isEmpty else { return nil }
+        guard let height = extensionCardHeights(hookBubbleCount: 0)?.first else { return nil }
         return CGSize(width: bubbleMaxWidth, height: height)
     }
 

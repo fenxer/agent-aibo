@@ -57,6 +57,28 @@ struct ExtensionWindowTitleBand: ViewModifier {
     }
 }
 
+/// Header close control. The glyph stays 11pt; the hit target fills the 24pt header row.
+struct ExtensionBubbleCloseButton: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 16, height: 16)
+                .frame(
+                    width: ExtensionBubbleMetrics.cornerButtonSide,
+                    height: ExtensionBubbleMetrics.cornerButtonSide,
+                    alignment: .trailing
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Close"))
+    }
+}
+
 /// 24×24 corner control. The bubble opens a window; the window pins itself above other apps.
 struct ExtensionBubbleCornerButton: View {
     @Environment(\.extensionBubbleChrome) private var chrome

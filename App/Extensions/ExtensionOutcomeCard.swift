@@ -274,14 +274,7 @@ private struct ExtensionOutcomeHeader: View {
     @ViewBuilder
     private var closeButton: some View {
         if let onClose {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16, height: 16)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Text("Close"))
+            ExtensionBubbleCloseButton(action: onClose)
         }
     }
 }

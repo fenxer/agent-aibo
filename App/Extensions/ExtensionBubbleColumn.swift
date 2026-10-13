@@ -942,14 +942,7 @@ private struct ExtensionFileChoiceCard: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 Spacer(minLength: 8)
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text("Close"))
+                ExtensionBubbleCloseButton(action: onClose)
             }
             .frame(height: ExtensionBubbleMetrics.pluginHeaderHeight)
             Text(verbatim: choice.fileName)
