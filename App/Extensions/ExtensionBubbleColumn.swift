@@ -586,6 +586,7 @@ private struct ExtensionPromptForm: View {
             stack.frame(width: size.width, height: size.height, alignment: .top)
         } else {
             ScrollView { stack }
+                .scrollContentBackground(.hidden)
                 .frame(width: size.width, height: size.height)
         }
     }
@@ -614,6 +615,8 @@ private struct ExtensionPromptPlate: View {
     var controls: [ExtensionPromptControl]
     var session: ExtensionPromptSession
 
+    @Environment(\.extensionBubbleChrome) private var chrome
+
     var body: some View {
         VStack(spacing: 0) {
             ForEach(controls) { control in
@@ -629,8 +632,15 @@ private struct ExtensionPromptPlate: View {
             }
         }
         .background {
-            RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.groupCornerRadius, style: .continuous)
-                .fill(Color(nsColor: .tertiarySystemFill))
+            if chrome == .window {
+                ExtensionWindowContentFill(
+                    topRadius: ExtensionBubbleMetrics.groupCornerRadius,
+                    color: Color(nsColor: .tertiarySystemFill)
+                )
+            } else {
+                RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.groupCornerRadius, style: .continuous)
+                    .fill(Color(nsColor: .tertiarySystemFill))
+            }
         }
     }
 

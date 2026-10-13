@@ -687,6 +687,33 @@ final class ExtensionCenter {
         AiboPanelController.shared.clearExtensionCardFrame()
     }
 
+    #if DEBUG
+    /// Sample plugin window for layout checks. Does not run the plugin.
+    func presentDebugWindow(running: Bool) {
+        fileChoice = nil
+        runGeneration += 1
+        let record = plugins.first { $0.manifest.slug == "translate" }
+            ?? plugins.first { $0.manifest.hasManualTrigger }
+        let pluginID = record?.id ?? "debug.extension-window"
+        let session = ExtensionPromptSession(
+            pluginID: pluginID,
+            pluginName: record?.copy.name ?? "Translate",
+            groups: [],
+            values: [:],
+            toggles: [:],
+            required: []
+        )
+        if running {
+            session.phase = .running(message: runningStatus(for: pluginID))
+        } else {
+            let summary = "The world is so big."
+            session.phase = .result(summary: summary, copyText: summary)
+        }
+        self.session = session
+        ExtensionBubbleWindowController.shared.detach()
+    }
+    #endif
+
     private func present(_ outcome: RunOutcome) {
         switch outcome {
         case .bubbles(let bubbles):

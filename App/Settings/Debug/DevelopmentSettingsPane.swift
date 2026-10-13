@@ -75,6 +75,7 @@ struct DevelopmentSettingsPane: View {
             musicNotesSection
             MediaRemotePayloadDebugSection()
             DistributedNotificationSnifferSection()
+            extensionWindowSection
             extensionCatalogSection
         }
         .formStyle(.grouped)
@@ -382,6 +383,28 @@ struct DevelopmentSettingsPane: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         ingestStatus = "Copied \(runtime.ingestLogEntryCount) lines"
+    }
+
+    private var extensionWindowSection: some View {
+        Section {
+            HStack {
+                Button {
+                    ExtensionCenter.shared.presentDebugWindow(running: true)
+                } label: {
+                    Text(verbatim: "Show Running Window")
+                }
+                Button {
+                    ExtensionCenter.shared.presentDebugWindow(running: false)
+                } label: {
+                    Text(verbatim: "Show Completed Window")
+                }
+            }
+            Text(verbatim: "Opens the plugin window with sample text. Uses Translate when it is installed. Replaces the current plugin card and does not call the plugin.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text(verbatim: "Extension Window")
+        }
     }
 
     private var extensionCatalogSection: some View {

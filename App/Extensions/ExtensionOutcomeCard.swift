@@ -119,6 +119,7 @@ struct ExtensionRunningCard: View {
                     .textSelection(.enabled)
             }
             .scrollBounceBehavior(.basedOnSize)
+            .scrollContentBackground(.hidden)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(ExtensionBubbleMetrics.runningWellPadding)
             .background { well }
@@ -132,9 +133,17 @@ struct ExtensionRunningCard: View {
         }
     }
 
+    @ViewBuilder
     private var well: some View {
-        RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.inputCornerRadius, style: .continuous)
-            .fill(Color(nsColor: .secondarySystemFill))
+        if chrome == .window {
+            ExtensionWindowContentFill(
+                topRadius: ExtensionBubbleMetrics.inputCornerRadius,
+                color: Color(nsColor: .secondarySystemFill)
+            )
+        } else {
+            RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.inputCornerRadius, style: .continuous)
+                .fill(Color(nsColor: .secondarySystemFill))
+        }
     }
 }
 
@@ -161,8 +170,35 @@ struct ExtensionOutcomeCard: View {
     private var stack: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
             ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: kind)
+            if chrome == .window {
+                windowContent
+            } else {
+                ExtensionOutcomeBody(text: text)
+                ExtensionOutcomeActions(copiesIssue: copiesIssue, onCopy: onCopy, onClose: onClose)
+            }
+        }
+    }
+
+    /// The result fills the space above the buttons. The platter stops there.
+    private var windowContent: some View {
+        VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
             ExtensionOutcomeBody(text: text)
-                .padding(.top, chrome == .window ? -ExtensionBubbleMetrics.windowHeaderContentTrim : 0)
+                .padding(ExtensionBubbleMetrics.formPadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background {
+                    ExtensionWindowContentFill(
+                        topRadius: ExtensionBubbleMetrics.groupCornerRadius,
+                        color: Color(nsColor: .secondarySystemFill)
+                    )
+                }
+                .clipShape(
+                    ConcentricRectangle(
+                        uniformTopCorners: .fixed(ExtensionBubbleMetrics.groupCornerRadius),
+                        uniformBottomCorners: .concentric(
+                            minimum: .fixed(ExtensionBubbleMetrics.groupCornerRadius)
+                        )
+                    )
+                )
             ExtensionOutcomeActions(copiesIssue: copiesIssue, onCopy: onCopy, onClose: onClose)
         }
     }
@@ -341,6 +377,7 @@ private struct ExtensionOutcomeBody: View {
                 .textSelection(.enabled)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .scrollContentBackground(chrome == .window ? .hidden : .automatic)
     }
 }
 

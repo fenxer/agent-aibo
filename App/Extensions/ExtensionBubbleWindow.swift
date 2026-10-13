@@ -79,9 +79,40 @@ struct ExtensionBubbleCloseButton: View {
     }
 }
 
+/// Corner control drawn on the pet. A finished card does not make the panel key,
+/// and the result text is hit-tested over this glyph, so the plain button never
+/// runs. The panel opens the window from this frame instead.
+final class ExtensionBubbleCornerToken {
+    var frame: CGRect = .null
+    var perform: @MainActor () -> Void = {}
+}
+
+enum ExtensionBubbleCornerTracker {
+    private static var tokens: [ExtensionBubbleCornerToken] = []
+
+    static func register(_ token: ExtensionBubbleCornerToken) {
+        guard tokens.contains(where: { $0 === token }) == false else { return }
+        tokens.append(token)
+    }
+
+    static func unregister(_ token: ExtensionBubbleCornerToken) {
+        tokens.removeAll { $0 === token }
+    }
+
+    @MainActor
+    static func perform(at point: NSPoint) -> Bool {
+        for token in tokens.reversed() where token.frame.contains(point) {
+            token.perform()
+            return true
+        }
+        return false
+    }
+}
+
 /// 24×24 corner control. The bubble opens a window; the window pins itself above other apps.
 struct ExtensionBubbleCornerButton: View {
     @Environment(\.extensionBubbleChrome) private var chrome
+    @State private var token = ExtensionBubbleCornerToken()
 
     private var window = ExtensionBubbleWindowController.shared
 
@@ -100,6 +131,25 @@ struct ExtensionBubbleCornerButton: View {
         .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel(Text(help))
+        .onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .named(AiboPanelSpace.name))
+        } action: { frame in
+            guard chrome == .anchored else {
+                token.frame = .null
+                ExtensionBubbleCornerTracker.unregister(token)
+                return
+            }
+            guard frame.width > 8, frame.height > 8, frame.width < 48, frame.height < 48 else {
+                token.frame = .null
+                return
+            }
+            token.frame = frame
+            token.perform = { window.detach() }
+            ExtensionBubbleCornerTracker.register(token)
+        }
+        .onDisappear {
+            ExtensionBubbleCornerTracker.unregister(token)
+        }
     }
 
     private var symbolName: String {
@@ -153,6 +203,7 @@ struct ExtensionBubbleWindowView: View {
             .environment(\.extensionWindowHeaderLeading, headerLeading)
             .ignoresSafeArea(edges: .top)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .containerShape(ExtensionWindowShape.shape)
             .background(ExtensionWindowGlass.scrim)
             .background { ExtensionWindowGlassBackdrop() }
             .clipShape(
@@ -177,6 +228,30 @@ struct ExtensionBubbleWindowView: View {
     /// Icon starts just after the zoom button. The title band cancels the card's own inset.
     private var headerLeading: CGFloat {
         windowModel.trafficLightTrailing + ExtensionBubbleMetrics.windowControlGap
+    }
+}
+
+/// Same outline as the glass. Content inside uses this so a nested corner can be concentric.
+enum ExtensionWindowShape {
+    static let shape = RoundedRectangle(
+        cornerRadius: ExtensionBubbleMetrics.windowCornerRadius,
+        style: .continuous
+    )
+}
+
+/// Gray content platter in the detached window.
+/// Top corners stay a fixed radius; they sit under the title band, away from the window.
+/// Bottom corners are concentric with the window, so they share its corner center.
+struct ExtensionWindowContentFill: View {
+    var topRadius: CGFloat
+    var color: Color
+
+    var body: some View {
+        ConcentricRectangle(
+            uniformTopCorners: .fixed(topRadius),
+            uniformBottomCorners: .concentric(minimum: .fixed(topRadius))
+        )
+        .fill(color)
     }
 }
 
