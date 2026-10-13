@@ -2133,6 +2133,17 @@
         }
       }
     },
+    "Paste" : {
+      "comment" : "Context menu on a plugin image field. Pastes the clipboard image.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粘贴"
+          }
+        }
+      }
+    },
     "Plugin failed" : {
       "localizations" : {
         "zh-Hans" : {

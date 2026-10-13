@@ -133,6 +133,23 @@ final class ExtensionPromptSession {
         values[key] = url.path
     }
 
+    /// Clipboard image into the first image field. Text fields keep their own paste.
+    @discardableResult
+    func pasteImageFromClipboard() -> Bool {
+        guard case .editing = phase else { return false }
+        guard let key = groups.flatMap(\.controls).first(where: { $0.kind == .image })?.key else { return false }
+        return pasteImage(for: key)
+    }
+
+    @discardableResult
+    func pasteImage(for key: String) -> Bool {
+        guard case .editing = phase else { return false }
+        guard groups.flatMap(\.controls).contains(where: { $0.key == key && $0.kind == .image }) else { return false }
+        guard let url = ExtensionClipboardImage.fileURL() else { return false }
+        values[key] = url.path
+        return true
+    }
+
     var layoutHeights: [CGFloat] {
         switch phase {
         case .editing:

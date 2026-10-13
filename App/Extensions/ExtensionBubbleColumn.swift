@@ -494,13 +494,41 @@ private struct ExtensionPromptForm: View {
     var onClose: () -> Void
 
     @Environment(\.extensionBubbleChrome) private var chrome
+    @State private var imagePasteMonitor: Any?
 
     var body: some View {
-        if chrome == .window {
-            windowBody
-        } else {
-            anchoredBody
+        pasteAware {
+            if chrome == .window {
+                windowBody
+            } else {
+                anchoredBody
+            }
         }
+    }
+
+    /// `Command-V` fills the image field while this card is up. A focused text field keeps the keystroke.
+    private func pasteAware<V: View>(@ViewBuilder content: () -> V) -> some View {
+        content()
+            .onAppear(perform: installImagePasteMonitor)
+            .onDisappear(perform: removeImagePasteMonitor)
+    }
+
+    private func installImagePasteMonitor() {
+        guard imagePasteMonitor == nil else { return }
+        guard session.groups.flatMap(\.controls).contains(where: { $0.kind == .image }) else { return }
+        let session = session
+        let chrome = chrome
+        imagePasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard ExtensionClipboardImage.isPasteShortcut(event, chrome: chrome) else { return event }
+            return session.pasteImageFromClipboard() ? nil : event
+        }
+    }
+
+    private func removeImagePasteMonitor() {
+        if let imagePasteMonitor {
+            NSEvent.removeMonitor(imagePasteMonitor)
+        }
+        imagePasteMonitor = nil
     }
 
     private var anchoredBody: some View {
@@ -631,6 +659,10 @@ private struct ExtensionPromptPlate: View {
         case .image:
             ExtensionPromptImageRow(title: control.title, path: stringBinding(control.key)) {
                 session.chooseImage(for: control.key)
+            } onPaste: {
+                if session.pasteImage(for: control.key) == false {
+                    NSSound.beep()
+                }
             }
         }
     }
@@ -867,6 +899,7 @@ private struct ExtensionPromptImageRow: View {
     var title: String
     @Binding var path: String
     var onPick: () -> Void
+    var onPaste: () -> Void
 
     var body: some View {
         ExtensionPromptLabeledRow(title: title, height: ExtensionBubbleMetrics.imageRowHeight) {
@@ -889,6 +922,9 @@ private struct ExtensionPromptImageRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(title)
+            .contextMenu {
+                Button("Paste", action: onPaste)
+            }
         }
     }
 }
