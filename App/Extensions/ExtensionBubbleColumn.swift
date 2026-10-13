@@ -307,8 +307,7 @@ struct ExtensionBubbleColumn: View {
                     name: session.pluginName,
                     directory: pluginDirectory(session),
                     icon: pluginIcon(session),
-                    message: message,
-                    onClose: { center.cancelSession() }
+                    message: message
                 )
             }
         case .result(let summary, _):

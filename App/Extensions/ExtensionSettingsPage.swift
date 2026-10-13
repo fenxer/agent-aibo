@@ -835,7 +835,14 @@ private struct ProviderEditorSheet: View {
         self.onDelete = onDelete
         self.onCancel = onCancel
         _displayName = State(initialValue: token.displayName)
-        _values = State(initialValue: token.values)
+        var initial = token.values
+        if record.manifest.settings?.properties["baseURL"] != nil {
+            initial["baseURL"] = ProviderAPIDefaults.displayBase(
+                format: initial["format"] ?? "",
+                baseURL: initial["baseURL"] ?? ""
+            )
+        }
+        _values = State(initialValue: initial)
     }
 
     var body: some View {
@@ -954,7 +961,7 @@ private struct ProviderEditorSheet: View {
             field: field,
             strings: record.strings
         )
-        return Picker(title, selection: valueBinding(key)) {
+        return Picker(title, selection: key == "format" ? formatBinding() : valueBinding(key)) {
             ForEach(field.oneOf, id: \.value) { choice in
                 Text(
                     ExtensionCopyResolver.choiceTitle(
@@ -973,6 +980,21 @@ private struct ProviderEditorSheet: View {
         Binding(
             get: { values[key] ?? "" },
             set: { values[key] = $0 }
+        )
+    }
+
+    /// Switching API format fills the stock host for that format. A custom address is left alone.
+    private func formatBinding() -> Binding<String> {
+        Binding(
+            get: { values["format"] ?? "" },
+            set: { newValue in
+                values["format"] = newValue
+                guard record.manifest.settings?.properties["baseURL"] != nil else { return }
+                values["baseURL"] = ProviderAPIDefaults.displayBase(
+                    format: newValue,
+                    baseURL: values["baseURL"] ?? ""
+                )
+            }
         )
     }
 

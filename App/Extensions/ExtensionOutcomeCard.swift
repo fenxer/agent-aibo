@@ -89,7 +89,6 @@ struct ExtensionRunningCard: View {
     var directory: URL?
     var icon: ExtensionIcon
     var message: String
-    var onClose: () -> Void
 
     @Environment(\.extensionBubbleChrome) private var chrome
 
@@ -103,7 +102,7 @@ struct ExtensionRunningCard: View {
 
     private var stack: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
-            ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: .running, onClose: onClose)
+            ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: .running)
             messageWell
                 .padding(.top, chrome == .window ? -ExtensionBubbleMetrics.windowHeaderContentTrim : 0)
         }

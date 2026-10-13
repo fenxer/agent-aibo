@@ -24,6 +24,7 @@ Stays perched on your desktop, broadcasting two types of info via speech bubbles
   - Music notes when the system is playing audio
   - Pixel-art sprite display optimization
   - Slice spritesheets to keep resident resources down
+  - Minimalist extension
 
 ## Roadmap
 

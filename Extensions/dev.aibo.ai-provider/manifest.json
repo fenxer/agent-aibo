@@ -40,7 +40,7 @@
       "baseURL": {
         "type": "string",
         "title": "Base URL",
-        "description": "Chat Completions root, usually ending in /v1. Leave the default when using Google Interactions.",
+        "description": "Filled in for the API format you choose. Change it if you use another host.",
         "default": "https://api.openai.com/v1"
       },
       "model": {

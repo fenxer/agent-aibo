@@ -4,7 +4,6 @@
   "io.inputs.image": "Image",
   "io.outputs.text": "Text",
   "settings.prompt.title": "Prompt",
-  "settings.prompt.description": "Sent with the image. The model replies with the alt text only.",
   "settings.model.title": "Model",
   "settings.language.title": "Language",
   "settings.language.oneOf.zh-Hans": "Simplified Chinese",

@@ -1382,10 +1382,35 @@ final class ExtensionCenter {
     }
 }
 
+/// Stock hosts for the AI provider formats. An empty base URL, or the other format's stock host,
+/// is rewritten so the field shows the address the request will actually use. A host the user typed stays.
+enum ProviderAPIDefaults {
+    static let openAIBase = "https://api.openai.com/v1"
+    static let googleBase = "https://generativelanguage.googleapis.com/v1beta"
+
+    static func displayBase(format: String, baseURL: String) -> String {
+        let current = stripped(baseURL)
+        switch format {
+        case "google-interactions":
+            if current.isEmpty || current == openAIBase { return googleBase }
+            return current
+        case "chat-completions":
+            if current.isEmpty || current == googleBase { return openAIBase }
+            return current
+        default:
+            return current
+        }
+    }
+
+    static func stripped(_ baseURL: String) -> String {
+        var base = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        while base.hasSuffix("/") { base.removeLast() }
+        return base
+    }
+}
+
 /// Builds the same request the AI provider plugin sends, then reads a pass or fail.
 private enum ProviderProbe {
-    private static let openAIDefault = "https://api.openai.com/v1"
-    private static let googleDefault = "https://generativelanguage.googleapis.com/v1beta"
 
     static func request(
         format: String,
@@ -1459,13 +1484,11 @@ private enum ProviderProbe {
     }
 
     private static func resolvedBase(format: String, baseURL: String) -> String {
-        var base = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        while base.hasSuffix("/") { base.removeLast() }
-        if format == "google-interactions" {
-            if base.isEmpty || base == openAIDefault { return googleDefault }
-            return base
-        }
-        return base.isEmpty ? openAIDefault : base
+        let displayed = ProviderAPIDefaults.displayBase(format: format, baseURL: baseURL)
+        if !displayed.isEmpty { return displayed }
+        return format == "google-interactions"
+            ? ProviderAPIDefaults.googleBase
+            : ProviderAPIDefaults.openAIBase
     }
 
     private static func chatURL(_ base: String) -> String {

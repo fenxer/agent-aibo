@@ -7,7 +7,7 @@
   "settings.format.oneOf.chat-completions": "Chat Completions",
   "settings.format.oneOf.google-interactions": "Google Interactions",
   "settings.baseURL.title": "接口地址",
-  "settings.baseURL.description": "Chat Completions 一般填到 /v1。用 Google Interactions 时可以保持默认地址。",
+  "settings.baseURL.description": "会按所选接口格式填好。如果用的是别的服务，再改成对应地址。",
   "settings.model.title": "模型",
   "settings.model.description": "例如 gpt-4o-mini，或 gemini-3.6-flash。",
   "settings.apiKey.title": "API 密钥"

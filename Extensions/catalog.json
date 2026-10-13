@@ -2,7 +2,7 @@
   "apiVersion": 1,
   "repository": "fenxer/agent-aibo",
   "ref": "main",
-  "updated": "2026-10-12",
+  "updated": "2026-10-13",
   "revoked": [],
   "extensions": [
     {
@@ -80,7 +80,7 @@
           "description": "为 PNG 或 JPEG 图片生成替代文本。"
         }
       },
-      "version": "1.0.0",
+      "version": "1.0.1",
       "extensionApiVersion": 1,
       "compatibility": { "aibo": ">=1.1.0" },
       "provides": [],

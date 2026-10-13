@@ -4,7 +4,7 @@
   "slug": "alt-text",
   "name": "Alt Text",
   "description": "Write alt text for a PNG or JPEG image.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "aibo",
   "icon": {
     "symbol": "photo.on.rectangle.angled.fill",
@@ -26,7 +26,6 @@
       "prompt": {
         "type": "string",
         "title": "Prompt",
-        "description": "Sent with the image. The model replies with the alt text only.",
         "default": "生成图片的 alt text，简洁一些"
       },
       "model": {
