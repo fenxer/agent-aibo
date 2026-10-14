@@ -56,6 +56,7 @@ struct AiboSwitchingSpriteView: View {
                     toImage: toImage,
                     size: layoutSize,
                     generation: generation,
+                    nearest: usesNearestSampling,
                     onFirstFrame: { metalReady = true },
                     onCompleted: finishMorph
                 )
@@ -95,6 +96,12 @@ struct AiboSwitchingSpriteView: View {
 
     private var outgoingRecord: AiboLibraryRecord? {
         Self.record(id: switchSignal.fromID)
+    }
+
+    /// The wipe lands on `record`. Match that sprite's filter so the last
+    /// frame does not change sampling when the live layer appears.
+    private var usesNearestSampling: Bool {
+        record.pixelOptimizationEnabled && record.kind != .builtInDefault
     }
 
     private var revealedLook: PetdexLookDirection? {
@@ -234,6 +241,7 @@ private struct AiboSwitchMorphView: NSViewRepresentable {
     var toImage: NSImage
     var size: CGSize
     var generation: Int
+    var nearest: Bool
     var onFirstFrame: () -> Void
     var onCompleted: (Int) -> Void
 
@@ -252,6 +260,7 @@ private struct AiboSwitchMorphView: NSViewRepresentable {
             from: fromImage,
             to: toImage,
             generation: generation,
+            nearest: nearest,
             onFirstFrame: {
                 context.coordinator.onFirstFrame?()
             },
@@ -287,6 +296,7 @@ private final class AiboSwitchMetalView: NSView {
     private var displayLink: CADisplayLink?
     private var fromTexture: MTLTexture?
     private var toTexture: MTLTexture?
+    private var nearestSampling = false
     private var fromImage: NSImage?
     private var toImage: NSImage?
     private var generation = 0
@@ -367,11 +377,13 @@ private final class AiboSwitchMetalView: NSView {
         from: NSImage,
         to: NSImage,
         generation: Int,
+        nearest: Bool,
         onFirstFrame: @escaping () -> Void,
         onCompleted: @escaping (Int) -> Void
     ) {
         self.onFirstFrame = onFirstFrame
         self.onCompleted = onCompleted
+        nearestSampling = nearest
         let sameImages = from === fromImage && to === toImage
         if sameImages, generation == self.generation {
             return
@@ -443,7 +455,13 @@ private final class AiboSwitchMetalView: NSView {
               bounds.width > 1,
               bounds.height > 1
         else { return }
-        renderer.draw(layer: metalLayer, from: fromTexture, to: toTexture, progress: progress)
+        renderer.draw(
+            layer: metalLayer,
+            from: fromTexture,
+            to: toTexture,
+            progress: progress,
+            nearest: nearestSampling
+        )
         if !didNotifyFirstFrame {
             didNotifyFirstFrame = true
             stillLayer.isHidden = true

@@ -629,13 +629,17 @@ private struct PetdexSpritePreview: View {
     var state: PetdexSpriteState
     var size: CGFloat
 
+    private var imageInterpolation: Image.Interpolation {
+        record.pixelOptimizationEnabled && record.kind != .builtInDefault ? .none : .high
+    }
+
     var body: some View {
         TimelineView(.animation(minimumInterval: frameInterval)) { timeline in
             let index = frameIndex(at: timeline.date)
             if let image = AiboSpriteCache.shared.frame(for: record, state: state, frameIndex: index) {
                 Image(nsImage: image)
                     .resizable()
-                    .interpolation(.none)
+                    .interpolation(imageInterpolation)
                     .scaledToFit()
                     .frame(width: size, height: size)
             } else {

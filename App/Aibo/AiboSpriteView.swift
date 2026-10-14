@@ -116,7 +116,7 @@ struct AiboSpriteView: View {
         if let image {
             Image(nsImage: image)
                 .resizable()
-                .interpolation(.none)
+                .interpolation(imageInterpolation)
                 .scaledToFit()
                 .frame(width: spriteSize.width, height: spriteSize.height)
         }
@@ -189,8 +189,10 @@ private struct AiboSpriteLayer: NSViewRepresentable {
             layerContentsRedrawPolicy = .never
             guard let layer else { return }
             layer.contentsGravity = .resizeAspect
-            layer.magnificationFilter = .nearest
-            layer.minificationFilter = .nearest
+            // Pixel Optimization stays nearest. The default is bilinear, which
+            // matches illustrated pets; CALayer has no bicubic filter.
+            layer.magnificationFilter = .linear
+            layer.minificationFilter = .linear
         }
 
         @available(*, unavailable)
@@ -217,8 +219,9 @@ private struct AiboSpriteLayer: NSViewRepresentable {
         ) {
             guard let layer, let first = frames.first else { return }
             layer.contentsGravity = pixelOptimization ? .resize : .resizeAspect
-            layer.magnificationFilter = .nearest
-            layer.minificationFilter = .nearest
+            let filter: CALayerContentsFilter = pixelOptimization ? .nearest : .linear
+            layer.magnificationFilter = filter
+            layer.minificationFilter = filter
             guard key != appliedKey else { return }
             appliedKey = key
 

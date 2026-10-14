@@ -14,7 +14,8 @@ final class AiboSwitchRenderer {
     private let device: MTLDevice
     private let queue: MTLCommandQueue
     private let pipeline: MTLRenderPipelineState
-    private let sampler: MTLSamplerState
+    private let linearSampler: MTLSamplerState
+    private let nearestSampler: MTLSamplerState
 
     private init?() {
         guard let device = MTLCreateSystemDefaultDevice(),
@@ -45,22 +46,28 @@ final class AiboSwitchRenderer {
         attachment.sourceAlphaBlendFactor = .one
         attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
 
-        let samplerDescriptor = MTLSamplerDescriptor()
-        // Match AiboSpriteLayer's nearest filters so the first/last morph
-        // frame doesn't soften then snap back to the live sprite.
-        samplerDescriptor.minFilter = .nearest
-        samplerDescriptor.magFilter = .nearest
-        samplerDescriptor.sAddressMode = .clampToEdge
-        samplerDescriptor.tAddressMode = .clampToEdge
+        let linearDescriptor = MTLSamplerDescriptor()
+        linearDescriptor.minFilter = .linear
+        linearDescriptor.magFilter = .linear
+        linearDescriptor.sAddressMode = .clampToEdge
+        linearDescriptor.tAddressMode = .clampToEdge
+
+        let nearestDescriptor = MTLSamplerDescriptor()
+        nearestDescriptor.minFilter = .nearest
+        nearestDescriptor.magFilter = .nearest
+        nearestDescriptor.sAddressMode = .clampToEdge
+        nearestDescriptor.tAddressMode = .clampToEdge
 
         guard let pipeline = try? device.makeRenderPipelineState(descriptor: descriptor),
-              let sampler = device.makeSamplerState(descriptor: samplerDescriptor)
+              let linearSampler = device.makeSamplerState(descriptor: linearDescriptor),
+              let nearestSampler = device.makeSamplerState(descriptor: nearestDescriptor)
         else { return nil }
 
         self.device = device
         self.queue = queue
         self.pipeline = pipeline
-        self.sampler = sampler
+        self.linearSampler = linearSampler
+        self.nearestSampler = nearestSampler
     }
 
     func makeTexture(from image: NSImage) -> MTLTexture? {
@@ -122,7 +129,8 @@ final class AiboSwitchRenderer {
         layer: CAMetalLayer,
         from: MTLTexture,
         to: MTLTexture,
-        progress: Float
+        progress: Float,
+        nearest: Bool
     ) {
         guard layer.drawableSize.width >= 1, layer.drawableSize.height >= 1,
               let drawable = layer.nextDrawable(),
@@ -141,7 +149,8 @@ final class AiboSwitchRenderer {
         encoder.setFragmentBytes(&progressValue, length: MemoryLayout<Float>.size, index: 0)
         encoder.setFragmentTexture(from, index: 0)
         encoder.setFragmentTexture(to, index: 1)
-        encoder.setFragmentSamplerState(sampler, index: 0)
+        // Match the live sprite that appears when the wipe ends.
+        encoder.setFragmentSamplerState(nearest ? nearestSampler : linearSampler, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
         commandBuffer.present(drawable)
