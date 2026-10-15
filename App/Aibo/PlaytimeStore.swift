@@ -105,6 +105,37 @@ final class PlaytimeStore {
         persist(includingLastGood: true)
     }
 
+    /// Closes the open session so the exported ledger includes time up to this moment, then resumes it.
+    func ledgerForExport() -> AiboBackupPlaytimeFile {
+        closeOpenSession(now: Date())
+        let file = AiboBackupPlaytimeFile(
+            records: snapshot.records,
+            daysByAiboID: daily.daysByAiboID
+        )
+        persist(includingLastGood: false)
+        syncSession(persistLastGood: false)
+        return file
+    }
+
+    /// `local` is settled before the merge. An open session in memory is closed first, so it is not applied twice.
+    func importBackup(_ file: AiboBackupPlaytimeFile, mode: AiboBackupPlaytimeMode) {
+        closeOpenSession(now: Date())
+        let local = AiboBackupPlaytimeFile(
+            records: snapshot.records,
+            daysByAiboID: daily.daysByAiboID
+        )
+        let merged = AiboBackupPlaytimeMerge.merge(
+            local: local,
+            incoming: file,
+            mode: mode,
+            now: Date()
+        )
+        snapshot = PlaytimeSnapshot(records: merged.records, openSession: nil)
+        daily = PlaytimeDailyBook(daysByAiboID: merged.daysByAiboID)
+        persist(includingLastGood: true)
+        syncSession(persistLastGood: false)
+    }
+
     private func handleSleepOrLidPause() {
         closeOpenSession(now: Date())
         persist(includingLastGood: true)

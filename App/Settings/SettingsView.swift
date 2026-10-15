@@ -8,6 +8,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     case webhook
     case extensions
     case general
+    case backup
     case about
     #if DEBUG
     case development
@@ -22,6 +23,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .webhook: String(localized: "Webhook")
         case .extensions: String(localized: "Extensions")
         case .general: String(localized: "General")
+        case .backup: String(localized: "Backup")
         case .about: String(localized: "About")
         #if DEBUG
         case .development: String(localized: "Development")
@@ -41,6 +43,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .webhook: .system("globe")
         case .extensions: .system("square.text.square.fill")
         case .general: .system("gearshape.fill")
+        case .backup: .system("archivebox.fill")
         case .about: .system("info.circle.fill")
         #if DEBUG
         case .development: .system("hammer.fill")
@@ -55,6 +58,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .webhook: .blue
         case .extensions: .teal
         case .general: .indigo
+        case .backup: .orange
         case .about: Color(nsColor: .systemGray)
         #if DEBUG
         case .development: .orange
@@ -69,6 +73,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .webhook: 18
         case .extensions: 16
         case .general: 18
+        case .backup: 15
         case .about: 16
         #if DEBUG
         case .development: 16
@@ -104,6 +109,7 @@ private struct SettingsSidebar: View {
             }
             Section {
                 SettingsSidebarRow(pane: .general)
+                SettingsSidebarRow(pane: .backup)
                 SettingsSidebarRow(pane: .about)
             }
             #if DEBUG
@@ -242,6 +248,8 @@ struct SettingsView: View {
             AgentHookSettingsPane()
         case .general:
             GeneralSettingsPane()
+        case .backup:
+            BackupSettingsPane()
         case .webhook:
             WebhookSettingsPane()
         case .extensions:

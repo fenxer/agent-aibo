@@ -21,6 +21,13 @@ final class AiboActionSettings {
         AiboActionMapping.resolve(action, overrides: overrides)
     }
 
+    func replace(with overrides: [String: String]) {
+        self.overrides = overrides.filter { key, value in
+            AiboUserAction(rawValue: key) != nil && PetdexSpriteState(rawValue: value) != nil
+        }
+        persist()
+    }
+
     func setSprite(_ sprite: PetdexSpriteState, for action: AiboUserAction) {
         let defaultValue = AiboActionMapping.defaultSprite(for: action)
         var next = overrides

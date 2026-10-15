@@ -52,6 +52,16 @@ final class HookSpriteSettings {
         AiboRuntime.shared.noteHookSpriteMappingChanged()
     }
 
+    func replace(with file: HookSpriteMappingFile) {
+        self.file = HookSpriteMappingFile(
+            cursor: file.cursor.filter { PetdexSpriteState(rawValue: $0.value) != nil },
+            codex: file.codex.filter { PetdexSpriteState(rawValue: $0.value) != nil },
+            deepseek: file.deepseek.filter { PetdexSpriteState(rawValue: $0.value) != nil }
+        )
+        persist()
+        AiboRuntime.shared.noteHookSpriteMappingChanged()
+    }
+
     func resetAll(for agent: AgentKind) {
         var next = file
         switch agent {

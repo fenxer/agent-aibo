@@ -682,6 +682,19 @@ final class AppSettings {
         }
     }
 
+    func clearSavedAiboPosition() {
+        guard savedAiboCenterXPercent != nil
+            || savedAiboCenterYPercent != nil
+            || savedAiboPositionScreenUUID != nil
+        else { return }
+        savedAiboCenterXPercent = nil
+        savedAiboCenterYPercent = nil
+        savedAiboPositionScreenUUID = nil
+        UserDefaults.standard.removeObject(forKey: Keys.aiboPositionXPercent)
+        UserDefaults.standard.removeObject(forKey: Keys.aiboPositionYPercent)
+        UserDefaults.standard.removeObject(forKey: Keys.aiboPositionScreenUUID)
+    }
+
     /// Content height saved by the old Settings scene. Frame autosave takes
     /// over after the first open of the `NSWindow`; this only seeds that open.
     static func legacySettingsContentHeight() -> CGFloat {

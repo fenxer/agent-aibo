@@ -103,6 +103,18 @@ final class AiboLibraryStore {
         }
     }
 
+    /// The on-disk library was just replaced by a backup. Drop cached sprites for the previous files.
+    func adoptImportedLibrary() {
+        reloadFromDisk()
+        AiboSpriteCache.shared.invalidate(keeping: [])
+        AiboPanelController.shared.updateHitTestImage()
+        if !AiboSwitchSignal.shared.locksDesktopSize {
+            AiboPanelController.shared.refreshContent()
+        }
+        let selected = selectedRecord
+        Task { await convertPetdexClipsIfNeeded(selected) }
+    }
+
     func setBubblePlacement(_ placement: BubblePlacement) {
         guard let index = records.firstIndex(where: { $0.id == selectedID }) else { return }
         guard records[index].bubblePlacement != placement else { return }
