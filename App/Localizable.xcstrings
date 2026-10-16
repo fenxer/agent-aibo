@@ -351,6 +351,17 @@
         }
       }
     },
+    "Allow Aibo in Login Items to open it when you log in." : {
+      "comment" : "General → Startup: shown when macOS still needs Login Items approval.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在登录项中允许 Aibo，登录后才会自动打开。"
+          }
+        }
+      }
+    },
     "An aibo named “%@” already has recorded time (%@). Continue that time with this aibo, or start a new timer?" : {
       "localizations" : {
         "zh-Hans" : {
@@ -951,6 +962,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法读取这张图片。"
+          }
+        }
+      }
+    },
+    "Couldn't update Login Items." : {
+      "comment" : "General → Startup: registering or removing the login item failed.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法更新登录项。"
           }
         }
       }
@@ -1829,6 +1851,17 @@
         }
       }
     },
+    "Launch at Login" : {
+      "comment" : "General → Startup: toggle that registers Aibo as a login item.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开机启动"
+          }
+        }
+      }
+    },
     "Leave blank to keep the saved key." : {
       "localizations" : {
         "zh-Hans" : {
@@ -2283,6 +2316,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开，端口 %lld"
+          }
+        }
+      }
+    },
+    "Open Aibo automatically when you log in." : {
+      "comment" : "General → Startup: Launch at Login subtitle.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录后自动打开 Aibo。"
+          }
+        }
+      }
+    },
+    "Open Login Items" : {
+      "comment" : "General → Startup: opens System Settings to Login Items.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开登录项"
           }
         }
       }
@@ -2924,6 +2979,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新计时"
+          }
+        }
+      }
+    },
+    "Startup" : {
+      "comment" : "General settings section above Extra Action.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动"
           }
         }
       }

@@ -32,6 +32,8 @@ struct GeneralSettingsPane: View {
 
             GeneralMusicSection(settings: settings)
 
+            GeneralStartupSection()
+
             GeneralActionSection()
         }
         .formStyle(.grouped)
@@ -493,6 +495,46 @@ private struct BubbleDistanceRow: View {
         Binding(
             get: { Int(distance.rounded()) },
             set: { distance = Double($0) }
+        )
+    }
+}
+
+private struct GeneralStartupSection: View {
+    @Bindable private var launchAtLogin = LaunchAtLoginSettings.shared
+
+    var body: some View {
+        Section {
+            Toggle(isOn: isEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(localized: "Launch at Login"))
+                    Text(String(localized: "Open Aibo automatically when you log in."))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(VerticallyCenteredSwitchToggleStyle())
+        } header: {
+            Text(String(localized: "Startup"))
+        } footer: {
+            if launchAtLogin.needsApproval {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(String(localized: "Allow Aibo in Login Items to open it when you log in."))
+                    Button(String(localized: "Open Login Items")) {
+                        launchAtLogin.openSystemSettings()
+                    }
+                    .buttonStyle(.link)
+                }
+            } else if launchAtLogin.updateFailed {
+                Text(String(localized: "Couldn't update Login Items."))
+            }
+        }
+        .onAppear { launchAtLogin.refresh() }
+    }
+
+    private var isEnabled: Binding<Bool> {
+        Binding(
+            get: { launchAtLogin.isEnabled },
+            set: { launchAtLogin.setEnabled($0) }
         )
     }
 }
