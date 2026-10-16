@@ -71,6 +71,37 @@
         }
       }
     },
+    "%lld differences" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld处不同"
+          }
+        }
+      }
+    },
+    "%lld new, %lld with the same name" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个新增，%lld 个重名"
+          }
+        }
+      }
+    },
+    "API keys and other private information are not exported." : {
+      "comment" : "Backup page. Small line under Export.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API Key 等隐私信息不会导出。"
+          }
+        }
+      }
+    },
     "About" : {
       "localizations" : {
         "zh-Hans" : {
@@ -111,8 +142,20 @@
         }
       }
     },
+    "Add On" : {
+      "comment" : "Backup import: add companion time onto this Mac.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "叠加"
+          }
+        }
+      }
+    },
     "Add Time" : {
       "comment" : "Backup import: add this Mac's companion time to the backup.",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -128,6 +171,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请先在 AI 供应商里添加一个。"
+          }
+        }
+      }
+    },
+    "Add as New" : {
+      "comment" : "Backup import: keep a same-named aibo and add the backup's copy with a number suffix.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增"
           }
         }
       }
@@ -202,6 +256,16 @@
         }
       }
     },
+    "Aibo Count" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aibo 数"
+          }
+        }
+      }
+    },
     "Aibo Size" : {
       "localizations" : {
         "zh-Hans" : {
@@ -245,6 +309,7 @@
     },
     "Aibos" : {
       "comment" : "Backup import preview section.",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -297,6 +362,7 @@
       }
     },
     "And %lld more" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -387,6 +453,17 @@
         }
       }
     },
+    "Back up Aibo's data" : {
+      "comment" : "Backup page export row subtitle.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备份 Aibo 的数据"
+          }
+        }
+      }
+    },
     "Background Material" : {
       "localizations" : {
         "zh-Hans" : {
@@ -414,6 +491,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "备份"
+          }
+        }
+      }
+    },
+    "Backup Time" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备份时间"
+          }
+        }
+      }
+    },
+    "Backup Version" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备份版本"
           }
         }
       }
@@ -674,11 +771,23 @@
       }
     },
     "Companion Time" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "陪伴时长"
+          }
+        }
+      }
+    },
+    "Companion Time List" : {
+      "comment" : "Backup import preview row.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "陪伴时间"
           }
         }
       }
@@ -1007,6 +1116,16 @@
         }
       }
     },
+    "Don't Import" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不导入"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1044,6 +1163,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向右拖拽"
+          }
+        }
+      }
+    },
+    "Duplicate Aibos" : {
+      "comment" : "Backup import option for aibos whose names already exist.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重名 Aibo 导入"
           }
         }
       }
@@ -1099,7 +1229,19 @@
         }
       }
     },
+    "Export Hook Log" : {
+      "comment" : "Backup page. When on, the export also includes the hook log. Off by default.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出 Hook 日志"
+          }
+        }
+      }
+    },
     "Exported %@ · Aibo %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1111,6 +1253,7 @@
     },
     "Export…" : {
       "comment" : "Backup page. Opens a save panel.",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1454,7 +1597,48 @@
         }
       }
     },
+    "Import Companion Time" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "陪伴时间导入"
+          }
+        }
+      }
+    },
+    "Import Options" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入选项"
+          }
+        }
+      }
+    },
+    "Import Preferences" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "偏好设置导入"
+          }
+        }
+      }
+    },
+    "Import Preview" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入预览"
+          }
+        }
+      }
+    },
     "Import This Backup?" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1466,6 +1650,7 @@
     },
     "Import…" : {
       "comment" : "Backup page. Opens a file panel.",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1477,6 +1662,7 @@
     },
     "Includes aibos, preferences, and companion time. Webhook secrets and plugin settings stay on this Mac." : {
       "comment" : "Backup page footer.",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1968,6 +2154,7 @@
       }
     },
     "No installed aibos" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2079,6 +2266,7 @@
       }
     },
     "Off" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2089,6 +2277,7 @@
       }
     },
     "On, port %lld" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2137,6 +2326,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "输出：%@"
+          }
+        }
+      }
+    },
+    "Overwrite" : {
+      "comment" : "Backup import: replace the existing item with the backup's copy.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "覆盖替换"
           }
         }
       }
@@ -2267,6 +2467,7 @@
       }
     },
     "Poli’s size and bubble in this file replace this Mac’s. The built-in image is not in the backup." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2441,6 +2642,7 @@
     },
     "Replace Time" : {
       "comment" : "Backup import: use the backup's companion time instead of this Mac's.",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2451,6 +2653,7 @@
       }
     },
     "Replace this Mac’s companion time with the backup." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2873,6 +3076,17 @@
         }
       }
     },
+    "This backup includes the hook log and will replace the one on this Mac." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这份备份包含 Hook 日志，会换掉这台 Mac 上的日志。"
+          }
+        }
+      }
+    },
     "This backup was made by a newer version of Aibo." : {
       "localizations" : {
         "zh-Hans" : {
@@ -3290,6 +3504,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你必须保留至少一个 Aibo。"
+          }
+        }
+      }
+    },
+    "You'll confirm the backup before restoring it." : {
+      "comment" : "Backup page import row subtitle.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还原备份数据，会先确认"
           }
         }
       }

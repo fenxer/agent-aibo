@@ -35,6 +35,8 @@ public enum AiboBackupArchive {
         public var settings: AiboBackupSettings
         public var playtime: AiboBackupPlaytimeFile
         public var aibosDirectory: URL
+        /// Extracted hook log, when this backup included one. Absent backups leave the Mac's log alone.
+        public var hookLogURL: URL?
     }
 
     /// Previous library tree, kept until `commit`. `restore` puts it back and removes the imported tree.
@@ -68,6 +70,7 @@ public enum AiboBackupArchive {
         settings: AiboBackupSettings,
         playtime: AiboBackupPlaytimeFile,
         aibosSource: URL,
+        hookLogSource: URL? = nil,
         appVersion: String,
         exportedAt: Date = Date(),
         to archiveURL: URL,
@@ -105,6 +108,14 @@ public enum AiboBackupArchive {
             try validateAibos(packedAibos, fileManager: fileManager)
         } else {
             try fileManager.createDirectory(at: packedAibos, withIntermediateDirectories: true)
+        }
+
+        if let hookLogSource {
+            try copyRegularFile(
+                from: hookLogSource,
+                to: staging.appendingPathComponent(AiboPaths.ingestLogFileName),
+                fileManager: fileManager
+            )
         }
 
         if fileManager.fileExists(atPath: archiveURL.path) {
@@ -160,8 +171,59 @@ public enum AiboBackupArchive {
             manifest: manifest,
             settings: settings,
             playtime: playtime,
-            aibosDirectory: aibos
+            aibosDirectory: aibos,
+            hookLogURL: try optionalRegularFile(
+                root.appendingPathComponent(AiboPaths.ingestLogFileName),
+                fileManager: fileManager
+            )
         )
+    }
+
+    /// Replaces `destination` with a copy of `source`. A failure puts the previous file back.
+    public static func replaceRegularFile(
+        at destination: URL,
+        with source: URL,
+        fileManager: FileManager = .default
+    ) throws {
+        if isSymlink(source) || isSymlink(destination) { throw AiboBackupError.unsafePath }
+        guard try optionalRegularFile(source, fileManager: fileManager) != nil else {
+            throw AiboBackupError.invalidContents
+        }
+        let parent = destination.deletingLastPathComponent()
+        do {
+            try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+        } catch {
+            throw AiboBackupError.ioFailed
+        }
+        let staging = parent.appendingPathComponent(".aibo-file-incoming-\(UUID().uuidString)")
+        do {
+            try fileManager.copyItem(at: source, to: staging)
+        } catch {
+            throw AiboBackupError.ioFailed
+        }
+
+        let previous = parent.appendingPathComponent(".aibo-file-previous-\(UUID().uuidString)")
+        let hadPrevious = fileManager.fileExists(atPath: destination.path)
+        if hadPrevious {
+            do {
+                try fileManager.moveItem(at: destination, to: previous)
+            } catch {
+                try? fileManager.removeItem(at: staging)
+                throw AiboBackupError.ioFailed
+            }
+        }
+        do {
+            try fileManager.moveItem(at: staging, to: destination)
+        } catch {
+            if hadPrevious {
+                try? fileManager.moveItem(at: previous, to: destination)
+            }
+            try? fileManager.removeItem(at: staging)
+            throw AiboBackupError.ioFailed
+        }
+        if hadPrevious {
+            try? fileManager.removeItem(at: previous)
+        }
     }
 
     /// Moves `source` onto `destination`. `source` is consumed.
@@ -204,6 +266,121 @@ public enum AiboBackupArchive {
         return LibraryReplacement(previous: previous, destination: destination)
     }
 
+    /// Builds a merged library in a temporary tree, then swaps it onto `destination`.
+    /// New names are copied in. Duplicate names follow `duplicates`.
+    public static func mergeLibrary(
+        at destination: URL,
+        with source: URL,
+        localRecords: [AiboLibraryRecord],
+        localSelectedID: String,
+        duplicates: AiboBackupDuplicateImport,
+        fileManager: FileManager = .default
+    ) throws -> LibraryReplacement {
+        let incomingFile = try libraryFile(in: source, fileManager: fileManager)
+        var hidden = false
+        if fileManager.fileExists(atPath: destination.appendingPathComponent(AiboPaths.libraryFileName).path) {
+            hidden = (try? libraryFile(in: destination, fileManager: fileManager))?.builtInHidden ?? false
+        }
+        let merged = AiboBackupLibraryImport.merge(
+            localRecords: localRecords,
+            localBuiltInHidden: hidden,
+            incoming: incomingFile,
+            duplicates: duplicates
+        )
+        let staging = fileManager.temporaryDirectory
+            .appendingPathComponent("aibo-library-merge-\(UUID().uuidString)", isDirectory: true)
+        try? fileManager.removeItem(at: staging)
+        if fileManager.fileExists(atPath: destination.path) {
+            try copyTree(from: destination, to: staging, fileManager: fileManager)
+        } else {
+            try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
+        }
+
+        do {
+            for relative in merged.removals {
+                try removeRelative(relative, under: staging, fileManager: fileManager)
+            }
+            for copy in merged.copies {
+                try copyRelative(
+                    copy.fromRelativePath,
+                    from: source,
+                    to: copy.toRelativePath,
+                    under: staging,
+                    fileManager: fileManager
+                )
+            }
+            let selected = merged.records.contains(where: { $0.id == localSelectedID })
+                ? localSelectedID
+                : (merged.records.first?.id ?? AiboLibraryDefaults.builtInID)
+            let file = AiboLibraryFile(
+                selectedID: selected,
+                records: AiboLibraryCodec.persistableRecords(from: merged.records),
+                builtInHidden: merged.builtInHidden
+            )
+            try encoder.encode(file).write(
+                to: staging.appendingPathComponent(AiboPaths.libraryFileName),
+                options: .atomic
+            )
+            return try replaceLibrary(at: destination, with: staging, fileManager: fileManager)
+        } catch {
+            try? fileManager.removeItem(at: staging)
+            throw error
+        }
+    }
+
+    private static func libraryFile(in directory: URL, fileManager: FileManager) throws -> AiboLibraryFile {
+        let url = directory.appendingPathComponent(AiboPaths.libraryFileName)
+        if !fileManager.fileExists(atPath: url.path) {
+            return AiboLibraryFile()
+        }
+        return try decode(AiboLibraryFile.self, from: url, fileManager: fileManager)
+    }
+
+    private static func removeRelative(_ relative: String, under root: URL, fileManager: FileManager) throws {
+        let url = try url(root, relative: relative)
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        do {
+            try fileManager.removeItem(at: url)
+        } catch {
+            throw AiboBackupError.ioFailed
+        }
+    }
+
+    private static func copyRelative(
+        _ relative: String,
+        from sourceRoot: URL,
+        to destinationRelative: String,
+        under destinationRoot: URL,
+        fileManager: FileManager
+    ) throws {
+        let from = try url(sourceRoot, relative: relative)
+        let to = try url(destinationRoot, relative: destinationRelative)
+        if isSymlink(from) { throw AiboBackupError.unsafePath }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: from.path, isDirectory: &isDirectory) else {
+            throw AiboBackupError.invalidContents
+        }
+        do {
+            try fileManager.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if fileManager.fileExists(atPath: to.path) {
+                try fileManager.removeItem(at: to)
+            }
+            try fileManager.copyItem(at: from, to: to)
+        } catch let error as AiboBackupError {
+            throw error
+        } catch {
+            throw AiboBackupError.ioFailed
+        }
+    }
+
+    private static func url(_ root: URL, relative: String) throws -> URL {
+        let parts = relative.split(separator: "/", omittingEmptySubsequences: false)
+        guard !relative.isEmpty, !relative.hasPrefix("/"), !parts.contains(".."), !parts.contains(".") else {
+            throw AiboBackupError.unsafePath
+        }
+        return root.appendingPathComponent(relative)
+    }
+
     private static func decode<T: Decodable>(
         _ type: T.Type,
         from url: URL,
@@ -230,6 +407,25 @@ public enum AiboBackupArchive {
         } catch {
             throw AiboBackupError.invalidContents
         }
+    }
+
+    /// Copies one regular file. A missing source is not an error: the caller asked to include a log that was never written.
+    private static func copyRegularFile(from source: URL, to destination: URL, fileManager: FileManager) throws {
+        guard try optionalRegularFile(source, fileManager: fileManager) != nil else { return }
+        do {
+            try fileManager.copyItem(at: source, to: destination)
+        } catch {
+            throw AiboBackupError.ioFailed
+        }
+    }
+
+    /// `nil` when the file is absent. A symlink or directory is rejected.
+    private static func optionalRegularFile(_ url: URL, fileManager: FileManager) throws -> URL? {
+        if isSymlink(url) { throw AiboBackupError.unsafePath }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return nil }
+        guard !isDirectory.boolValue else { throw AiboBackupError.invalidContents }
+        return url
     }
 
     private static func copyTree(from source: URL, to destination: URL, fileManager: FileManager) throws {

@@ -73,7 +73,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .webhook: 18
         case .extensions: 16
         case .general: 18
-        case .backup: 15
+        case .backup: 18
         case .about: 16
         #if DEBUG
         case .development: 16

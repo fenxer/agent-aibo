@@ -161,6 +161,45 @@ public struct AiboBackupSettings: Codable, Equatable, Sendable {
         }
         return true
     }
+
+    /// How many saved preferences differ. The saved position counts as one item.
+    public func differenceCount(from other: AiboBackupSettings) -> Int {
+        var count = 0
+        if themeMode != other.themeMode { count += 1 }
+        if languageMode != other.languageMode { count += 1 }
+        if bubbleGlassStyle != other.bubbleGlassStyle { count += 1 }
+        if bubbleGlassTint != other.bubbleGlassTint { count += 1 }
+        if cursorBubbleGlassStyle != other.cursorBubbleGlassStyle { count += 1 }
+        if codexBubbleGlassStyle != other.codexBubbleGlassStyle { count += 1 }
+        if deepseekBubbleGlassStyle != other.deepseekBubbleGlassStyle { count += 1 }
+        if cursorBubbleGlassTint != other.cursorBubbleGlassTint { count += 1 }
+        if codexBubbleGlassTint != other.codexBubbleGlassTint { count += 1 }
+        if deepseekBubbleGlassTint != other.deepseekBubbleGlassTint { count += 1 }
+        if cursorCapsuleColor != other.cursorCapsuleColor { count += 1 }
+        if codexCapsuleColor != other.codexCapsuleColor { count += 1 }
+        if deepseekCapsuleColor != other.deepseekCapsuleColor { count += 1 }
+        if codexPlanProgressShaderEnabled != other.codexPlanProgressShaderEnabled { count += 1 }
+        if codexPlanProgressShaderPrimary != other.codexPlanProgressShaderPrimary { count += 1 }
+        if deepseekPlanProgressShaderEnabled != other.deepseekPlanProgressShaderEnabled { count += 1 }
+        if deepseekPlanProgressShaderPrimary != other.deepseekPlanProgressShaderPrimary { count += 1 }
+        if restoreLastAiboPosition != other.restoreLastAiboPosition { count += 1 }
+        if hideWhenFullscreen != other.hideWhenFullscreen { count += 1 }
+        if disableMouseTracking != other.disableMouseTracking { count += 1 }
+        if mouseShakeDodgeEnabled != other.mouseShakeDodgeEnabled { count += 1 }
+        if centerXPercent != other.centerXPercent || centerYPercent != other.centerYPercent { count += 1 }
+        if musicNotesEnabled != other.musicNotesEnabled { count += 1 }
+        if musicNotesColorMode != other.musicNotesColorMode { count += 1 }
+        if musicNotesCustomColor != other.musicNotesCustomColor { count += 1 }
+        if customMusicNotificationNames != other.customMusicNotificationNames { count += 1 }
+        if webhookEnabled != other.webhookEnabled { count += 1 }
+        if webhookPort != other.webhookPort { count += 1 }
+        if webhookDismissMode != other.webhookDismissMode { count += 1 }
+        if webhookAutoDismissSeconds != other.webhookAutoDismissSeconds { count += 1 }
+        if publicWebhookURL != other.publicWebhookURL { count += 1 }
+        if hookSprites != other.hookSprites { count += 1 }
+        if actionSprites != other.actionSprites { count += 1 }
+        return count
+    }
 }
 
 public struct AiboBackupManifest: Codable, Equatable, Sendable {
@@ -193,6 +232,8 @@ public enum AiboBackupPlaytimeMode: Sendable, Equatable, Hashable {
     case add
     /// The backup's ledger replaces this Mac's ledger.
     case replace
+    /// Leave this Mac's ledger as it is.
+    case skip
 }
 
 public enum AiboBackupPlaytimeMerge {
@@ -210,6 +251,8 @@ public enum AiboBackupPlaytimeMerge {
             )
         case .add:
             return add(local: local, incoming: incoming, now: now)
+        case .skip:
+            return local
         }
     }
 
@@ -297,5 +340,241 @@ public enum AiboBackupPlaytimeMerge {
     private static func saturatingAdd(_ lhs: Int, _ rhs: Int) -> Int {
         let (sum, overflow) = lhs.addingReportingOverflow(max(0, rhs))
         return overflow ? Int.max : sum
+    }
+}
+
+/// What to do with backup aibos whose display name already exists on this Mac.
+/// Matching is exact: case and spaces both count.
+public enum AiboBackupDuplicateImport: Sendable, Equatable, Hashable {
+    /// Copy the aibo and append `1` (then `2`, …) so the name stays unique.
+    case add
+    /// The backup's files and appearance replace the aibo that already has this name.
+    case replace
+    /// Leave the existing aibo, and do not bring the backup's copy in.
+    case skip
+}
+
+public enum AiboBackupLibraryImport {
+    public struct Summary: Equatable, Sendable {
+        public var newCount: Int
+        public var duplicateCount: Int
+    }
+
+    public struct Copy: Equatable, Sendable {
+        public var fromRelativePath: String
+        public var toRelativePath: String
+
+        public init(fromRelativePath: String, toRelativePath: String) {
+            self.fromRelativePath = fromRelativePath
+            self.toRelativePath = toRelativePath
+        }
+    }
+
+    public struct Result: Equatable, Sendable {
+        public var records: [AiboLibraryRecord]
+        public var builtInHidden: Bool
+        public var copies: [Copy]
+        public var removals: [String]
+    }
+
+    /// Installable aibos only. The built-in image is not a file in the backup.
+    public static func summary(
+        localRecords: [AiboLibraryRecord],
+        incomingRecords: [AiboLibraryRecord]
+    ) -> Summary {
+        let localNames = Set(localRecords.map(\.displayName))
+        var newCount = 0
+        var duplicateCount = 0
+        for record in incomingRecords where record.kind != .builtInDefault && !record.relativePath.isEmpty {
+            if localNames.contains(record.displayName) {
+                duplicateCount += 1
+            } else {
+                newCount += 1
+            }
+        }
+        return Summary(newCount: newCount, duplicateCount: duplicateCount)
+    }
+
+    /// Names that are not already on this Mac are always added.
+    /// A second incoming aibo with the same new name gets a numeric suffix so the result stays exact-unique.
+    public static func merge(
+        localRecords: [AiboLibraryRecord],
+        localBuiltInHidden: Bool,
+        incoming: AiboLibraryFile,
+        duplicates: AiboBackupDuplicateImport
+    ) -> Result {
+        var records = localRecords
+        var hidden = localBuiltInHidden
+        var usedNames = Set(localRecords.map(\.displayName))
+        var usedIDs = Set(localRecords.map(\.id))
+        var usedPaths = Set(localRecords.map(\.relativePath).filter { !$0.isEmpty })
+        let localNames = Set(localRecords.map(\.displayName))
+        var copies: [Copy] = []
+        var removals: [String] = []
+
+        for incomingRecord in incoming.records where incomingRecord.kind != .builtInDefault && !incomingRecord.relativePath.isEmpty {
+            if localNames.contains(incomingRecord.displayName) {
+                switch duplicates {
+                case .skip:
+                    continue
+                case .add:
+                    addCopy(
+                        incomingRecord,
+                        records: &records,
+                        usedNames: &usedNames,
+                        usedIDs: &usedIDs,
+                        usedPaths: &usedPaths,
+                        copies: &copies
+                    )
+                case .replace:
+                    if let index = records.firstIndex(where: {
+                        $0.kind != .builtInDefault && $0.displayName == incomingRecord.displayName
+                    }) {
+                        replace(
+                            local: records[index],
+                            with: incomingRecord,
+                            at: index,
+                            records: &records,
+                            usedPaths: &usedPaths,
+                            copies: &copies,
+                            removals: &removals
+                        )
+                    } else {
+                        addCopy(
+                            incomingRecord,
+                            records: &records,
+                            usedNames: &usedNames,
+                            usedIDs: &usedIDs,
+                            usedPaths: &usedPaths,
+                            copies: &copies
+                        )
+                    }
+                }
+            } else {
+                addNew(
+                    incomingRecord,
+                    records: &records,
+                    usedNames: &usedNames,
+                    usedIDs: &usedIDs,
+                    usedPaths: &usedPaths,
+                    copies: &copies
+                )
+            }
+        }
+
+        if duplicates == .replace,
+           let incomingBuiltIn = incoming.records.first(where: { $0.id == AiboLibraryDefaults.builtInID }),
+           let index = records.firstIndex(where: {
+               $0.id == AiboLibraryDefaults.builtInID && $0.displayName == incomingBuiltIn.displayName
+           })
+        {
+            records[index].bubblePlacement = incomingBuiltIn.bubblePlacement
+            records[index].bubbleDistance = incomingBuiltIn.bubbleDistance
+            records[index].scalePercent = incomingBuiltIn.scalePercent
+            records[index].pixelOptimizationEnabled = incomingBuiltIn.pixelOptimizationEnabled
+            hidden = incoming.builtInHidden
+        }
+
+        return Result(records: records, builtInHidden: hidden, copies: copies, removals: removals)
+    }
+
+    /// `Name1`, or `Name2` when `Name1` is already taken. Comparison is exact.
+    public static func suffixedDisplayName(_ name: String, taken: Set<String>) -> String {
+        var suffix = 1
+        while taken.contains(name + String(suffix)) {
+            suffix += 1
+        }
+        return name + String(suffix)
+    }
+
+    private static func addNew(
+        _ incoming: AiboLibraryRecord,
+        records: inout [AiboLibraryRecord],
+        usedNames: inout Set<String>,
+        usedIDs: inout Set<String>,
+        usedPaths: inout Set<String>,
+        copies: inout [Copy]
+    ) {
+        var record = incoming
+        if usedNames.contains(record.displayName) {
+            record.displayName = suffixedDisplayName(record.displayName, taken: usedNames)
+        }
+        usedNames.insert(record.displayName)
+        record.id = freshID(preferred: record.id, kind: record.kind, used: &usedIDs)
+        record.relativePath = freshPath(record.relativePath, used: &usedPaths)
+        records.append(record)
+        copies.append(Copy(fromRelativePath: incoming.relativePath, toRelativePath: record.relativePath))
+    }
+
+    private static func addCopy(
+        _ incoming: AiboLibraryRecord,
+        records: inout [AiboLibraryRecord],
+        usedNames: inout Set<String>,
+        usedIDs: inout Set<String>,
+        usedPaths: inout Set<String>,
+        copies: inout [Copy]
+    ) {
+        var record = incoming
+        record.displayName = suffixedDisplayName(record.displayName, taken: usedNames)
+        usedNames.insert(record.displayName)
+        record.id = freshID(preferred: record.id, kind: record.kind, used: &usedIDs)
+        record.relativePath = freshPath(record.relativePath, used: &usedPaths)
+        records.append(record)
+        copies.append(Copy(fromRelativePath: incoming.relativePath, toRelativePath: record.relativePath))
+    }
+
+    private static func replace(
+        local: AiboLibraryRecord,
+        with incoming: AiboLibraryRecord,
+        at index: Int,
+        records: inout [AiboLibraryRecord],
+        usedPaths: inout Set<String>,
+        copies: inout [Copy],
+        removals: inout [String]
+    ) {
+        if !local.relativePath.isEmpty {
+            removals.append(local.relativePath)
+            usedPaths.remove(local.relativePath)
+        }
+        var record = incoming
+        record.id = local.id
+        record.displayName = local.displayName
+        record.installedAt = local.installedAt
+        record.relativePath = freshPath(incoming.relativePath, used: &usedPaths)
+        records[index] = record
+        copies.append(Copy(fromRelativePath: incoming.relativePath, toRelativePath: record.relativePath))
+    }
+
+    private static func freshID(preferred: String, kind: AiboKind, used: inout Set<String>) -> String {
+        if !preferred.isEmpty, !used.contains(preferred) {
+            used.insert(preferred)
+            return preferred
+        }
+        let prefix = kind == .petdex ? "petdex" : "static"
+        var id = "\(prefix).\(UUID().uuidString)"
+        while used.contains(id) {
+            id = "\(prefix).\(UUID().uuidString)"
+        }
+        used.insert(id)
+        return id
+    }
+
+    private static func freshPath(_ relative: String, used: inout Set<String>) -> String {
+        if !used.contains(relative) {
+            used.insert(relative)
+            return relative
+        }
+        let url = URL(fileURLWithPath: relative)
+        let ext = url.pathExtension
+        let base = url.deletingPathExtension().path
+        var suffix = 2
+        while true {
+            let candidate = ext.isEmpty ? "\(base)-\(suffix)" : "\(base)-\(suffix).\(ext)"
+            if !used.contains(candidate) {
+                used.insert(candidate)
+                return candidate
+            }
+            suffix += 1
+        }
     }
 }

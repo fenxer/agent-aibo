@@ -3,14 +3,26 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum BackupExportPreference {
+    static let hookLogKey = "settings.backup.exportHookLog"
+}
+
 @MainActor
 @Observable
 final class BackupSettingsModel {
     static let shared = BackupSettingsModel()
 
+    /// When on, an export copies the hook log into the archive. Off by default, and not itself part of the backup.
+    var exportHookLog = UserDefaults.standard.bool(forKey: BackupExportPreference.hookLogKey) {
+        didSet {
+            UserDefaults.standard.set(exportHookLog, forKey: BackupExportPreference.hookLogKey)
+        }
+    }
     var isWorking = false
     var errorMessage: String?
     var showPreview = false
+    var settingsImport: BackupSettingsImport = .skip
+    var duplicateImport: AiboBackupDuplicateImport = .add
     var playtimeMode: AiboBackupPlaytimeMode = .add
     private(set) var preview: BackupImportPreview?
     private var pendingRoot: URL?
@@ -33,13 +45,30 @@ final class BackupSettingsModel {
         let playtime = PlaytimeStore.shared.ledgerForExport()
         let aibos = AiboPaths.aibosDirectory
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let hookLogCopy: URL?
+        if exportHookLog {
+            do {
+                hookLogCopy = try AiboRuntime.shared.copyIngestLogForBackup()
+            } catch {
+                errorMessage = Self.message(for: error, importing: false)
+                return
+            }
+        } else {
+            hookLogCopy = nil
+        }
         isWorking = true
         Task.detached {
+            defer {
+                if let hookLogCopy {
+                    try? FileManager.default.removeItem(at: hookLogCopy)
+                }
+            }
             do {
                 try AiboBackupArchive.write(
                     settings: settings,
                     playtime: playtime,
                     aibosSource: aibos,
+                    hookLogSource: hookLogCopy,
                     appVersion: version,
                     to: destination
                 )
@@ -82,7 +111,11 @@ final class BackupSettingsModel {
         }
     }
 
-    func finishImport(mode: AiboBackupPlaytimeMode) {
+    func finishImport(
+        settingsChoice: BackupSettingsImport,
+        duplicates: AiboBackupDuplicateImport,
+        playtime: AiboBackupPlaytimeMode
+    ) {
         guard let document = pendingDocument, let root = pendingRoot else { return }
         pendingDocument = nil
         pendingRoot = nil
@@ -90,17 +123,41 @@ final class BackupSettingsModel {
         showPreview = false
         isWorking = true
         let settings = document.settings
-        let playtime = document.playtime
+        let playtimeFile = document.playtime
         let aibos = document.aibosDirectory
+        let localRecords = AiboLibraryStore.shared.records
+        let localSelectedID = AiboLibraryStore.shared.selectedID
         Task.detached {
             do {
-                var replacement = try AiboBackupArchive.replaceLibrary(
+                var replacement = try AiboBackupArchive.mergeLibrary(
                     at: AiboPaths.aibosDirectory,
-                    with: aibos
+                    with: aibos,
+                    localRecords: localRecords,
+                    localSelectedID: localSelectedID,
+                    duplicates: duplicates
                 )
+                if let hookLog = document.hookLogURL {
+                    do {
+                        try await MainActor.run {
+                            try AiboRuntime.shared.importIngestLog(from: hookLog)
+                        }
+                    } catch {
+                        try? replacement.restore()
+                        await MainActor.run {
+                            AiboLibraryStore.shared.adoptImportedLibrary()
+                            BackupSettingsModel.shared.isWorking = false
+                            BackupSettingsModel.shared.errorMessage = Self.message(for: error, importing: true)
+                        }
+                        try? FileManager.default.removeItem(at: root)
+                        return
+                    }
+                }
                 await MainActor.run {
                     AiboLibraryStore.shared.adoptImportedLibrary()
-                    PlaytimeStore.shared.importBackup(playtime, mode: mode)
+                    if playtime != .skip {
+                        PlaytimeStore.shared.importBackup(playtimeFile, mode: playtime)
+                    }
+                    guard settingsChoice == .apply else { return }
                     let settingsModel = AppSettings.shared
                     settingsModel.applyBackup(settings)
                     if settingsModel.restoreLastAiboPosition,
@@ -113,7 +170,9 @@ final class BackupSettingsModel {
                 replacement.commit()
                 await MainActor.run {
                     BackupSettingsModel.shared.isWorking = false
-                    AppSettings.shared.applyBackupLanguage(settings)
+                    if settingsChoice == .apply {
+                        AppSettings.shared.applyBackupLanguage(settings)
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -126,7 +185,11 @@ final class BackupSettingsModel {
     }
 
     func confirmImport() {
-        finishImport(mode: playtimeMode)
+        finishImport(
+            settingsChoice: settingsImport,
+            duplicates: duplicateImport,
+            playtime: playtimeMode
+        )
     }
 
     /// The preview closed without `finishImport` taking the extracted backup.
@@ -156,7 +219,13 @@ final class BackupSettingsModel {
         }
         pendingRoot = root
         pendingDocument = document
-        preview = BackupImportPreview(document: document)
+        preview = BackupImportPreview(
+            document: document,
+            localNames: AiboLibraryStore.shared.records.map(\.displayName),
+            currentSettings: AppSettings.shared.backupSnapshot()
+        )
+        settingsImport = .skip
+        duplicateImport = .add
         playtimeMode = .add
         isWorking = false
         showPreview = true
@@ -202,17 +271,34 @@ struct BackupSettingsPane: View {
     var body: some View {
         Form {
             Section {
-                Button(String(localized: "Export…")) {
-                    model.export()
-                }
-                .disabled(model.isWorking)
+                Toggle(String(localized: "Export Hook Log"), isOn: $model.exportHookLog)
+                    .disabled(model.isWorking)
 
-                Button(String(localized: "Import…")) {
-                    model.chooseImport()
-                }
-                .disabled(model.isWorking)
+                BackupActionRow(
+                    systemName: "arrowshape.down.fill",
+                    title: String(localized: "Export"),
+                    subtitle: String(localized: "Back up Aibo's data"),
+                    buttonTitle: String(localized: "Export"),
+                    isEnabled: !model.isWorking,
+                    action: model.export
+                )
+            } header: {
+                Text(String(localized: "Export"))
             } footer: {
-                Text(String(localized: "Includes aibos, preferences, and companion time. Webhook secrets and plugin settings stay on this Mac."))
+                Text(String(localized: "API keys and other private information are not exported."))
+            }
+
+            Section {
+                BackupActionRow(
+                    systemName: "arrowshape.up.fill",
+                    title: String(localized: "Import"),
+                    subtitle: String(localized: "You'll confirm the backup before restoring it."),
+                    buttonTitle: String(localized: "Import"),
+                    isEnabled: !model.isWorking,
+                    action: model.chooseImport
+                )
+            } header: {
+                Text(String(localized: "Import"))
             }
         }
         .formStyle(.grouped)
@@ -237,37 +323,42 @@ struct BackupSettingsPane: View {
     }
 }
 
+enum BackupSettingsImport: Sendable, Equatable, Hashable {
+    case apply
+    case skip
+}
+
 struct BackupImportPreview {
     var exportedAt: Date
     var appVersion: String
-    var aiboNames: [String]
-    var includesPoliAdjustments: Bool
-    var themeTitle: String
-    var languageTitle: String
-    var webhookEnabled: Bool
-    var webhookPort: Int
+    var newAiboCount: Int
+    var duplicateAiboCount: Int
+    var settingsDifferenceCount: Int
     var playtimeLines: [(name: String, seconds: Int)]
 
-    init(document: AiboBackupArchive.Document) {
+    init(
+        document: AiboBackupArchive.Document,
+        localNames: [String],
+        currentSettings: AiboBackupSettings
+    ) {
         exportedAt = document.manifest.exportedAt
         appVersion = document.manifest.appVersion
         let libraryURL = document.aibosDirectory.appendingPathComponent(AiboPaths.libraryFileName)
+        let incoming: [AiboLibraryRecord]
         if let data = try? Data(contentsOf: libraryURL),
            let file = try? AiboLibraryCodec.decode(data)
         {
-            aiboNames = file.records
-                .filter { $0.kind != .builtInDefault }
-                .map(\.displayName)
-            includesPoliAdjustments = file.builtInHidden
-                || file.records.contains { $0.id == AiboLibraryDefaults.builtInID }
+            incoming = file.records
         } else {
-            aiboNames = []
-            includesPoliAdjustments = false
+            incoming = []
         }
-        themeTitle = (AppThemeMode(rawValue: document.settings.themeMode) ?? .system).title
-        languageTitle = (AppLanguageMode(rawValue: document.settings.languageMode) ?? .system).title
-        webhookEnabled = document.settings.webhookEnabled
-        webhookPort = document.settings.webhookPort
+        let local = localNames.map {
+            AiboLibraryRecord(id: "local", kind: .staticImage, displayName: $0, relativePath: "local")
+        }
+        let summary = AiboBackupLibraryImport.summary(localRecords: local, incomingRecords: incoming)
+        newAiboCount = summary.newCount
+        duplicateAiboCount = summary.duplicateCount
+        settingsDifferenceCount = document.settings.differenceCount(from: currentSettings)
         playtimeLines = document.playtime.records
             .filter { $0.totalSeconds > 0 }
             .sorted { $0.totalSeconds > $1.totalSeconds }
@@ -278,76 +369,62 @@ struct BackupImportPreview {
 private struct BackupImportSheet: View {
     @Bindable private var model = BackupSettingsModel.shared
 
-    private static let listedPlaytimeLimit = 8
+    private static let playtimeRowHeight: CGFloat = 20
+    private static let visiblePlaytimeRows = 6
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(String(localized: "Import This Backup?"))
-                    .font(.title2)
-                if let preview = model.preview {
-                    Text(header(preview))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            if let preview = model.preview {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        section(String(localized: "Aibos")) {
-                            if preview.aiboNames.isEmpty {
-                                Text(String(localized: "No installed aibos"))
-                            } else {
-                                Text(verbatim: preview.aiboNames.joined(separator: "\n"))
-                            }
-                            if preview.includesPoliAdjustments {
-                                Text(String(localized: "Poli’s size and bubble in this file replace this Mac’s. The built-in image is not in the backup."))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
+        VStack(spacing: 0) {
+            Form {
+                Section {
+                    if let preview = model.preview {
+                        LabeledContent(String(localized: "Backup Version")) {
+                            Text(verbatim: preview.appVersion.isEmpty ? "—" : preview.appVersion)
+                                .foregroundStyle(.secondary)
                         }
-
-                        section(String(localized: "Preferences")) {
-                            labeled(String(localized: "Theme"), preview.themeTitle)
-                            labeled(String(localized: "Language"), preview.languageTitle)
-                            labeled(String(localized: "Webhook"), webhookLine(preview))
+                        LabeledContent(String(localized: "Backup Time")) {
+                            Text(verbatim: backupTime(preview.exportedAt))
+                                .foregroundStyle(.secondary)
                         }
-
-                        section(String(localized: "Companion Time")) {
-                            if preview.playtimeLines.isEmpty {
-                                Text(String(localized: "No recorded time"))
-                            } else {
-                                let listed = preview.playtimeLines.prefix(Self.listedPlaytimeLimit)
-                                Text(verbatim: listed.map { "\($0.name)  \(duration($0.seconds))" }.joined(separator: "\n"))
-                                let extra = preview.playtimeLines.count - listed.count
-                                if extra > 0 {
-                                    Text(String(localized: "And \(extra) more"))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                        LabeledContent(String(localized: "Aibo Count")) {
+                            Text(aiboCount(preview))
+                                .foregroundStyle(.secondary)
+                        }
+                        LabeledContent(String(localized: "Preferences")) {
+                            Text(settingsCount(preview))
+                                .foregroundStyle(.secondary)
+                        }
+                        LabeledContent(String(localized: "Companion Time List")) {
+                            playtimeList(preview)
                         }
                     }
+                } header: {
+                    Text(String(localized: "Import Preview"))
                 }
-                .frame(maxHeight: 320)
 
-                Picker(String(localized: "Companion Time"), selection: $model.playtimeMode) {
-                    Text(String(localized: "Add Time")).tag(AiboBackupPlaytimeMode.add)
-                    Text(String(localized: "Replace Time")).tag(AiboBackupPlaytimeMode.replace)
-                }
-                .pickerStyle(.radioGroup)
-                .labelsHidden()
-
-                if model.playtimeMode == .add {
-                    Text(String(localized: "Adding time counts any shared history twice."))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(String(localized: "Replace this Mac’s companion time with the backup."))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                Section {
+                    optionRow(String(localized: "Import Preferences"), selection: $model.settingsImport) {
+                        Text(String(localized: "Import")).tag(BackupSettingsImport.apply)
+                        Text(String(localized: "Don't Import")).tag(BackupSettingsImport.skip)
+                    }
+                    optionRow(String(localized: "Duplicate Aibos"), selection: $model.duplicateImport) {
+                        Text(String(localized: "Add as New")).tag(AiboBackupDuplicateImport.add)
+                        Text(String(localized: "Overwrite")).tag(AiboBackupDuplicateImport.replace)
+                        Text(String(localized: "Don't Import")).tag(AiboBackupDuplicateImport.skip)
+                    }
+                    optionRow(String(localized: "Import Companion Time"), selection: $model.playtimeMode) {
+                        Text(String(localized: "Add On")).tag(AiboBackupPlaytimeMode.add)
+                        Text(String(localized: "Overwrite")).tag(AiboBackupPlaytimeMode.replace)
+                        Text(String(localized: "Don't Import")).tag(AiboBackupPlaytimeMode.skip)
+                    }
+                } header: {
+                    Text(String(localized: "Import Options"))
+                } footer: {
+                    if model.playtimeMode == .add {
+                        Text(String(localized: "Adding time counts any shared history twice."))
+                    }
                 }
             }
+            .formStyle(.grouped)
 
             HStack {
                 Spacer()
@@ -358,24 +435,75 @@ private struct BackupImportSheet: View {
                     model.confirmImport()
                 }
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
                 .disabled(model.preview == nil || model.isWorking)
             }
+            .padding([.horizontal, .bottom], 20)
         }
-        .padding(20)
-        .frame(width: 440)
+        .frame(width: 560)
     }
 
-    private func header(_ preview: BackupImportPreview) -> String {
-        let date = preview.exportedAt.formatted(date: .abbreviated, time: .shortened)
-        let version = preview.appVersion.isEmpty ? "—" : preview.appVersion
-        return String(localized: "Exported \(date) · Aibo \(version)")
+    private func optionRow<Choice: Hashable, Content: View>(
+        _ title: String,
+        selection: Binding<Choice>,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        LabeledContent(title) {
+            Picker(title, selection: selection) {
+                content()
+            }
+            .pickerStyle(.radioGroup)
+            .horizontalRadioGroupLayout()
+            .labelsHidden()
+            .fixedSize(horizontal: true, vertical: false)
+        }
     }
 
-    private func webhookLine(_ preview: BackupImportPreview) -> String {
-        if preview.webhookEnabled {
-            return String(localized: "On, port \(preview.webhookPort)")
+    private func aiboCount(_ preview: BackupImportPreview) -> String {
+        if preview.newAiboCount == 0, preview.duplicateAiboCount == 0 {
+            return differenceCount(0)
         }
-        return String(localized: "Off")
+        return String(localized: "\(preview.newAiboCount) new, \(preview.duplicateAiboCount) with the same name")
+    }
+
+    private func settingsCount(_ preview: BackupImportPreview) -> String {
+        differenceCount(preview.settingsDifferenceCount)
+    }
+
+    private func differenceCount(_ count: Int) -> String {
+        String(localized: "\(count) differences")
+    }
+
+    private func backupTime(_ date: Date) -> String {
+        let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return String(
+            format: "%04d.%02d.%02d %02d:%02d",
+            parts.year ?? 0,
+            parts.month ?? 0,
+            parts.day ?? 0,
+            parts.hour ?? 0,
+            parts.minute ?? 0
+        )
+    }
+
+    @ViewBuilder
+    private func playtimeList(_ preview: BackupImportPreview) -> some View {
+        if preview.playtimeLines.isEmpty {
+            Text(String(localized: "No recorded time"))
+                .foregroundStyle(.secondary)
+        } else {
+            let height = CGFloat(min(preview.playtimeLines.count, Self.visiblePlaytimeRows)) * Self.playtimeRowHeight
+            ScrollView {
+                VStack(alignment: .trailing, spacing: 2) {
+                    ForEach(Array(preview.playtimeLines.enumerated()), id: \.offset) { _, line in
+                        Text(verbatim: "\(duration(line.seconds)) · \(line.name)")
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+            }
+            .frame(height: height)
+        }
     }
 
     private func duration(_ seconds: Int) -> String {
@@ -386,20 +514,65 @@ private struct BackupImportSheet: View {
             return "\(days)d \(hours)h"
         }
     }
+}
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.headline)
-            content()
-                .frame(maxWidth: .infinity, alignment: .leading)
+private struct BackupActionRow: View {
+    var systemName: String
+    var title: String
+    var subtitle: String
+    var buttonTitle: String
+    var isEnabled: Bool
+    var action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            BackupActionIcon(systemName: systemName)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Button(buttonTitle, action: action)
+                .buttonStyle(.bordered)
+                .disabled(!isEnabled)
         }
     }
+}
 
-    private func labeled(_ title: String, _ value: String) -> some View {
-        LabeledContent(title) {
-            Text(value)
-                .foregroundStyle(.secondary)
+private struct BackupActionIcon: View {
+    var systemName: String
+
+    private let side: CGFloat = 28
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 6, style: .continuous)
+            .fill(.primary)
+            .frame(width: side, height: side)
+            .overlay {
+                Image(nsImage: Self.centeredSymbol(systemName, pointSize: 20))
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
+                    .foregroundStyle(Color(nsColor: .windowBackgroundColor))
+            }
+    }
+
+    private static func centeredSymbol(_ name: String, pointSize: CGFloat) -> NSImage {
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
+        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+        else {
+            return NSImage()
         }
+        let baked = NSImage(size: symbol.size, flipped: false) { rect in
+            symbol.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+            return true
+        }
+        baked.isTemplate = true
+        return baked
     }
 }

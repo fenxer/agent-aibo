@@ -241,7 +241,61 @@ private func settingsFixture() -> AiboBackupSettings {
     let libraryData = try Data(contentsOf: document.aibosDirectory.appendingPathComponent("library.json"))
     #expect(try AiboLibraryCodec.decode(libraryData).selectedID == "static.nova")
     #expect(FileManager.default.fileExists(atPath: document.aibosDirectory.appendingPathComponent("static/nova.png").path))
+    #expect(document.hookLogURL == nil)
     try? FileManager.default.removeItem(at: root)
+}
+
+@Test func backupArchiveRoundTripsTheHookLogWhenAsked() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("aibo-backup-log-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let aibos = root.appendingPathComponent("aibos", isDirectory: true)
+    try FileManager.default.createDirectory(at: aibos, withIntermediateDirectories: true)
+    let log = root.appendingPathComponent("ingest-log.jsonl")
+    let bytes = Data("{\"kind\":\"event\"}\n".utf8)
+    try bytes.write(to: log)
+    let archive = root.appendingPathComponent("Aibo.aiboarchive")
+    try AiboBackupArchive.write(
+        settings: settingsFixture(),
+        playtime: AiboBackupPlaytimeFile(records: [], daysByAiboID: [:]),
+        aibosSource: aibos,
+        hookLogSource: log,
+        appVersion: "1",
+        to: archive
+    )
+    let document = try AiboBackupArchive.read(
+        archive: archive,
+        into: root.appendingPathComponent("out", isDirectory: true)
+    )
+    let packed = try Data(contentsOf: try #require(document.hookLogURL))
+    #expect(packed == bytes)
+
+    let installed = root.appendingPathComponent("live.jsonl")
+    try Data("old\n".utf8).write(to: installed)
+    try AiboBackupArchive.replaceRegularFile(at: installed, with: log)
+    #expect(try Data(contentsOf: installed) == bytes)
+}
+
+@Test func backupArchiveOmitsAMissingHookLog() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("aibo-backup-nolog-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let aibos = root.appendingPathComponent("aibos", isDirectory: true)
+    try FileManager.default.createDirectory(at: aibos, withIntermediateDirectories: true)
+    let archive = root.appendingPathComponent("Aibo.aiboarchive")
+    try AiboBackupArchive.write(
+        settings: settingsFixture(),
+        playtime: AiboBackupPlaytimeFile(records: [], daysByAiboID: [:]),
+        aibosSource: aibos,
+        hookLogSource: root.appendingPathComponent("missing.jsonl"),
+        appVersion: "1",
+        to: archive
+    )
+    let document = try AiboBackupArchive.read(
+        archive: archive,
+        into: root.appendingPathComponent("out", isDirectory: true)
+    )
+    #expect(document.hookLogURL == nil)
 }
 
 @Test func backupArchiveRejectsANewerFormat() throws {
@@ -332,4 +386,119 @@ private func settingsFixture() -> AiboBackupSettings {
         Data(contentsOf: destination.appendingPathComponent("library.json"))
     )
     #expect(restored.selectedID == "static.old")
+}
+
+private func libraryRecord(
+    id: String,
+    name: String,
+    path: String,
+    kind: AiboKind = .staticImage
+) -> AiboLibraryRecord {
+    AiboLibraryRecord(id: id, kind: kind, displayName: name, relativePath: path)
+}
+
+@Test func backupLibrarySummaryMatchesNamesExactly() {
+    let local = [
+        AiboLibraryRecord.builtInDefault,
+        libraryRecord(id: "static.nova", name: "Nova", path: "static/nova.png"),
+    ]
+    let incoming = [
+        libraryRecord(id: "static.nova", name: "Nova", path: "static/nova.png"),
+        libraryRecord(id: "static.lower", name: "nova", path: "static/lower.png"),
+        libraryRecord(id: "static.spaced", name: "Nova ", path: "static/spaced.png"),
+        libraryRecord(id: "static.other", name: "Other", path: "static/other.png"),
+    ]
+    let summary = AiboBackupLibraryImport.summary(localRecords: local, incomingRecords: incoming)
+    #expect(summary.duplicateCount == 1)
+    #expect(summary.newCount == 3)
+}
+
+@Test func backupLibraryAddSuffixesDuplicateNames() {
+    let local = [
+        AiboLibraryRecord.builtInDefault,
+        libraryRecord(id: "static.nova", name: "Nova", path: "static/nova.png"),
+        libraryRecord(id: "static.nova1", name: "Nova1", path: "static/nova1.png"),
+    ]
+    let incoming = AiboLibraryFile(records: [
+        libraryRecord(id: "static.nova", name: "Nova", path: "static/from-backup.png"),
+        libraryRecord(id: "static.other", name: "Other", path: "static/other.png"),
+        libraryRecord(id: "static.other2", name: "Other", path: "static/other-2.png"),
+    ])
+    let merged = AiboBackupLibraryImport.merge(
+        localRecords: local,
+        localBuiltInHidden: false,
+        incoming: incoming,
+        duplicates: .add
+    )
+    #expect(merged.records.contains { $0.id == "static.nova" && $0.displayName == "Nova" })
+    #expect(merged.records.contains { $0.displayName == "Nova2" })
+    #expect(merged.records.contains { $0.displayName == "Other" })
+    #expect(merged.records.contains { $0.displayName == "Other1" })
+}
+
+@Test func backupLibraryReplaceKeepsTheLocalIdentity() {
+    let local = [
+        libraryRecord(id: "static.nova", name: "Nova", path: "static/nova.png"),
+    ]
+    let incoming = AiboLibraryFile(records: [
+        libraryRecord(id: "static.backup", name: "Nova", path: "static/backup.png"),
+    ])
+    let merged = AiboBackupLibraryImport.merge(
+        localRecords: local,
+        localBuiltInHidden: false,
+        incoming: incoming,
+        duplicates: .replace
+    )
+    #expect(merged.records.count == 1)
+    #expect(merged.records[0].id == "static.nova")
+    #expect(merged.records[0].displayName == "Nova")
+    #expect(merged.records[0].relativePath == "static/backup.png")
+    #expect(merged.removals == ["static/nova.png"])
+}
+
+@Test func backupLibrarySkipDropsDuplicatesAndKeepsNewNames() {
+    let local = [
+        libraryRecord(id: "static.nova", name: "Nova", path: "static/nova.png"),
+    ]
+    let incoming = AiboLibraryFile(records: [
+        libraryRecord(id: "static.nova", name: "Nova", path: "static/backup.png"),
+        libraryRecord(id: "static.other", name: "Other", path: "static/other.png"),
+    ])
+    let merged = AiboBackupLibraryImport.merge(
+        localRecords: local,
+        localBuiltInHidden: false,
+        incoming: incoming,
+        duplicates: .skip
+    )
+    #expect(merged.records.map(\.displayName) == ["Nova", "Other"])
+}
+
+@Test func backupSettingsDifferenceCountTreatsPositionAsOne() {
+    #expect(settingsFixture().differenceCount(from: settingsFixture()) == 0)
+    var changed = settingsFixture()
+    changed.themeMode = "light"
+    changed.languageMode = "chinese"
+    #expect(changed.differenceCount(from: settingsFixture()) == 2)
+    changed = settingsFixture()
+    changed.centerXPercent = 0.5
+    changed.centerYPercent = 0.1
+    #expect(changed.differenceCount(from: settingsFixture()) == 1)
+}
+
+@Test func backupPlaytimeSkipLeavesTheLocalLedger() {
+    let local = AiboBackupPlaytimeFile(
+        records: [record(id: "static.nova", name: "Nova", seconds: 4)],
+        daysByAiboID: ["static.nova": ["2026-10-14": 4]]
+    )
+    let incoming = AiboBackupPlaytimeFile(
+        records: [record(id: "static.other", name: "Other", seconds: 9)],
+        daysByAiboID: ["static.other": ["2026-10-14": 9]]
+    )
+    let merged = AiboBackupPlaytimeMerge.merge(
+        local: local,
+        incoming: incoming,
+        mode: .skip,
+        now: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    #expect(merged == local)
 }

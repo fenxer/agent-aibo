@@ -1039,6 +1039,30 @@ final class AiboRuntime {
         ingestLogEntryCount = (try? IngestLogStore.count()) ?? 0
     }
 
+    /// Copies the live hook log aside so an export does not race an append. `nil` when no log has been written.
+    func copyIngestLogForBackup() throws -> URL? {
+        try ingestLogQueue.sync {
+            let source = AiboPaths.ingestLogURL
+            guard FileManager.default.fileExists(atPath: source.path) else { return nil }
+            let destination = FileManager.default.temporaryDirectory
+                .appendingPathComponent("aibo-hook-log-\(UUID().uuidString).jsonl")
+            do {
+                try FileManager.default.copyItem(at: source, to: destination)
+            } catch {
+                throw AiboBackupError.ioFailed
+            }
+            return destination
+        }
+    }
+
+    /// Replaces the hook log on this Mac. Runs on the log queue so an append cannot land on the old file.
+    func importIngestLog(from source: URL) throws {
+        try ingestLogQueue.sync {
+            try AiboBackupArchive.replaceRegularFile(at: AiboPaths.ingestLogURL, with: source)
+        }
+        refreshIngestLogCount()
+    }
+
     private func recordIngestDrain(count: Int) {
         guard ingestLoggingEnabled else { return }
         appendIngestLog(
