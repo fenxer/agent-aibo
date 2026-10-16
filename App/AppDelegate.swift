@@ -16,7 +16,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
-        ExtensionLinkRouter.accept(urls)
+        let archives = urls.filter(Self.isBackupArchive)
+        let links = urls.filter { !Self.isBackupArchive($0) }
+        if let archive = archives.last {
+            BackupSettingsModel.shared.importArchiveFromOutside(archive)
+        }
+        if !links.isEmpty {
+            ExtensionLinkRouter.accept(links)
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -38,6 +45,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         persistAiboPositionIfNeeded()
         PlaytimeStore.shared.flushForTermination()
         AiboRuntime.shared.stop()
+    }
+
+    private static func isBackupArchive(_ url: URL) -> Bool {
+        url.isFileURL && url.pathExtension.lowercased() == AiboBackupArchive.fileExtension
     }
 
     private func persistAiboPositionIfNeeded() {

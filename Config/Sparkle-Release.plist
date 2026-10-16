@@ -25,5 +25,44 @@
 			</array>
 		</dict>
 	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>work.fenx.aibo.backup</string>
+			<key>UTTypeDescription</key>
+			<string>Aibo Backup</string>
+			<key>UTTypeIconFile</key>
+			<string>ArchiveIcon.icns</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.zip-archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>aiboarchive</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>ArchiveIcon.icns</string>
+			<key>CFBundleTypeName</key>
+			<string>Aibo Backup</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>work.fenx.aibo.backup</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

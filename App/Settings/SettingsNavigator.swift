@@ -12,6 +12,7 @@ final class SettingsNavigator {
 
     enum Pane: String, Equatable {
         case general
+        case backup
         case webhook
         case about
         case extensions
@@ -45,6 +46,14 @@ final class SettingsNavigator {
         pendingPane = .extensions
         pendingRevealWebhookRoot = false
         pendingExtensionID = id
+        SettingsWindowController.shared.show()
+    }
+
+    /// Backup page, then the caller presents the import preview.
+    func showBackup() {
+        pendingPane = .backup
+        pendingRevealWebhookRoot = false
+        pendingExtensionID = nil
         SettingsWindowController.shared.show()
     }
 

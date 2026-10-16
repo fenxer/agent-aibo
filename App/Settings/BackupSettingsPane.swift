@@ -91,7 +91,20 @@ final class BackupSettingsModel {
         panel.allowedContentTypes = [Self.archiveType, .zip]
         panel.allowsOtherFileTypes = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        startImport(from: url)
+    }
 
+    /// Finder double-click. Opens Backup, then the same preview as Import….
+    func importArchiveFromOutside(_ url: URL) {
+        SettingsNavigator.shared.showBackup()
+        guard !isWorking else { return }
+        if pendingRoot != nil || showPreview {
+            cancelImport()
+        }
+        startImport(from: url)
+    }
+
+    private func startImport(from url: URL) {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("aibo-import-\(UUID().uuidString)", isDirectory: true)
         isWorking = true

@@ -84,6 +84,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     init?(_ destination: SettingsNavigator.Pane) {
         switch destination {
         case .general: self = .general
+        case .backup: self = .backup
         case .webhook: self = .webhook
         case .about: self = .about
         case .extensions: self = .extensions

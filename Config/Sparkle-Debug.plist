@@ -2,10 +2,25 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>SUPublicEDKey</key>
-	<string>zEBD9L5xaycWBWiGnvwRT7492OVBIgHf50DiFCjltsE=</string>
-	<key>SUEnableAutomaticChecks</key>
-	<false/>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeIconFile</key>
+			<string>ArchiveIcon.icns</string>
+			<key>CFBundleTypeIconSystemGenerated</key>
+			<false/>
+			<key>CFBundleTypeName</key>
+			<string>Aibo Backup</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>work.fenx.aibo.backup</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -17,6 +32,32 @@
 			<array>
 				<string>aibo</string>
 			</array>
+		</dict>
+	</array>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUPublicEDKey</key>
+	<string>zEBD9L5xaycWBWiGnvwRT7492OVBIgHf50DiFCjltsE=</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.zip-archive</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Aibo Backup</string>
+			<key>UTTypeIconFile</key>
+			<string>ArchiveIcon.icns</string>
+			<key>UTTypeIdentifier</key>
+			<string>work.fenx.aibo.backup</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>aiboarchive</string>
+				</array>
+			</dict>
 		</dict>
 	</array>
 </dict>
