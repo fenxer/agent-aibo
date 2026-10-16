@@ -381,6 +381,37 @@ private struct ExtensionOutcomeBody: View {
     }
 }
 
+/// Copy / Close on a finished card. The panel is not allowed to become key, so
+/// SwiftUI's button asks `_NSGlassEffectWindow` to become key, that window
+/// returns NO, and AppKit drops the click. A hook bubble under the card also
+/// wins the gesture. The panel runs the action from this frame instead.
+final class ExtensionOutcomeActionToken {
+    var frame: CGRect = .null
+    var perform: @MainActor () -> Void = {}
+}
+
+enum ExtensionOutcomeActionTracker {
+    private static var tokens: [ExtensionOutcomeActionToken] = []
+
+    static func register(_ token: ExtensionOutcomeActionToken) {
+        guard tokens.contains(where: { $0 === token }) == false else { return }
+        tokens.append(token)
+    }
+
+    static func unregister(_ token: ExtensionOutcomeActionToken) {
+        tokens.removeAll { $0 === token }
+    }
+
+    @MainActor
+    static func perform(at point: NSPoint) -> Bool {
+        for token in tokens.reversed() where token.frame.contains(point) {
+            token.perform()
+            return true
+        }
+        return false
+    }
+}
+
 private struct ExtensionOutcomeActions: View {
     var copiesIssue: Bool
     var onCopy: () -> Void
@@ -389,17 +420,59 @@ private struct ExtensionOutcomeActions: View {
     var body: some View {
         HStack(spacing: 8) {
             if copiesIssue {
-                Button("Copy Issue", action: onCopy)
-                    .buttonStyle(.borderedProminent)
+                ExtensionOutcomeActionButton(title: "Copy Issue", prominent: true, action: onCopy)
             } else {
-                Button("Copy", action: onCopy)
-                    .buttonStyle(.borderedProminent)
+                ExtensionOutcomeActionButton(title: "Copy", prominent: true, action: onCopy)
             }
-            Button("Close", action: onClose)
-                .buttonStyle(.bordered)
+            ExtensionOutcomeActionButton(title: "Close", prominent: false, action: onClose)
         }
         .controlSize(.extraLarge)
         .frame(height: ExtensionBubbleMetrics.buttonRowHeight, alignment: .leading)
+    }
+}
+
+/// Anchored result buttons. The detached window can become key, so it keeps the
+/// system button and does not register a frame.
+private struct ExtensionOutcomeActionButton: View {
+    var title: LocalizedStringKey
+    var prominent: Bool
+    var action: () -> Void
+
+    @Environment(\.extensionBubbleChrome) private var chrome
+    @State private var token = ExtensionOutcomeActionToken()
+
+    var body: some View {
+        button
+            .onGeometryChange(for: CGRect.self) { proxy in
+                proxy.frame(in: .named(AiboPanelSpace.name))
+            } action: { frame in
+                guard chrome == .anchored else {
+                    token.frame = .null
+                    ExtensionOutcomeActionTracker.unregister(token)
+                    return
+                }
+                guard frame.width > 8, frame.height > 8, frame.width < 280, frame.height < 64 else {
+                    token.frame = .null
+                    return
+                }
+                token.frame = frame.insetBy(dx: -2, dy: -2)
+                token.perform = action
+                ExtensionOutcomeActionTracker.register(token)
+            }
+            .onDisappear {
+                ExtensionOutcomeActionTracker.unregister(token)
+            }
+    }
+
+    @ViewBuilder
+    private var button: some View {
+        if prominent {
+            Button(title, action: action)
+                .buttonStyle(.borderedProminent)
+        } else {
+            Button(title, action: action)
+                .buttonStyle(.bordered)
+        }
     }
 }
 

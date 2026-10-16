@@ -1436,6 +1436,15 @@ final class AiboPanelController {
         return ExtensionBubbleCornerTracker.perform(at: point)
     }
 
+    /// Copy / Close on a finished plugin card. Same drop as the corner control:
+    /// the panel cannot become key, and a hook bubble under the card takes the
+    /// gesture. Run the button from its drawn frame and swallow the click.
+    private func performExtensionOutcomeAction(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.contains(.control) == false else { return false }
+        guard let point = hostPoint(for: event) else { return false }
+        return ExtensionOutcomeActionTracker.perform(at: point)
+    }
+
     /// Hook-bubble taps use a SwiftUI gesture on this same hosting view. That
     /// gesture wins the click, so the prompt field keeps the caret at the end.
     /// Place the caret from the field's drawn frame and swallow the click.
@@ -1821,6 +1830,9 @@ final class AiboPanelController {
                     return nil
                 }
                 if self.openExtensionWindow(with: event) {
+                    return nil
+                }
+                if self.performExtensionOutcomeAction(with: event) {
                     return nil
                 }
                 if self.handleInspectCardClick(with: event) {
