@@ -35,6 +35,27 @@ struct MacKeycap: Equatable {
         }
     }
 
+    /// Left and right sides share one flag. The flag is the source of truth for
+    /// “is this modifier still down”; keyCode only says which side changed.
+    static func modifierFlag(keyCode: UInt16) -> NSEvent.ModifierFlags? {
+        switch keyCode {
+        case 0x37, 0x36: .command
+        case 0x38, 0x3C: .shift
+        case 0x3A, 0x3D: .option
+        case 0x3B, 0x3E: .control
+        case 0x3F, 0xB3: .function
+        default: nil
+        }
+    }
+
+    static let modifierGroups: [(NSEvent.ModifierFlags, [UInt16])] = [
+        (.command, [0x37, 0x36]),
+        (.shift, [0x38, 0x3C]),
+        (.option, [0x3A, 0x3D]),
+        (.control, [0x3B, 0x3E]),
+        (.function, [0x3F, 0xB3]),
+    ]
+
     private static let modifierKeyCodes: Set<UInt16> = [
         0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0xB3,
     ]

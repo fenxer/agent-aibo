@@ -92,11 +92,18 @@ final class KeystrokeMonitor {
     private func handle(_ event: NSEvent) {
         switch event.type {
         case .keyDown:
-            guard event.isARepeat == false, let keycap = MacKeycap.nonModifier(from: event) else { return }
+            guard let keycap = MacKeycap.nonModifier(from: event) else { return }
+            if event.isARepeat {
+                // Still held. Don't let the stay timer expire under a repeating key.
+                cancelLinger()
+                return
+            }
             notePress(keycap, at: event.timestamp)
+            reconcileModifiers(event.modifierFlags)
         case .keyUp:
             guard let keycap = MacKeycap.nonModifier(from: event) else { return }
             noteRelease(keycap.id)
+            reconcileModifiers(event.modifierFlags)
         case .flagsChanged:
             handleFlags(event)
         default:
@@ -104,28 +111,54 @@ final class KeystrokeMonitor {
         }
     }
 
-    /// `flagsChanged` is the physical down/up for modifiers. Caps Lock only
-    /// toggles a sticky flag, so each event is shown as a tap.
+    /// Direction comes from `modifierFlags`, not from toggling. A second
+    /// flagsChanged for the same release used to be stored as a new press, so
+    /// the group never counted as finished and Stay Time never started.
     private func handleFlags(_ event: NSEvent) {
         let keyCode = event.keyCode
-        guard let keycap = MacKeycap.modifier(keyCode: keyCode) else { return }
+        guard let keycap = MacKeycap.modifier(keyCode: keyCode) else {
+            reconcileModifiers(event.modifierFlags)
+            return
+        }
         if keyCode == 0x39 {
             notePress(keycap, at: event.timestamp)
             noteRelease(keycap.id)
             return
         }
-        if heldModifierCodes.contains(keyCode) {
+        if let flag = MacKeycap.modifierFlag(keyCode: keyCode), event.modifierFlags.contains(flag) {
+            if heldModifierCodes.contains(keyCode) == false {
+                heldModifierCodes.insert(keyCode)
+                notePress(keycap, at: event.timestamp)
+            }
+        } else if heldModifierCodes.contains(keyCode) {
             heldModifierCodes.remove(keyCode)
             noteRelease(keycap.id)
-        } else {
-            heldModifierCodes.insert(keyCode)
-            notePress(keycap, at: event.timestamp)
         }
+        reconcileModifiers(event.modifierFlags)
+    }
+
+    /// Drops modifier caps whose flag is already up, so a missed or doubled
+    /// event cannot pin the group on screen.
+    private func reconcileModifiers(_ flags: NSEvent.ModifierFlags) {
+        var released = false
+        for (flag, codes) in MacKeycap.modifierGroups {
+            guard flags.contains(flag) == false else { continue }
+            for code in codes {
+                guard heldModifierCodes.remove(code) != nil,
+                      let keycap = MacKeycap.modifier(keyCode: code)
+                else { continue }
+                _ = gesture.release(id: keycap.id)
+                released = true
+            }
+        }
+        guard released else { return }
+        publish()
+        armLingerIfIdle()
     }
 
     func lingerDurationChanged() {
-        guard groupWaitingToClear else { return }
-        scheduleLinger()
+        reconcileModifiers(NSEvent.modifierFlags)
+        armLingerIfIdle()
     }
 
     func maxCountChanged() {
@@ -156,14 +189,31 @@ final class KeystrokeMonitor {
         let ended = gesture.release(id: id)
         publish()
         guard wasHolding else { return }
-        guard ended else {
+        if ended {
+            armLingerIfIdle()
+        } else {
             groupWaitingToClear = false
-            lingerTask?.cancel()
-            lingerTask = nil
+            cancelLinger()
+        }
+    }
+
+    /// Stay Time runs only once nothing is still held. `0` leaves the group up.
+    private func armLingerIfIdle() {
+        guard gesture.hasHeldKeys == false, displayed.isEmpty == false else {
+            if gesture.hasHeldKeys {
+                groupWaitingToClear = false
+                cancelLinger()
+            }
             return
         }
         groupWaitingToClear = true
         scheduleLinger()
+    }
+
+    private func cancelLinger() {
+        lingerTask?.cancel()
+        lingerTask = nil
+        groupWaitingToClear = false
     }
 
     private func scheduleLinger() {
@@ -171,10 +221,12 @@ final class KeystrokeMonitor {
         lingerTask = nil
         let seconds = AppSettings.shared.keystrokeLingerSeconds
         guard seconds > 0 else { return }
+        groupWaitingToClear = true
         lingerTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(seconds))
+            try? await Task.sleep(for: .seconds(Double(seconds)))
             guard Task.isCancelled == false else { return }
             self.groupWaitingToClear = false
+            self.heldModifierCodes.removeAll()
             self.gesture.clear()
             self.publish()
         }
