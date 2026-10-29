@@ -14,6 +14,8 @@ struct AiboView: View {
     @Bindable private var library = AiboLibraryStore.shared
     private var switchSignal = AiboSwitchSignal.shared
     private var runtime = AiboRuntime.shared
+    private var settings = AppSettings.shared
+    private var keystrokes = KeystrokeMonitor.shared
     private var extensions = ExtensionCenter.shared
     private var bubbleWindow = ExtensionBubbleWindowController.shared
     @Bindable private var onboarding = OnboardingController.shared
@@ -74,8 +76,18 @@ struct AiboView: View {
         )
     }
 
+    /// Keystroke takes the bubble slot and hides every other card.
     private var showsBubbles: Bool {
-        panelController.isContentPresented && !panelController.isLaunchPortalPlaying
+        settings.keystrokeOverlayEnabled == false
+            && panelController.isContentPresented
+            && !panelController.isLaunchPortalPlaying
+    }
+
+    private var showsKeystrokeStrip: Bool {
+        settings.keystrokeOverlayEnabled
+            && panelController.isContentPresented
+            && !panelController.isLaunchPortalPlaying
+            && keystrokes.displayed.isEmpty == false
     }
 
     private func usesAgentGlass(_ item: StatusBubbleItem) -> Bool {
@@ -124,7 +136,9 @@ struct AiboView: View {
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .overlay(alignment: .bottom) {
-                    if showsBubbles {
+                    if showsKeystrokeStrip {
+                        keystrokeColumn(abovePet: true)
+                    } else if showsBubbles {
                         verticallyAnchoredBubbleStack(growsUpward: true)
                     }
                 }
@@ -135,13 +149,17 @@ struct AiboView: View {
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .overlay(alignment: .top) {
-                    if showsBubbles {
+                    if showsKeystrokeStrip {
+                        keystrokeColumn(abovePet: false)
+                    } else if showsBubbles {
                         verticallyAnchoredBubbleStack(growsUpward: false)
                     }
                 }
         case .left:
             HStack(alignment: .center, spacing: aiboBubbleSpacing) {
-                if showsBubbles {
+                if showsKeystrokeStrip {
+                    KeystrokeStrip(rowAnchor: .trailing)
+                } else if showsBubbles {
                     fadingSideAnchoredBubbleStack(nearPetIndex: visibleBubbleItems.count - 1)
                 }
                 DesktopPetView(
@@ -156,7 +174,9 @@ struct AiboView: View {
                 layoutSize: aiboLayoutSize,
                 nominalSize: aiboNominalSize
             )
-                if showsBubbles {
+                if showsKeystrokeStrip {
+                    KeystrokeStrip(rowAnchor: .leading)
+                } else if showsBubbles {
                     fadingSideAnchoredBubbleStack(nearPetIndex: visibleBubbleItems.count - 1)
                 }
             }
@@ -288,6 +308,27 @@ struct AiboView: View {
         // Warning dismiss is handled by the button that opens Settings.
         guard item.kind != .warning, item.isDismissible else { return nil }
         return { AiboRuntime.shared.dismissBubble(id: item.id) }
+    }
+
+    /// Same side as the bubble. The clear spacer is the pet's slot so caps sit
+    /// beside it instead of on top of the sprite.
+    @ViewBuilder
+    private func keystrokeColumn(abovePet: Bool) -> some View {
+        let spacer = Color.clear
+            .frame(width: 1, height: aiboLayoutSize.height)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        VStack(spacing: aiboBubbleSpacing) {
+            if abovePet {
+                KeystrokeStrip(rowAnchor: .center)
+                spacer
+            } else {
+                spacer
+                KeystrokeStrip(rowAnchor: .center)
+            }
+        }
+        .fixedSize()
+        .allowsHitTesting(false)
     }
 
     /// Top: stack above the pet, growing up. Bottom: stack below, growing down.

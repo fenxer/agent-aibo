@@ -12,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AiboRuntime.shared.start()
         ExtensionCenter.shared.start()
         AiboPanelController.shared.show()
+        KeystrokeMonitor.shared.setEnabled(
+            AppSettings.shared.keystrokeOverlayEnabled,
+            promptForAccessibility: false
+        )
         PlaytimeStore.shared.start()
     }
 
@@ -28,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         AiboRuntime.shared.refreshHostAppPresence()
+        KeystrokeMonitor.shared.recheckAccessibility()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

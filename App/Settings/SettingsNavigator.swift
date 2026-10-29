@@ -16,6 +16,7 @@ final class SettingsNavigator {
         case webhook
         case about
         case extensions
+        case tools
         #if DEBUG
         case development
         #endif

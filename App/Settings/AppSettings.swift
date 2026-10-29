@@ -51,6 +51,9 @@ final class AppSettings {
         static let aiboPositionYPercent = "settings.aiboPositionYPercent"
         static let aiboPositionScreenUUID = "settings.aiboPositionScreenUUID"
         static let musicNotesEnabled = "settings.musicNotesEnabled"
+        static let keystrokeOverlayEnabled = "settings.keystrokeOverlayEnabled"
+        static let keystrokeLingerSeconds = "settings.keystrokeLingerSeconds"
+        static let keystrokeMaxCount = "settings.keystrokeMaxCount"
         static let musicNotesColorMode = "settings.musicNotesColorMode"
         static let musicNotesCustomColor = "settings.musicNotesCustomColor"
         static let customMusicNotificationNames = "settings.customMusicNotificationNames"
@@ -71,6 +74,12 @@ final class AppSettings {
     nonisolated static let pixelOptimizationScalePercents: [Double] = [50, 100, 150, 200, 250, 300]
     static let defaultWebhookAutoDismissSeconds = 12
     static let webhookAutoDismissSecondsRange = 1...600
+    static let defaultKeystrokeLingerSeconds = 3
+    /// `0` keeps the group until the next one replaces it.
+    static let keystrokeLingerSecondsRange = 0...60
+    static let defaultKeystrokeMaxCount = KeystrokeStripLayout.defaultLimit
+    /// `0` means no numeric cap. The strip still stops at 10 rows.
+    static let keystrokeMaxCountRange = 0...KeystrokeStripLayout.visualCap
     /// Playground `Color.primary` `#0935E5`.
     static let defaultPlanProgressShaderPrimary = Color(
         .sRGB,
@@ -150,6 +159,45 @@ final class AppSettings {
     private(set) var savedAiboCenterYPercent: Double?
     /// Display the percents belong to. `NSScreen.main` is the focused/menu-bar screen, often the laptop.
     private(set) var savedAiboPositionScreenUUID: String?
+
+    /// Keycaps beside the aibo. While on, status and plugin bubbles stay hidden.
+    var keystrokeOverlayEnabled: Bool {
+        didSet {
+            guard oldValue != keystrokeOverlayEnabled else { return }
+            UserDefaults.standard.set(keystrokeOverlayEnabled, forKey: Keys.keystrokeOverlayEnabled)
+            KeystrokeMonitor.shared.setEnabled(keystrokeOverlayEnabled, promptForAccessibility: true)
+            AiboPanelController.shared.syncKeystrokeGeometry()
+        }
+    }
+
+    /// How long a finished key group stays. `0` waits for the next group.
+    var keystrokeLingerSeconds: Int {
+        didSet {
+            let clamped = Self.clampKeystrokeLingerSeconds(keystrokeLingerSeconds)
+            if clamped != keystrokeLingerSeconds {
+                keystrokeLingerSeconds = clamped
+                return
+            }
+            guard oldValue != keystrokeLingerSeconds else { return }
+            UserDefaults.standard.set(keystrokeLingerSeconds, forKey: Keys.keystrokeLingerSeconds)
+            KeystrokeMonitor.shared.lingerDurationChanged()
+        }
+    }
+
+    /// Most keycaps in one group. `0` keeps every press inside the interval,
+    /// still bounded by the 10-row strip.
+    var keystrokeMaxCount: Int {
+        didSet {
+            let clamped = Self.clampKeystrokeMaxCount(keystrokeMaxCount)
+            if clamped != keystrokeMaxCount {
+                keystrokeMaxCount = clamped
+                return
+            }
+            guard oldValue != keystrokeMaxCount else { return }
+            UserDefaults.standard.set(keystrokeMaxCount, forKey: Keys.keystrokeMaxCount)
+            KeystrokeMonitor.shared.maxCountChanged()
+        }
+    }
 
     /// Overlay music-note rise effect while a known player is playing. Default on.
     var musicNotesEnabled: Bool {
@@ -503,6 +551,22 @@ final class AppSettings {
             savedAiboPositionScreenUUID = nil
         }
 
+        keystrokeOverlayEnabled = UserDefaults.standard.bool(forKey: Keys.keystrokeOverlayEnabled)
+        if UserDefaults.standard.object(forKey: Keys.keystrokeLingerSeconds) != nil {
+            keystrokeLingerSeconds = Self.clampKeystrokeLingerSeconds(
+                UserDefaults.standard.integer(forKey: Keys.keystrokeLingerSeconds)
+            )
+        } else {
+            keystrokeLingerSeconds = Self.defaultKeystrokeLingerSeconds
+        }
+        if UserDefaults.standard.object(forKey: Keys.keystrokeMaxCount) != nil {
+            keystrokeMaxCount = Self.clampKeystrokeMaxCount(
+                UserDefaults.standard.integer(forKey: Keys.keystrokeMaxCount)
+            )
+        } else {
+            keystrokeMaxCount = Self.defaultKeystrokeMaxCount
+        }
+
         if UserDefaults.standard.object(forKey: Keys.musicNotesEnabled) != nil {
             musicNotesEnabled = UserDefaults.standard.bool(forKey: Keys.musicNotesEnabled)
         } else {
@@ -783,6 +847,14 @@ final class AppSettings {
 
     private static func clampWebhookAutoDismissSeconds(_ value: Int) -> Int {
         min(max(value, webhookAutoDismissSecondsRange.lowerBound), webhookAutoDismissSecondsRange.upperBound)
+    }
+
+    private static func clampKeystrokeLingerSeconds(_ value: Int) -> Int {
+        min(max(value, keystrokeLingerSecondsRange.lowerBound), keystrokeLingerSecondsRange.upperBound)
+    }
+
+    private static func clampKeystrokeMaxCount(_ value: Int) -> Int {
+        min(max(value, keystrokeMaxCountRange.lowerBound), keystrokeMaxCountRange.upperBound)
     }
 
     private static func normalizedPublicWebhookURL(_ value: String) -> String {

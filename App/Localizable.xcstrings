@@ -1296,6 +1296,16 @@
         }
       }
     },
+    "Aibo needs Accessibility access to see keys you press in other apps." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aibo 需要辅助功能权限，才能看到你在其他 App 里按下的键。"
+          }
+        }
+      }
+    },
     "Extensions" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1312,6 +1322,118 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "额外动作"
+          }
+        }
+      }
+    },
+    "Tools" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具"
+          }
+        }
+      }
+    },
+    "Max Keys" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最多按键"
+          }
+        }
+      }
+    },
+    "0 keeps every key from the same interval in one group, up to 10 rows." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设为 0 时不限制个数，间隔内的按键会留在同一组，最多显示 10 行。"
+          }
+        }
+      }
+    },
+    "Stay Time" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停留时间"
+          }
+        }
+      }
+    },
+    "keystroke.linger.unit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "s"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秒"
+          }
+        }
+      }
+    },
+    "0 seconds keeps the keys on screen until the next group replaces them." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设为 0 秒时不会自动消失，直到下一组按键出现。"
+          }
+        }
+      }
+    },
+    "Keystroke" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按键显示"
+          }
+        }
+      }
+    },
+    "keystroke.key.space" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SPACE"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空格"
+          }
+        }
+      }
+    },
+    "Open Accessibility Settings" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开辅助功能设置"
+          }
+        }
+      }
+    },
+    "Shows the keys you press beside Aibo. Other bubbles stay hidden while this is on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Aibo 旁边显示按下的键。开启后不再显示其他气泡。"
           }
         }
       }

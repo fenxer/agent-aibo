@@ -7,6 +7,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
     case agentHook
     case webhook
     case extensions
+    case tools
     case general
     case backup
     case about
@@ -22,6 +23,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .agentHook: String(localized: "Agent Hook")
         case .webhook: String(localized: "Webhook")
         case .extensions: String(localized: "Extensions")
+        case .tools: String(localized: "Tools")
         case .general: String(localized: "General")
         case .backup: String(localized: "Backup")
         case .about: String(localized: "About")
@@ -42,6 +44,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .agentHook: .system("poweroutlet.type.b.fill")
         case .webhook: .system("globe")
         case .extensions: .system("square.text.square.fill")
+        case .tools: .system("keyboard.fill")
         case .general: .system("gearshape.fill")
         case .backup: .system("archivebox.fill")
         case .about: .system("info.circle.fill")
@@ -57,6 +60,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .agentHook: .blue
         case .webhook: .blue
         case .extensions: .teal
+        case .tools: .purple
         case .general: .indigo
         case .backup: .orange
         case .about: Color(nsColor: .systemGray)
@@ -72,6 +76,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .agentHook: 20
         case .webhook: 18
         case .extensions: 16
+        case .tools: 15
         case .general: 18
         case .backup: 18
         case .about: 16
@@ -88,6 +93,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .webhook: self = .webhook
         case .about: self = .about
         case .extensions: self = .extensions
+        case .tools: self = .tools
         #if DEBUG
         case .development: self = .development
         #endif
@@ -107,6 +113,9 @@ private struct SettingsSidebar: View {
             }
             Section {
                 SettingsSidebarRow(pane: .extensions)
+            }
+            Section {
+                SettingsSidebarRow(pane: .tools)
             }
             Section {
                 SettingsSidebarRow(pane: .general)
@@ -255,6 +264,8 @@ struct SettingsView: View {
             WebhookSettingsPane()
         case .extensions:
             ExtensionSettingsPage()
+        case .tools:
+            ToolsSettingsPane()
         case .about:
             AboutSettingsPane()
         #if DEBUG

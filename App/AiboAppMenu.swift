@@ -10,7 +10,7 @@ struct AiboAppMenu: View {
 
     @State private var aiboPanelController = AiboPanelController.shared
     @State private var runtime = AiboRuntime.shared
-    @State private var settings = AppSettings.shared
+    @Bindable private var settings = AppSettings.shared
     @State private var library = AiboLibraryStore.shared
     @State private var extensions = ExtensionCenter.shared
 
@@ -53,6 +53,10 @@ struct AiboAppMenu: View {
                     }
                 }
             }
+        }
+
+        Menu(String(localized: "Tools")) {
+            Toggle(String(localized: "Keystroke"), isOn: $settings.keystrokeOverlayEnabled)
         }
 
         Button(String(localized: "Settings…")) {

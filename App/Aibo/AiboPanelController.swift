@@ -570,6 +570,25 @@ final class AiboPanelController {
         scheduleGeometryUpdate(after: .zero)
     }
 
+    /// Keycaps use the bubble side. Resize immediately so the pet does not
+    /// slide inside a frame that still belongs to the previous chord.
+    func syncKeystrokeGeometry() {
+        guard !isLaunchPortalPlaying else { return }
+        clearExtensionCardFrame()
+        clearPluginPoofHold()
+        isExtensionCardHeld = false
+        isFrameGrowthPending = false
+        if isRepositioningAibo {
+            scheduleGeometryUpdate(after: .milliseconds(50))
+            return
+        }
+        syncGeometryNow()
+    }
+
+    private var keystrokeOverlayActive: Bool {
+        AppSettings.shared.keystrokeOverlayEnabled && !isLaunchPortalPlaying
+    }
+
     /// - Parameter deferShrink: a bubble is animating to a shorter layout
     ///   (hook inspect closing); hold the panel size like a removal.
     func refreshContent(deferShrink: Bool = false) {
@@ -1113,6 +1132,7 @@ final class AiboPanelController {
     /// Hook bubbles, with the plugin card inserted at the far end (index 0).
     /// Side layout treats the last height as the bubble centered on the pet.
     private func layoutBubbleHeights(items: [StatusBubbleItem]) -> [CGFloat] {
+        if keystrokeOverlayActive { return [] }
         if let frozenLayoutHeights { return frozenLayoutHeights }
         var heights = items.map(estimatedBubbleHeight(for:))
         guard let pluginHeight = extensionLayoutHeights?.first else { return heights }
@@ -1132,7 +1152,10 @@ final class AiboPanelController {
         let heights = layoutBubbleHeights(items: items)
         let bubbleCount = heights.count
         guard bubbleCount > 0 else {
-            return NSSize(width: max(aiboBlockWidth, 1), height: max(aiboBlockHeight, 1))
+            return expandForKeystrokes(
+                NSSize(width: max(aiboBlockWidth, 1), height: max(aiboBlockHeight, 1)),
+                placement: placement
+            )
         }
         let stackHeight =
             heights.reduce(0, +)
@@ -1165,6 +1188,29 @@ final class AiboPanelController {
             return NSSize(
                 width: max(aiboBlockWidth + bubbleMaxWidth + aiboBubbleSpacing + panelBubbleSlack, 1),
                 height: max(insets.vertical + rowHeight + nearExtra + stackAbove + pills, 1)
+            )
+        }
+    }
+
+    /// Pet-only frame plus the keycap row on the bubble's side.
+    private func expandForKeystrokes(_ size: NSSize, placement: BubblePlacement) -> NSSize {
+        guard keystrokeOverlayActive else { return size }
+        let count = KeystrokeMonitor.shared.displayed.count
+        guard count > 0 else { return size }
+        let strip = KeystrokeMetrics.stripSize(count: count)
+        let gap = aiboBubbleSpacing
+        let room = KeystrokeMetrics.shadowRoom
+        let insets = contentInsets
+        switch placement {
+        case .left, .right:
+            return NSSize(
+                width: size.width + gap + strip.width + room,
+                height: max(size.height, insets.vertical + strip.height + room)
+            )
+        case .top, .bottom:
+            return NSSize(
+                width: max(size.width, insets.horizontal + strip.width + room),
+                height: size.height + gap + strip.height + room
             )
         }
     }
@@ -1558,6 +1604,7 @@ final class AiboPanelController {
         placement: BubblePlacement,
         items: [StatusBubbleItem]
     ) -> [(id: String, frame: CGRect)] {
+        guard !keystrokeOverlayActive else { return [] }
         guard !items.isEmpty else { return [] }
         let insets = contentInsets
         let origin = aiboOrigin(
@@ -1623,6 +1670,7 @@ final class AiboPanelController {
         items: [StatusBubbleItem],
         spacing: CGFloat? = nil
     ) -> [CGRect] {
+        guard !keystrokeOverlayActive else { return [] }
         let heights = layoutBubbleHeights(items: items)
         guard !heights.isEmpty else { return [] }
         let gap = spacing ?? aiboBubbleSpacing
@@ -1744,7 +1792,7 @@ final class AiboPanelController {
     ) -> CGPoint {
         let insets = contentInsets
         let contentWidth = panelSize.width - insets.horizontal
-        if bubbleCount == 0 {
+        if bubbleCount == 0 || keystrokeOverlayActive {
             switch placement {
             case .top:
                 return CGPoint(
