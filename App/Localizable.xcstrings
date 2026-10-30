@@ -966,6 +966,17 @@
         }
       }
     },
+    "Couldn't read this JSON." : {
+      "comment" : "Webhook settings: Preview was tapped but the template is not valid JSON.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取这段 JSON。"
+          }
+        }
+      }
+    },
     "Couldn't update Login Items." : {
       "comment" : "General → Startup: registering or removing the login item failed.",
       "localizations" : {
@@ -1938,6 +1949,9 @@
         }
       }
     },
+    "JSON" : {
+      "shouldTranslate" : false
+    },
     "Jumping" : {
       "shouldTranslate" : false
     },
@@ -2836,6 +2850,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用备份里的账本换掉这台 Mac 的陪伴时长。"
+          }
+        }
+      }
+    },
+    "Reset" : {
+      "comment" : "Webhook settings: restore the JSON template to the default sample.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置"
           }
         }
       }

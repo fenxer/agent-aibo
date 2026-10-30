@@ -36,11 +36,22 @@ struct WebhookSettingsPane: View {
 private struct WebhookSettingsRootView: View {
     var onShowReceiveLogs: () -> Void
 
+    @State private var webhookTemplate = WebhookTemplatePreview.defaultJSON
+    @State private var webhookPreview = WebhookTemplatePreview.Content.placeholder
+    @State private var webhookTemplateError: String?
+
     var body: some View {
         Form {
             WebhookHeaderSection()
-            WebhookListenerSection()
             WebhookConnectionSection()
+            WebhookListenerSection()
+            WebhookPreviewBand(content: webhookPreview)
+            WebhookTemplateEditor(
+                template: $webhookTemplate,
+                error: webhookTemplateError,
+                onReset: resetWebhookTemplate,
+                onPreview: previewWebhookTemplate
+            )
             WebhookDismissRow()
 
             Section {
@@ -52,6 +63,23 @@ private struct WebhookSettingsRootView: View {
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .settingsDetailChrome(title: String(localized: "Webhook"))
+        .onChange(of: webhookTemplate) { _, _ in
+            webhookTemplateError = nil
+        }
+    }
+
+    private func resetWebhookTemplate() {
+        webhookTemplate = WebhookTemplatePreview.defaultJSON
+        webhookTemplateError = nil
+    }
+
+    private func previewWebhookTemplate() {
+        guard let content = WebhookTemplatePreview.content(for: webhookTemplate) else {
+            webhookTemplateError = String(localized: "Couldn't read this JSON.")
+            return
+        }
+        webhookTemplateError = nil
+        webhookPreview = content
     }
 }
 
@@ -184,8 +212,6 @@ private struct WebhookListenerSection: View {
                     WebhookCopyButton(value: settings.webhookSecret)
                 }
             }
-        } header: {
-            Text(String(localized: "Listener"))
         }
     }
 }
@@ -221,6 +247,8 @@ private struct WebhookConnectionSection: View {
                     )
                 }
             }
+        } header: {
+            Text(String(localized: "Listener"))
         }
     }
 
@@ -229,6 +257,203 @@ private struct WebhookConnectionSection: View {
         case .ok: .green
         case .down, .listenerStopped: .red
         case .checking, .unknown, .skipped: .secondary
+        }
+    }
+}
+
+/// Sample bubble plus the JSON the user can edit and apply with Preview.
+private enum WebhookTemplatePreview {
+    /// Token in the default template. The bubble shows field names instead of this.
+    static let placeholderToken = "..."
+
+    static let defaultJSON = """
+    {
+      "source": "...",
+      "status": "...",
+      "summary": "..."
+    }
+    """
+
+    struct Content: Equatable {
+        var source: String
+        var status: String?
+        var summary: String
+
+        static let placeholder = Content(
+            source: "source",
+            status: "status",
+            summary: "summary..."
+        )
+    }
+
+    /// `nil` when `template` is not JSON. The untouched default template maps to
+    /// `Content.placeholder` so the sample bubble does not render three dots.
+    static func content(for template: String) -> Content? {
+        let body = Data(template.utf8)
+        guard (try? JSONSerialization.jsonObject(with: body)) != nil else { return nil }
+        if isPlaceholder(body) { return .placeholder }
+        let parsed = WebhookMessageFormatter.parse(from: body)
+        let summary = parsed.summary?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let line = summary.isEmpty ? parsed.displayText : summary
+        return Content(source: parsed.source, status: parsed.status, summary: line)
+    }
+
+    private static func isPlaceholder(_ body: Data) -> Bool {
+        guard
+            let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+            Set(object.keys) == ["source", "status", "summary"]
+        else { return false }
+        return (object["source"] as? String) == placeholderToken
+            && (object["status"] as? String) == placeholderToken
+            && (object["summary"] as? String) == placeholderToken
+    }
+}
+
+private struct WebhookPreviewBand: View {
+    var content: WebhookTemplatePreview.Content
+
+    @Bindable private var settings = AppSettings.shared
+    @Environment(\.colorScheme) private var systemColorScheme
+
+    private var colorScheme: ColorScheme {
+        settings.themeMode.resolvedColorScheme(system: systemColorScheme)
+    }
+
+    var body: some View {
+        Section {
+            ZStack {
+                GeometryReader { geo in
+                    Image("WallpaperBg")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: geo.size.width + 20, height: geo.size.height + 20)
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                        .accessibilityHidden(true)
+                }
+
+                WebhookPreviewBubble(content: content, colorScheme: colorScheme)
+                    .padding(16)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 180)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "Preview"))
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+        } header: {
+            Text(String(localized: "Preview"))
+        }
+    }
+}
+
+private struct WebhookPreviewBubble: View {
+    var content: WebhookTemplatePreview.Content
+    var colorScheme: ColorScheme
+
+    var body: some View {
+        // Same untinted webhook capsule as the desktop bubble: black pill, white label.
+        let prefersLightLabel = StatusBubble.prefersLightLabel(
+            tint: nil,
+            style: .regular,
+            colorScheme: colorScheme
+        )
+        let ink = prefersLightLabel ? Color.white : Color.black
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+
+        VStack(alignment: .leading, spacing: 10) {
+            Text(content.source)
+                .font(.system(size: 12))
+                .foregroundStyle(ink)
+                .lineLimit(1)
+                .frame(width: textWidth(content.source, pointSize: 12, limit: 240), alignment: .leading)
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if let status = content.status, !status.isEmpty {
+                    Text(status)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+                        .padding(.vertical, 2)
+                        .padding(.horizontal, 8)
+                        .frame(minHeight: 22)
+                        .background(Capsule().fill(Color.black))
+                }
+
+                Text(content.summary)
+                    .font(.system(size: 14))
+                    .foregroundStyle(ink)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .frame(
+                        width: textWidth(content.summary, pointSize: 14, limit: 200),
+                        alignment: .leading
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .background {
+            StatusBubble.chromeMaterial(
+                shape,
+                style: .regular,
+                tint: nil,
+                suppressGlass: false
+            )
+        }
+        .environment(\.colorScheme, colorScheme)
+        .environment(
+            \.backgroundProminence,
+            prefersLightLabel ? .increased : .standard
+        )
+        .accessibilityHidden(true)
+    }
+
+    /// Single-line width, capped so a long summary wraps inside the preview.
+    private func textWidth(_ text: String, pointSize: CGFloat, limit: CGFloat) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: pointSize)
+        let width = (text as NSString).size(withAttributes: [.font: font]).width
+        return min(limit, max(ceil(width), 1))
+    }
+}
+
+private struct WebhookTemplateEditor: View {
+    @Binding var template: String
+    var error: String?
+    var onReset: () -> Void
+    var onPreview: () -> Void
+
+    var body: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Text(String(localized: "JSON"))
+                    Spacer(minLength: 8)
+                    Button(action: onReset) {
+                        Image(systemName: "arrow.counterclockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .disabled(template == WebhookTemplatePreview.defaultJSON)
+                    .help(String(localized: "Reset"))
+                    .accessibilityLabel(String(localized: "Reset"))
+
+                    Button(action: onPreview) {
+                        Text(String(localized: "Preview"))
+                    }
+                    .fixedSize()
+                }
+
+                TextEditor(text: $template)
+                    .font(.system(.body, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .frame(height: 120)
+
+                if let error {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
         }
     }
 }

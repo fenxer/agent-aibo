@@ -44,7 +44,7 @@ private enum SettingsPane: String, CaseIterable, Identifiable {
         case .agentHook: .system("poweroutlet.type.b.fill")
         case .webhook: .system("globe")
         case .extensions: .system("square.text.square.fill")
-        case .tools: .system("keyboard.fill")
+        case .tools: .system("wrench.and.screwdriver.fill")
         case .general: .system("gearshape.fill")
         case .backup: .system("archivebox.fill")
         case .about: .system("info.circle.fill")
