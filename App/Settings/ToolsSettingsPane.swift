@@ -8,6 +8,10 @@ struct ToolsSettingsPane: View {
     var body: some View {
         Form {
             Section {
+                ToolsIntroRow()
+            }
+
+            Section {
                 Toggle(String(localized: "Keystroke"), isOn: $settings.keystrokeOverlayEnabled)
                 if settings.keystrokeOverlayEnabled {
                     LabeledContent {
@@ -91,6 +95,31 @@ struct ToolsSettingsPane: View {
         let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility")
         guard let url else { return }
         NSWorkspace.shared.open(url)
+    }
+}
+
+private struct ToolsIntroRow: View {
+    private let side: CGFloat = 28
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image("ToolIcon")
+                .resizable()
+                .interpolation(.high)
+                .frame(width: side, height: side)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "Tools"))
+                    .font(.body.weight(.semibold))
+                Text(String(localized: "More ways to use Aibo as an input"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

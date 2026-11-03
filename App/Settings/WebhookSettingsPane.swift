@@ -116,18 +116,12 @@ private struct WebhookHeaderSection: View {
 
 private struct WebhookHeaderIcon: View {
     private let side: CGFloat = 28
-    private let iconSize: CGFloat = 16
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(Color.blue)
+        Image("WebhookIcon")
+            .resizable()
+            .interpolation(.high)
             .frame(width: side, height: side)
-            .overlay {
-                Image(systemName: "globe")
-                    .font(.system(size: iconSize, weight: .medium))
-                    .symbolRenderingMode(.monochrome)
-                    .foregroundStyle(.white)
-            }
             .accessibilityHidden(true)
     }
 }

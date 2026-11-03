@@ -284,6 +284,10 @@ struct BackupSettingsPane: View {
     var body: some View {
         Form {
             Section {
+                BackupIntroRow()
+            }
+
+            Section {
                 Toggle(String(localized: "Export Hook Log"), isOn: $model.exportHookLog)
                     .disabled(model.isWorking)
 
@@ -526,6 +530,31 @@ private struct BackupImportSheet: View {
         case .daysAndHours(let days, let hours):
             return "\(days)d \(hours)h"
         }
+    }
+}
+
+private struct BackupIntroRow: View {
+    private let side: CGFloat = 28
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image("BackupIcon")
+                .resizable()
+                .interpolation(.high)
+                .frame(width: side, height: side)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "Backup"))
+                    .font(.body.weight(.semibold))
+                Text(String(localized: "Export and restore Aibo's data"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

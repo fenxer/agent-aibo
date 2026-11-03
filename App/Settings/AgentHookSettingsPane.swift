@@ -87,19 +87,14 @@ private struct AgentHookSettingsRootView: View {
 
 private struct AgentHookIntroRow: View {
     private let side: CGFloat = 28
-    private let iconSize: CGFloat = 16
 
     var body: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.blue)
+            Image("AgentIcon")
+                .resizable()
+                .interpolation(.high)
                 .frame(width: side, height: side)
-                .overlay {
-                    Image(systemName: "point.bottomleft.forward.to.point.topright.scurvepath")
-                        .font(.system(size: iconSize, weight: .medium))
-                        .symbolRenderingMode(.monochrome)
-                        .foregroundStyle(.white)
-                }
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(String(localized: "Agent Hook"))

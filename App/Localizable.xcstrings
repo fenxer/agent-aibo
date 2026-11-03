@@ -1262,6 +1262,17 @@
         }
       }
     },
+    "Export and restore Aibo's data" : {
+      "comment" : "Backup settings page intro subtitle.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出并恢复 Aibo 的数据"
+          }
+        }
+      }
+    },
     "Export Hook Log" : {
       "comment" : "Backup page. When on, the export also includes the hook log. Off by default.",
       "localizations" : {
@@ -3004,6 +3015,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配置指南"
+          }
+        }
+      }
+    },
+    "More ways to use Aibo as an input" : {
+      "comment" : "Tools settings page intro subtitle.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aibo 作为输入端的更多玩法"
           }
         }
       }
