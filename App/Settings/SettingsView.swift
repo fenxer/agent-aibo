@@ -254,6 +254,8 @@ private struct SettingsSidebarIcon: View {
             aiboIcon
         case .agentHook:
             agentHookIcon
+        case .webhook:
+            webhookIcon
         default:
             symbolIcon
         }
@@ -280,6 +282,17 @@ private struct SettingsSidebarIcon: View {
             .frame(width: side, height: side)
             .overlay(alignment: .topLeading) {
                 AgentHookFace(tracking: isSelected)
+            }
+    }
+
+    /// Hook is 15×20, centered in the 28×28 frame.
+    private var webhookIcon: some View {
+        Image("WebhookIconLightBg")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: side, height: side)
+            .overlay {
+                WebhookHookGlyph(swinging: isSelected)
             }
     }
 
@@ -412,6 +425,52 @@ private func sidebarGlyph(_ name: String, width: CGFloat, height: CGFloat) -> so
         .resizable()
         .interpolation(.high)
         .frame(width: width, height: height)
+}
+
+/// Swings about the ring center (7, 3.5) in the 15×20 hook.
+/// Starts at 0° so selecting the row does not jump to a side, then eases
+/// between −16° and 16°.
+private struct WebhookHookGlyph: View {
+    var swinging: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var angle: Double = 0
+    @State private var swingID = 0
+
+    private static let pivot = UnitPoint(x: 7.0 / 15.0, y: 3.5 / 20.0)
+
+    private var active: Bool { swinging && !reduceMotion }
+
+    var body: some View {
+        sidebarGlyph("WebhookIconHook", width: 15, height: 20)
+            .rotationEffect(.degrees(angle), anchor: Self.pivot)
+            .onChange(of: active, initial: true) { _, isActive in
+                if isActive {
+                    beginSwing()
+                } else {
+                    swingID += 1
+                    withAnimation(.easeOut(duration: 0.35)) {
+                        angle = 0
+                    }
+                }
+            }
+    }
+
+    private func beginSwing() {
+        swingID += 1
+        let id = swingID
+        angle = 0
+        withAnimation(.easeInOut(duration: 0.45)) {
+            angle = 16
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard id == swingID else { return }
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                angle = -16
+            }
+        }
+    }
 }
 
 /// Reports a clamped look offset from this view's center toward the pointer.
