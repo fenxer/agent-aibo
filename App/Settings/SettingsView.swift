@@ -260,6 +260,12 @@ private struct SettingsSidebarIcon: View {
             extensionsIcon
         case .tools:
             toolsIcon
+        case .general:
+            generalIcon
+        case .backup:
+            backupIcon
+        case .about:
+            aboutIcon
         default:
             symbolIcon
         }
@@ -321,6 +327,49 @@ private struct SettingsSidebarIcon: View {
             .overlay {
                 ToolWrenchGlyph(turning: isSelected)
             }
+    }
+
+    /// Gear is 28×28 at (6, 6). Anything outside the background image is clipped.
+    private var generalIcon: some View {
+        let plate = Image("GeneralIconLightBg")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: side, height: side)
+        return plate
+            .overlay(alignment: .topLeading) {
+                GeneralGearGlyph(spinning: isSelected)
+                    .frame(width: side, height: side, alignment: .topLeading)
+                    .clipped()
+                    .mask { plate }
+            }
+    }
+
+    /// Status dot is 2.5×2.5 at (20, 20), origin at the top-left of the 28×28 frame.
+    private var backupIcon: some View {
+        let idle = Color(red: 214.0 / 255, green: 214.0 / 255, blue: 214.0 / 255)
+        let lit = Color(red: 48.0 / 255, green: 209.0 / 255, blue: 88.0 / 255)
+        return Image("BackupIconLightBg")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: side, height: side)
+            .overlay(alignment: .topLeading) {
+                Circle()
+                    .fill(isSelected ? lit : idle)
+                    .frame(width: 2.5, height: 2.5)
+                    .shadow(
+                        color: isSelected ? lit.opacity(1) : .clear,
+                        radius: isSelected ? 8 : 0
+                    )
+                    .offset(x: 20, y: 20)
+                    .animation(.easeInOut(duration: 0.25), value: isSelected)
+            }
+    }
+
+    private var aboutIcon: some View {
+        Image("AboutIconLight")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: side, height: side)
     }
 
     private var symbolIcon: some View {
@@ -646,6 +695,37 @@ private struct ToolWrenchGlyph: View {
                 try? await Task.sleep(for: .seconds(3))
             }
         }
+    }
+}
+
+/// Spins about the gear image's center while General is selected.
+private struct GeneralGearGlyph: View {
+    var spinning: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var started: Date?
+
+    private static let period: TimeInterval = 2.4
+    private var active: Bool { spinning && !reduceMotion }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !active)) { context in
+            let degrees = active ? Self.degrees(at: context.date, since: started) : 0
+            sidebarGlyph("GeneralIconGear", width: 28, height: 28)
+                .rotationEffect(.degrees(degrees))
+                .offset(x: 6, y: 6)
+        }
+        .task(id: active) {
+            try? await Task.sleep(for: .milliseconds(1))
+            guard !Task.isCancelled else { return }
+            started = active ? Date() : nil
+        }
+    }
+
+    private static func degrees(at date: Date, since start: Date?) -> Double {
+        guard let start else { return 0 }
+        let turns = date.timeIntervalSince(start) / period
+        return turns.truncatingRemainder(dividingBy: 1) * 360
     }
 }
 
