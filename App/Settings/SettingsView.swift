@@ -258,6 +258,8 @@ private struct SettingsSidebarIcon: View {
             webhookIcon
         case .extensions:
             extensionsIcon
+        case .tools:
+            toolsIcon
         default:
             symbolIcon
         }
@@ -307,6 +309,17 @@ private struct SettingsSidebarIcon: View {
             .frame(width: side, height: side)
             .overlay(alignment: .topLeading) {
                 ExtensionBolts(flashing: isSelected)
+            }
+    }
+
+    /// Wrench is 20×20, centered. Selected, it turns about (16, 8) in that graphic.
+    private var toolsIcon: some View {
+        Image("ToolIconLightBg")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: side, height: side)
+            .overlay {
+                ToolWrenchGlyph(turning: isSelected)
             }
     }
 
@@ -547,12 +560,17 @@ private struct WebhookHookGlyph: View {
         sidebarGlyph("WebhookIconHook", width: 15, height: 20)
             .rotationEffect(.degrees(angle), anchor: Self.pivot)
             .onChange(of: active, initial: true) { _, isActive in
-                if isActive {
-                    beginSwing()
-                } else {
-                    swingID += 1
-                    withAnimation(.easeOut(duration: 0.35)) {
-                        angle = 0
+                // Defer past the view update. Writing `angle` here is the
+                // "Modifying state during view update" warning.
+                Task { @MainActor in
+                    await Task.yield()
+                    if isActive {
+                        beginSwing()
+                    } else {
+                        swingID += 1
+                        withAnimation(.easeOut(duration: 0.35)) {
+                            angle = 0
+                        }
                     }
                 }
             }
@@ -570,6 +588,62 @@ private struct WebhookHookGlyph: View {
             guard id == swingID else { return }
             withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
                 angle = -16
+            }
+        }
+    }
+}
+
+/// One gesture about (16, 8) in the 20×20 wrench: 0° → 10° → −10° → 5° → 0°.
+/// Selecting plays it immediately. After it rests at 0°, wait 3 seconds and play it again.
+private struct ToolWrenchGlyph: View {
+    var turning: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var angle: Double = 0
+    @State private var turnID = 0
+
+    private static let gesture: [(angle: Double, seconds: Double)] = [
+        (10, 0.22),
+        (-10, 0.34),
+        (5, 0.28),
+        (0, 0.16),
+    ]
+    private static let pivot = UnitPoint(x: 16.0 / 20.0, y: 8.0 / 20.0)
+
+    private var active: Bool { turning && !reduceMotion }
+
+    var body: some View {
+        sidebarGlyph("ToolIconWrench", width: 20, height: 20)
+            .rotationEffect(.degrees(angle), anchor: Self.pivot)
+            .onChange(of: active, initial: true) { _, isActive in
+                Task { @MainActor in
+                    await Task.yield()
+                    if isActive {
+                        beginTurning()
+                    } else {
+                        turnID += 1
+                        withAnimation(.easeOut(duration: 0.35)) {
+                            angle = 0
+                        }
+                    }
+                }
+            }
+    }
+
+    private func beginTurning() {
+        turnID += 1
+        let id = turnID
+        Task { @MainActor in
+            while !Task.isCancelled {
+                for step in Self.gesture {
+                    guard id == turnID, !Task.isCancelled else { return }
+                    withAnimation(.easeInOut(duration: step.seconds)) {
+                        angle = step.angle
+                    }
+                    try? await Task.sleep(for: .seconds(step.seconds))
+                }
+                guard id == turnID, !Task.isCancelled else { return }
+                try? await Task.sleep(for: .seconds(3))
             }
         }
     }
