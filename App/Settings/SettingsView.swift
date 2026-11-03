@@ -256,6 +256,8 @@ private struct SettingsSidebarIcon: View {
             agentHookIcon
         case .webhook:
             webhookIcon
+        case .extensions:
+            extensionsIcon
         default:
             symbolIcon
         }
@@ -293,6 +295,18 @@ private struct SettingsSidebarIcon: View {
             .frame(width: side, height: side)
             .overlay {
                 WebhookHookGlyph(swinging: isSelected)
+            }
+    }
+
+    /// Design frame is 28×28, origin at the top-left.
+    /// Big bolt is 12×19 at (13, 3). Small bolt is 11×7 at (8, 18).
+    private var extensionsIcon: some View {
+        Image("ExtensionIconLightBg")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: side, height: side)
+            .overlay(alignment: .topLeading) {
+                ExtensionBolts(flashing: isSelected)
             }
     }
 
@@ -425,6 +439,94 @@ private func sidebarGlyph(_ name: String, width: CGFloat, height: CGFloat) -> so
         .resizable()
         .interpolation(.high)
         .frame(width: width, height: height)
+}
+
+/// While Extensions is selected, each bolt occasionally flashes white, like a
+/// loose contact. The two schedules are independent. Unselected, the bitmaps stay as drawn.
+private struct ExtensionBolts: View {
+    var flashing: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var active: Bool { flashing && !reduceMotion }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color.clear
+                .frame(width: 28, height: 28)
+            LooseContactBolt(
+                active: active,
+                name: "ExtensionIconBig",
+                width: 12,
+                height: 19,
+                x: 13,
+                y: 4
+            )
+            LooseContactBolt(
+                active: active,
+                name: "ExtensionIconLite",
+                width: 11,
+                height: 7,
+                x: 8,
+                y: 18
+            )
+        }
+    }
+}
+
+private struct LooseContactBolt: View {
+    var active: Bool
+    var name: String
+    var width: CGFloat
+    var height: CGFloat
+    var x: CGFloat
+    var y: CGFloat
+
+    @State private var lit = false
+
+    var body: some View {
+        let glyph = Image(name)
+            .renderingMode(lit ? .template : .original)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: width, height: height)
+        Group {
+            if lit {
+                glyph
+                    .foregroundStyle(.white)
+                    .shadow(color: .white.opacity(0.8), radius: 4, x: 0, y: 0)
+            } else {
+                glyph
+            }
+        }
+        .offset(x: x, y: y)
+        .onChange(of: active) { _, isActive in
+            if !isActive { lit = false }
+        }
+        .task(id: active) {
+            await flicker()
+        }
+    }
+
+    private func flicker() async {
+        guard active else {
+            lit = false
+            return
+        }
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(Int.random(in: 1800...3500)))
+            guard !Task.isCancelled else { return }
+            let bursts = Int.random(in: 1...3)
+            for index in 0..<bursts {
+                lit = true
+                try? await Task.sleep(for: .milliseconds(Int.random(in: 35...80)))
+                lit = false
+                if index + 1 < bursts {
+                    try? await Task.sleep(for: .milliseconds(Int.random(in: 30...90)))
+                }
+            }
+        }
+    }
 }
 
 /// Swings about the ring center (7, 3.5) in the 15×20 hook.
