@@ -448,7 +448,10 @@ private struct AgentHookFace: View {
             await blinkLoop()
         }
         .onChange(of: followsPointer) { _, follows in
-            if !follows {
+            guard !follows else { return }
+            // Writing `look` here is inside the view update.
+            Task { @MainActor in
+                await Task.yield()
                 look = .zero
                 openness = 1
             }
@@ -563,7 +566,11 @@ private struct LooseContactBolt: View {
         }
         .offset(x: x, y: y)
         .onChange(of: active) { _, isActive in
-            if !isActive { lit = false }
+            guard !isActive else { return }
+            Task { @MainActor in
+                await Task.yield()
+                lit = false
+            }
         }
         .task(id: active) {
             await flicker()
@@ -764,12 +771,18 @@ private final class AgentGazeView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     func setActive(_ active: Bool) {
+        let wasTracking = wantsTracking
         wantsTracking = active
         if active {
             start()
         } else {
             stop()
-            onLook?(.zero)
+            guard wasTracking else { return }
+            let report = onLook
+            // `updateNSView` calls this during the view update.
+            DispatchQueue.main.async {
+                report?(.zero)
+            }
         }
     }
 
@@ -860,15 +873,24 @@ struct SettingsView: View {
         // (`SettingsWindowController` clears `sizingOptions`).
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            applyPendingPane()
-            navigator.rememberPane(id: selection?.rawValue)
+            Task { @MainActor in
+                await Task.yield()
+                applyPendingPane()
+                navigator.rememberPane(id: selection?.rawValue)
+            }
         }
         .onChange(of: navigator.pendingPane) { _, newValue in
             guard newValue != nil else { return }
-            applyPendingPane()
+            Task { @MainActor in
+                await Task.yield()
+                applyPendingPane()
+            }
         }
         .onChange(of: selection) { _, newValue in
-            navigator.rememberPane(id: newValue?.rawValue)
+            Task { @MainActor in
+                await Task.yield()
+                navigator.rememberPane(id: newValue?.rawValue)
+            }
         }
     }
 

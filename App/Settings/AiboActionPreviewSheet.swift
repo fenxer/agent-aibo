@@ -106,7 +106,13 @@ private struct AiboActionPreviewCanvas: View {
         .onGeometryChange(for: CGSize.self) { proxy in
             proxy.size
         } action: { size in
-            canvasSize = size
+            guard size != canvasSize else { return }
+            // Geometry callbacks run inside the view update.
+            Task { @MainActor in
+                await Task.yield()
+                guard size != canvasSize else { return }
+                canvasSize = size
+            }
         }
         .onContinuousHover { phase in
             guard isFollowMouse else { return }

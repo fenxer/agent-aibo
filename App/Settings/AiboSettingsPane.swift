@@ -399,8 +399,13 @@ private struct AiboNameMarquee: View {
                             proxy.size.width
                         } action: { width in
                             guard width > 0, width != lineWidth else { return }
-                            lineWidth = width
-                            start()
+                            // Geometry callbacks run inside the view update.
+                            Task { @MainActor in
+                                await Task.yield()
+                                guard width > 0, width != lineWidth else { return }
+                                lineWidth = width
+                                start()
+                            }
                         }
                     lineText
                 }

@@ -20,10 +20,18 @@ struct WebhookSettingsPane: View {
                 }
             }
         }
-        .onAppear { applyPendingReveal() }
+        .onAppear {
+            Task { @MainActor in
+                await Task.yield()
+                applyPendingReveal()
+            }
+        }
         .onChange(of: navigator.pendingRevealWebhookRoot) { _, isPending in
             guard isPending else { return }
-            applyPendingReveal()
+            Task { @MainActor in
+                await Task.yield()
+                applyPendingReveal()
+            }
         }
     }
 

@@ -101,6 +101,7 @@ final class AiboPanelController {
     /// Keeps a geometry pass during poof from seeing a token change and moving the window.
     @ObservationIgnored private var frozenExtensionLayoutToken: String?
     @ObservationIgnored private var pluginPoofReleaseTask: Task<Void, Never>?
+    @ObservationIgnored private var hostingLayoutScheduled = false
 
     private let baseAiboSize: CGFloat = 96
     private let screenPadding: CGFloat = 24
@@ -759,7 +760,35 @@ final class AiboPanelController {
             isFrameGrowthPending = false
             frameGrowthEpoch &+= 1
             presentedBubbleIDs.formUnion(incoming)
-            hostingView?.layoutSubtreeIfNeeded()
+        }
+        layoutHostingView()
+    }
+
+    /// Lay out after the SwiftUI transaction. Calling `layoutSubtreeIfNeeded`
+    /// from inside that flush, or from `-layout` itself, logs
+    /// `_NSDetectedLayoutRecursion`.
+    private func layoutHostingView() {
+        guard let hostingView else { return }
+        if hostingView.isInsideLayout {
+            scheduleHostingLayout()
+            return
+        }
+        hostingView.layoutSubtreeIfNeeded()
+    }
+
+    private func scheduleHostingLayout() {
+        hostingView?.needsLayout = true
+        guard !hostingLayoutScheduled else { return }
+        hostingLayoutScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.hostingLayoutScheduled = false
+            guard let hostingView = self.hostingView else { return }
+            if hostingView.isInsideLayout {
+                self.scheduleHostingLayout()
+                return
+            }
+            hostingView.layoutSubtreeIfNeeded()
         }
     }
 
@@ -1125,7 +1154,7 @@ final class AiboPanelController {
         CATransaction.setDisableActions(true)
         clearPluginPoofHold()
         applyGeometryNow()
-        hostingView?.layoutSubtreeIfNeeded()
+        layoutHostingView()
         CATransaction.commit()
     }
 

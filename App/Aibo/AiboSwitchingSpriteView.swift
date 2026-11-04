@@ -64,12 +64,19 @@ struct AiboSwitchingSpriteView: View {
             }
         }
         .frame(width: layoutSize.width, height: layoutSize.height)
-        .onChange(of: sequence, initial: true) { _, newSequence in
-            consumeSwitch(newSequence)
+        .task(id: sequence) {
+            // `onChange(initial:)` writes morph state inside the view update.
+            let requested = sequence
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            consumeSwitch(requested)
         }
         .onChange(of: lookDirection) { _, newLook in
-            guard holdLook, newLook != heldLook else { return }
-            holdLook = false
+            Task { @MainActor in
+                await Task.yield()
+                guard holdLook, newLook != heldLook else { return }
+                holdLook = false
+            }
         }
     }
 

@@ -637,7 +637,11 @@ private struct DesktopPetView: View {
         }
         .frame(width: layoutSize.width, height: layoutSize.height)
         .accessibilityLabel(String(localized: "Desktop aibo"))
-        .onChange(of: shouldEmitMusicNotes, initial: true) { _, active in
+        .task(id: shouldEmitMusicNotes) {
+            // `onChange(initial:)` writes state inside the view update.
+            let active = shouldEmitMusicNotes
+            await Task.yield()
+            guard !Task.isCancelled else { return }
             syncMusicNotePulse(active: active)
         }
         .onDisappear {

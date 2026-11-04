@@ -142,10 +142,16 @@ private struct GeneralPreview: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(String(localized: "Preview"))
         .onChange(of: settings.musicNotesEnabled) { _, _ in
-            playPreviewNotes()
+            Task { @MainActor in
+                await Task.yield()
+                playPreviewNotes()
+            }
         }
         .onChange(of: settings.musicNotesColorMode) { _, _ in
-            playPreviewNotes()
+            Task { @MainActor in
+                await Task.yield()
+                playPreviewNotes()
+            }
         }
         .onChange(of: settings.musicNotesCustomColor) { _, _ in
             playPreviewNotesAfterColorChange()

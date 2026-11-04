@@ -1052,9 +1052,12 @@ private struct MarchingAntsCapsuleStroke: View {
                 style: StrokeStyle(lineWidth: 1, dash: dash, dashPhase: phase)
             )
             .onAppear {
-                phase = 0
-                withAnimation(.linear(duration: 0.55).repeatForever(autoreverses: false)) {
-                    phase = -cycleLength
+                Task { @MainActor in
+                    await Task.yield()
+                    phase = 0
+                    withAnimation(.linear(duration: 0.55).repeatForever(autoreverses: false)) {
+                        phase = -cycleLength
+                    }
                 }
             }
     }

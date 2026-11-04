@@ -24,6 +24,16 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     /// Plugin card frames in this view's top-left coordinates.
     /// Estimates in `bubbleHitRects` miss buttons once a card is taller than the guess.
     var measuredBubbleHitRects: [CGRect] = []
+    /// Nesting count for this view's `-layout`. A re-entrant
+    /// `layoutSubtreeIfNeeded` is what logs `_NSDetectedLayoutRecursion`.
+    private var layoutDepth = 0
+    var isInsideLayout: Bool { layoutDepth > 0 }
+
+    override func layout() {
+        layoutDepth += 1
+        defer { layoutDepth -= 1 }
+        super.layout()
+    }
 
     init(rootView: Content, hitTestImage: NSImage?) {
         self.alphaMask = Self.makeAlphaMask(from: hitTestImage)

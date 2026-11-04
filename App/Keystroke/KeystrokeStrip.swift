@@ -103,8 +103,11 @@ private struct KeystrokeKeycap: View {
             .opacity(settled ? 1 : 0)
             .onAppear {
                 let delay = Double(min(press.staggerIndex, 5)) * 0.05
-                withAnimation(.spring(duration: 0.34, bounce: 0.2).delay(delay)) {
-                    settled = true
+                Task { @MainActor in
+                    await Task.yield()
+                    withAnimation(.spring(duration: 0.34, bounce: 0.2).delay(delay)) {
+                        settled = true
+                    }
                 }
             }
     }

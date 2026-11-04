@@ -33,20 +33,37 @@ struct ExtensionSettingsPage: View {
             }
         }
         .onChange(of: center.plugins.map(\.id)) { _, ids in
-            if let detailID, !ids.contains(detailID) {
+            guard let detailID, !ids.contains(detailID) else { return }
+            let removedID = detailID
+            Task { @MainActor in
+                await Task.yield()
+                guard self.detailID == removedID,
+                      !center.plugins.contains(where: { $0.id == removedID })
+                else { return }
                 self.detailID = nil
             }
         }
         .task {
             await catalog.reload()
         }
-        .onAppear(perform: revealPendingExtension)
+        .onAppear {
+            Task { @MainActor in
+                await Task.yield()
+                revealPendingExtension()
+            }
+        }
         .onChange(of: navigator.pendingExtensionID) { _, newValue in
             guard newValue != nil else { return }
-            revealPendingExtension()
+            Task { @MainActor in
+                await Task.yield()
+                revealPendingExtension()
+            }
         }
         .onChange(of: center.lastError) { _, newValue in
-            installError = newValue
+            Task { @MainActor in
+                await Task.yield()
+                installError = newValue
+            }
         }
         .alert(
             String(localized: "Couldn't install the plugin."),
