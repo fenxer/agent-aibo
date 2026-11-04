@@ -1513,11 +1513,34 @@ final class AiboPanelController {
 
     /// Copy / Close on a finished plugin card. Same drop as the corner control:
     /// the panel cannot become key, and a hook bubble under the card takes the
-    /// gesture. Run the button from its drawn frame and swallow the click.
-    private func performExtensionOutcomeAction(with event: NSEvent) -> Bool {
+    /// gesture. Arm the drawn frame so the button can darken, and swallow the
+    /// click. The action runs on mouse-up, still inside the frame.
+    private func beginExtensionOutcomePress(with event: NSEvent) -> Bool {
         guard event.modifierFlags.contains(.control) == false else { return false }
         guard let point = hostPoint(for: event) else { return false }
-        return ExtensionOutcomeActionTracker.perform(at: point)
+        return ExtensionOutcomeActionTracker.beginPress(at: point)
+    }
+
+    private func dragExtensionOutcomePress(with event: NSEvent) -> Bool {
+        ExtensionOutcomeActionTracker.dragPress(at: hostPoint(for: event))
+    }
+
+    private func endExtensionOutcomePress(with event: NSEvent) -> Bool {
+        ExtensionOutcomeActionTracker.endPress(at: hostPoint(for: event))
+    }
+
+    private func endExtensionOutcomePress(atScreen screen: NSPoint, matching generation: Int) -> Bool {
+        ExtensionOutcomeActionTracker.endPress(
+            at: hostPoint(atScreen: screen),
+            matching: generation
+        )
+    }
+
+    private func dragExtensionOutcomePress(atScreen screen: NSPoint, matching generation: Int) -> Bool {
+        ExtensionOutcomeActionTracker.dragPress(
+            at: hostPoint(atScreen: screen),
+            matching: generation
+        )
     }
 
     /// Hook-bubble taps use a SwiftUI gesture on this same hosting view. That
@@ -1547,7 +1570,11 @@ final class AiboPanelController {
         if event.window === panel {
             return hostingView.convert(event.locationInWindow, from: nil)
         }
-        let screen = NSEvent.mouseLocation
+        return hostPoint(atScreen: NSEvent.mouseLocation)
+    }
+
+    private func hostPoint(atScreen screen: NSPoint) -> NSPoint? {
+        guard let panel, let hostingView else { return nil }
         guard panel.frame.contains(screen) else { return nil }
         let windowPoint = panel.convertPoint(fromScreen: screen)
         return hostingView.convert(windowPoint, from: nil)
@@ -1900,6 +1927,7 @@ final class AiboPanelController {
             self.refreshClickThroughState()
             switch event.type {
             case .leftMouseDown:
+                ExtensionOutcomeActionTracker.cancelPress()
                 if self.forwardPromptTextClick(event) {
                     return nil
                 }
@@ -1909,17 +1937,23 @@ final class AiboPanelController {
                 if self.openExtensionWindow(with: event) {
                     return nil
                 }
-                if self.performExtensionOutcomeAction(with: event) {
+                if self.beginExtensionOutcomePress(with: event) {
                     return nil
                 }
                 if self.handleInspectCardClick(with: event) {
                     return nil
                 }
             case .leftMouseDragged:
+                if self.dragExtensionOutcomePress(with: event) {
+                    return nil
+                }
                 if self.extendPromptTextDrag(event) {
                     return nil
                 }
             case .leftMouseUp:
+                if self.endExtensionOutcomePress(with: event) {
+                    return nil
+                }
                 if self.promptCaretDrag != nil {
                     self.promptCaretDrag = nil
                     return nil
@@ -1932,14 +1966,28 @@ final class AiboPanelController {
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.mouseMoved, .leftMouseDragged, .leftMouseUp]
         ) { [weak self] event in
+            let screen = NSEvent.mouseLocation
+            // Monitors run on the main thread. Read the press generation now;
+            // a later hop would belong to whatever gesture is current then.
+            let generation = MainActor.assumeIsolated {
+                ExtensionOutcomeActionTracker.generation
+            }
             Task { @MainActor in
                 guard let self else { return }
                 if event.type == .leftMouseUp {
                     self.promptCaretDrag = nil
+                    // Local delivery already released an inside click. This
+                    // catches a release outside the panel, where the up is
+                    // not sent to the app. The screen point was read in the
+                    // monitor, before this hop.
+                    _ = self.endExtensionOutcomePress(atScreen: screen, matching: generation)
                     return
                 }
-                if event.type == .leftMouseDragged, self.extendPromptTextDrag(event) {
-                    return
+                if event.type == .leftMouseDragged {
+                    if self.dragExtensionOutcomePress(atScreen: screen, matching: generation) {
+                        return
+                    }
+                    if self.extendPromptTextDrag(event) { return }
                 }
                 self.refreshClickThroughState()
             }

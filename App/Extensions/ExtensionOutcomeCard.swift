@@ -383,15 +383,22 @@ private struct ExtensionOutcomeBody: View {
 
 /// Copy / Close on a finished card. The panel is not allowed to become key, so
 /// SwiftUI's button asks `_NSGlassEffectWindow` to become key, that window
-/// returns NO, and AppKit drops the click. A hook bubble under the card also
-/// wins the gesture. The panel runs the action from this frame instead.
+/// returns NO, and AppKit drops the click before the button can draw its
+/// pressed bezel. A hook bubble under the card also wins the gesture. The
+/// panel tracks the press from this frame, darkens the button while the
+/// pointer is down, and runs the action on release.
+@Observable
 final class ExtensionOutcomeActionToken {
-    var frame: CGRect = .null
-    var perform: @MainActor () -> Void = {}
+    @ObservationIgnored var frame: CGRect = .null
+    @ObservationIgnored var perform: @MainActor () -> Void = {}
+    var pressed = false
 }
 
 enum ExtensionOutcomeActionTracker {
     private static var tokens: [ExtensionOutcomeActionToken] = []
+    private static var armed: ExtensionOutcomeActionToken?
+    /// Bumps on each new press so a late outside mouse-up cannot clear the next one.
+    private(set) static var generation = 0
 
     static func register(_ token: ExtensionOutcomeActionToken) {
         guard tokens.contains(where: { $0 === token }) == false else { return }
@@ -399,16 +406,58 @@ enum ExtensionOutcomeActionTracker {
     }
 
     static func unregister(_ token: ExtensionOutcomeActionToken) {
+        if armed === token {
+            armed = nil
+        }
         tokens.removeAll { $0 === token }
     }
 
+    /// Drop a press whose mouse-up never arrived. Does not run the action.
     @MainActor
-    static func perform(at point: NSPoint) -> Bool {
-        for token in tokens.reversed() where token.frame.contains(point) {
-            token.perform()
-            return true
+    static func cancelPress() {
+        generation += 1
+        armed?.pressed = false
+        armed = nil
+    }
+
+    @MainActor
+    static func beginPress(at point: NSPoint) -> Bool {
+        guard let token = tokens.reversed().first(where: { $0.frame.contains(point) }) else {
+            return false
         }
-        return false
+        generation += 1
+        if armed !== token {
+            armed?.pressed = false
+            armed = token
+        }
+        token.pressed = true
+        return true
+    }
+
+    /// Keeps the darker bezel only while the pointer is still inside the button.
+    @MainActor
+    static func dragPress(at point: NSPoint?, matching generation: Int? = nil) -> Bool {
+        if let generation, generation != self.generation { return false }
+        guard let armed else { return false }
+        let inside = point.map { armed.frame.contains($0) } ?? false
+        if armed.pressed != inside {
+            armed.pressed = inside
+        }
+        return true
+    }
+
+    /// Releases the bezel. Runs the action only when the pointer is still inside.
+    @MainActor
+    static func endPress(at point: NSPoint?, matching generation: Int? = nil) -> Bool {
+        if let generation, generation != self.generation { return false }
+        guard let token = armed else { return false }
+        armed = nil
+        let inside = point.map { token.frame.contains($0) } ?? false
+        token.pressed = false
+        if inside {
+            token.perform()
+        }
+        return true
     }
 }
 
@@ -443,11 +492,14 @@ private struct ExtensionOutcomeActionButton: View {
 
     var body: some View {
         button
+            .modifier(OutcomePressTint(on: chrome == .anchored && token.pressed))
+            .animation(nil, value: token.pressed)
             .onGeometryChange(for: CGRect.self) { proxy in
                 proxy.frame(in: .named(AiboPanelSpace.name))
             } action: { frame in
                 guard chrome == .anchored else {
                     token.frame = .null
+                    token.pressed = false
                     ExtensionOutcomeActionTracker.unregister(token)
                     return
                 }
@@ -472,6 +524,21 @@ private struct ExtensionOutcomeActionButton: View {
         } else {
             Button(title, action: action)
                 .buttonStyle(.bordered)
+        }
+    }
+}
+
+/// System bordered buttons darken while held. The anchored card never becomes
+/// key, so that bezel never paints. Multiply the whole control instead; black
+/// title text stays black. Off leaves the button untouched.
+private struct OutcomePressTint: ViewModifier {
+    var on: Bool
+
+    func body(content: Content) -> some View {
+        if on {
+            content.colorMultiply(Color(white: 0.84))
+        } else {
+            content
         }
     }
 }
