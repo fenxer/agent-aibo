@@ -292,7 +292,7 @@ struct BackupSettingsPane: View {
                     .disabled(model.isWorking)
 
                 BackupActionRow(
-                    systemName: "arrowshape.down.fill",
+                    imageName: "ExportIcon",
                     title: String(localized: "Export"),
                     subtitle: String(localized: "Back up Aibo's data"),
                     buttonTitle: String(localized: "Export"),
@@ -307,7 +307,7 @@ struct BackupSettingsPane: View {
 
             Section {
                 BackupActionRow(
-                    systemName: "arrowshape.up.fill",
+                    imageName: "ImportIcon",
                     title: String(localized: "Import"),
                     subtitle: String(localized: "You'll confirm the backup before restoring it."),
                     buttonTitle: String(localized: "Import"),
@@ -559,7 +559,7 @@ private struct BackupIntroRow: View {
 }
 
 private struct BackupActionRow: View {
-    var systemName: String
+    var imageName: String
     var title: String
     var subtitle: String
     var buttonTitle: String
@@ -568,7 +568,7 @@ private struct BackupActionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            BackupActionIcon(systemName: systemName)
+            BackupActionIcon(imageName: imageName)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                 Text(subtitle)
@@ -585,36 +585,15 @@ private struct BackupActionRow: View {
 }
 
 private struct BackupActionIcon: View {
-    var systemName: String
+    var imageName: String
 
     private let side: CGFloat = 28
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(.primary)
+        Image(imageName)
+            .resizable()
+            .interpolation(.high)
             .frame(width: side, height: side)
-            .overlay {
-                Image(nsImage: Self.centeredSymbol(systemName, pointSize: 20))
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 14, height: 14)
-                    .foregroundStyle(Color(nsColor: .windowBackgroundColor))
-            }
-    }
-
-    private static func centeredSymbol(_ name: String, pointSize: CGFloat) -> NSImage {
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
-        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config)
-        else {
-            return NSImage()
-        }
-        let baked = NSImage(size: symbol.size, flipped: false) { rect in
-            symbol.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
-            return true
-        }
-        baked.isTemplate = true
-        return baked
+            .accessibilityHidden(true)
     }
 }
