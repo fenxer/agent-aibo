@@ -1450,12 +1450,22 @@
         }
       }
     },
-    "Shows the keys you press beside Aibo. Other bubbles stay hidden while this is on." : {
+    "Shows the keys you press beside Aibo." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在 Aibo 旁边显示按下的键。开启后不再显示其他气泡。"
+            "value" : "在 Aibo 旁边显示按下的键。"
+          }
+        }
+      }
+    },
+    "Other bubbles stay hidden while this is on." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启后不再显示其他气泡。"
           }
         }
       }
@@ -3906,6 +3916,574 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Petdex 上未找到“%@”"
+          }
+        }
+      }
+    },
+    "Hook Cleanup" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理 Hook"
+          }
+        }
+      }
+    },
+    "See which apps left hooks for the agents on this Mac" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看这台 Mac 上各家 Agent 的 Hook 是哪个 App 留下的"
+          }
+        }
+      }
+    },
+    "No hook files on this Mac yet" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台 Mac 上还没有 hook 文件"
+          }
+        }
+      }
+    },
+    "No hook file yet for %@." : {
+      "comment" : "Argument is a localized list of agent names that have no hook file.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些还没有 hook 文件：%@。"
+          }
+        }
+      }
+    },
+    "Network request" : {
+      "comment" : "Hook cleanup status for an HTTP hook.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网络请求"
+          }
+        }
+      }
+    },
+    "MCP tool" : {
+      "comment" : "Hook cleanup status for a hook that calls an MCP tool.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP 工具"
+          }
+        }
+      }
+    },
+    "On a notification" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出现通知时"
+          }
+        }
+      }
+    },
+    "When setup runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "初始化时"
+          }
+        }
+      }
+    },
+    "Before the agent runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 运行之前"
+          }
+        }
+      }
+    },
+    "After the agent runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 运行之后"
+          }
+        }
+      }
+    },
+    "Before the model runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型运行之前"
+          }
+        }
+      }
+    },
+    "After the model runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型运行之后"
+          }
+        }
+      }
+    },
+    "Before a tool is chosen" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择工具之前"
+          }
+        }
+      }
+    },
+    "When an error occurs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出错时"
+          }
+        }
+      }
+    },
+    "After a file is read" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取文件之后"
+          }
+        }
+      }
+    },
+    "Before code is written" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写入代码之前"
+          }
+        }
+      }
+    },
+    "After code is written" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写入代码之后"
+          }
+        }
+      }
+    },
+    "You can remove a hook here only when its app or file is no longer on this Mac." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有对应的 App 或文件已经不在这台 Mac 上时，才能在这里移除。"
+          }
+        }
+      }
+    },
+    "No hooks file" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有 hooks 文件"
+          }
+        }
+      }
+    },
+    "No hooks" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有 Hook"
+          }
+        }
+      }
+    },
+    "This hooks file couldn't be read, so Aibo didn't change it." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个文件读不出来，Aibo 没有改动它。"
+          }
+        }
+      }
+    },
+    "Couldn't Update Hooks" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法更新 Hook"
+          }
+        }
+      }
+    },
+    "The hooks file couldn't be saved. Nothing was changed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有保存成功，内容没有改动。"
+          }
+        }
+      }
+    },
+    "Remove “%@” from %@?" : {
+      "comment" : "First argument is the app or file name. Second is Cursor or Codex.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要从 %2$@ 移除“%1$@”吗？"
+          }
+        }
+      }
+    },
+    "Its hooks will be taken out of the file. Hooks from other apps stay." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会从配置文件里去掉它的条目。其他 App 的 Hook 保持原样。"
+          }
+        }
+      }
+    },
+    "Remove" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除"
+          }
+        }
+      }
+    },
+    "Remove %@" : {
+      "comment" : "Accessibility label. Argument is the app or file name.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除 %@"
+          }
+        }
+      }
+    },
+    "One entry was left as it is because Aibo couldn't tell what it runs." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 1 条看不出是谁留下的，已保持原样。"
+          }
+        }
+      }
+    },
+    "%lld entries were left as they are because Aibo couldn't tell what they run." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 %lld 条看不出是谁留下的，已保持原样。"
+          }
+        }
+      }
+    },
+    "App not found" : {
+      "comment" : "Hook cleanup status when the app bundle is gone.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到这个 App"
+          }
+        }
+      }
+    },
+    "File not found" : {
+      "comment" : "Hook cleanup status when a script or binary path is gone.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到这个文件"
+          }
+        }
+      }
+    },
+    "On this Mac" : {
+      "comment" : "Hook cleanup status when the app bundle is still installed.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍在这台 Mac 上"
+          }
+        }
+      }
+    },
+    "File is still here" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件还在"
+          }
+        }
+      }
+    },
+    "Not tied to an app" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看不出对应的 App"
+          }
+        }
+      }
+    },
+    "Prompt rule" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提示词规则"
+          }
+        }
+      }
+    },
+    "Session starts" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话开始"
+          }
+        }
+      }
+    },
+    "Session ends" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话结束"
+          }
+        }
+      }
+    },
+    "Before a prompt is sent" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送提示词之前"
+          }
+        }
+      }
+    },
+    "Before a tool runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具运行之前"
+          }
+        }
+      }
+    },
+    "After a tool runs" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具运行之后"
+          }
+        }
+      }
+    },
+    "After a tool fails" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具失败之后"
+          }
+        }
+      }
+    },
+    "Before a shell command" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "执行终端命令之前"
+          }
+        }
+      }
+    },
+    "After a shell command" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "执行终端命令之后"
+          }
+        }
+      }
+    },
+    "Before an MCP call" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调用 MCP 之前"
+          }
+        }
+      }
+    },
+    "After an MCP call" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调用 MCP 之后"
+          }
+        }
+      }
+    },
+    "Before a file is read" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读取文件之前"
+          }
+        }
+      }
+    },
+    "After a file is edited" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修改文件之后"
+          }
+        }
+      }
+    },
+    "After a reply" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回复之后"
+          }
+        }
+      }
+    },
+    "After a thought" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "思考之后"
+          }
+        }
+      }
+    },
+    "When a subagent starts" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "子 Agent 开始"
+          }
+        }
+      }
+    },
+    "When a subagent stops" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "子 Agent 结束"
+          }
+        }
+      }
+    },
+    "When the agent stops" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 停止"
+          }
+        }
+      }
+    },
+    "On a permission request" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请求权限时"
+          }
+        }
+      }
+    },
+    "Before context is compacted" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "压缩上下文之前"
+          }
+        }
+      }
+    },
+    "Before Tab reads a file" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 读取文件之前"
+          }
+        }
+      }
+    },
+    "After Tab edits a file" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab 修改文件之后"
           }
         }
       }

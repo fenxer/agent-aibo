@@ -2,17 +2,44 @@ import AppKit
 import SwiftUI
 
 struct ToolsSettingsPane: View {
+    private enum Page {
+        case hookCleanup
+    }
+
     @Bindable private var settings = AppSettings.shared
     private var keystrokes = KeystrokeMonitor.shared
+    @State private var page: Page?
 
     var body: some View {
+        if page == .hookCleanup {
+            HookCleanupSettingsView { page = nil }
+        } else {
+            toolsForm
+        }
+    }
+
+    private var toolsForm: some View {
         Form {
             Section {
                 ToolsIntroRow()
             }
 
             Section {
-                Toggle(String(localized: "Keystroke"), isOn: $settings.keystrokeOverlayEnabled)
+                HookCleanupEntryRow {
+                    page = .hookCleanup
+                }
+            }
+
+            Section {
+                Toggle(isOn: $settings.keystrokeOverlayEnabled) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(localized: "Keystroke"))
+                        Text(String(localized: "Shows the keys you press beside Aibo."))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
                 if settings.keystrokeOverlayEnabled {
                     LabeledContent {
                         stayTimeField
@@ -35,7 +62,7 @@ struct ToolsSettingsPane: View {
                 }
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(String(localized: "Shows the keys you press beside Aibo. Other bubbles stay hidden while this is on."))
+                    Text(String(localized: "Other bubbles stay hidden while this is on."))
                     if settings.keystrokeOverlayEnabled, keystrokes.accessibilityTrusted == false {
                         Text(String(localized: "Aibo needs Accessibility access to see keys you press in other apps."))
                         Button(String(localized: "Open Accessibility Settings")) {
