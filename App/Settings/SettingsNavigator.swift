@@ -31,6 +31,9 @@ final class SettingsNavigator {
     /// Consumed by `ExtensionSettingsPage` to open one plugin.
     private(set) var pendingExtensionID: String?
 
+    /// Consumed by `ToolsSettingsPane` to open Hook Cleanup.
+    private(set) var pendingToolsHookCleanup = false
+
     /// Sidebar pane to restore when Settings is opened without a deep link.
     /// The view tree itself is released on close.
     private(set) var rememberedPaneID: String?
@@ -39,6 +42,7 @@ final class SettingsNavigator {
     func prepareRemoteWebhook() {
         pendingPane = .webhook
         pendingRevealWebhookRoot = true
+        pendingToolsHookCleanup = false
         SettingsWindowController.shared.show()
     }
 
@@ -47,6 +51,7 @@ final class SettingsNavigator {
         pendingPane = .extensions
         pendingRevealWebhookRoot = false
         pendingExtensionID = id
+        pendingToolsHookCleanup = false
         SettingsWindowController.shared.show()
     }
 
@@ -55,6 +60,16 @@ final class SettingsNavigator {
         pendingPane = .backup
         pendingRevealWebhookRoot = false
         pendingExtensionID = nil
+        pendingToolsHookCleanup = false
+        SettingsWindowController.shared.show()
+    }
+
+    /// Tools → Hook Cleanup.
+    func showHookCleanup() {
+        pendingPane = .tools
+        pendingRevealWebhookRoot = false
+        pendingExtensionID = nil
+        pendingToolsHookCleanup = true
         SettingsWindowController.shared.show()
     }
 
@@ -74,6 +89,7 @@ final class SettingsNavigator {
         pendingPane = nil
         pendingRevealWebhookRoot = false
         pendingExtensionID = nil
+        pendingToolsHookCleanup = false
     }
 
     func consumePendingPane() -> Pane? {
@@ -86,6 +102,12 @@ final class SettingsNavigator {
         let id = pendingExtensionID
         pendingExtensionID = nil
         return id
+    }
+
+    func consumePendingToolsHookCleanup() -> Bool {
+        let value = pendingToolsHookCleanup
+        pendingToolsHookCleanup = false
+        return value
     }
 
     func consumePendingRevealWebhookRoot() -> Bool {

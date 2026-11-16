@@ -90,7 +90,7 @@ final class AppSettings {
 
     /// Default Settings content size. The window can shrink to the minimums
     /// and grow up to the screen it is on; the last frame is stored by AppKit autosave.
-    static let settingsWindowWidth: CGFloat = 680
+    static let settingsWindowWidth: CGFloat = 720
     static let defaultSettingsWindowHeight: CGFloat = 720
     /// Sidebar column minimum (160) plus a usable detail column.
     static let settingsWindowMinWidth: CGFloat = 560

@@ -1003,6 +1003,16 @@
         }
       }
     },
+    "Checked agents" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会检查这些 Agent"
+          }
+        }
+      }
+    },
     "Checking…" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2077,16 +2087,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清理 Hook"
-          }
-        }
-      }
-    },
-    "Checked agents" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "会检查这些 Agent"
           }
         }
       }
@@ -3469,6 +3469,7 @@
       }
     },
     "Remove" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {

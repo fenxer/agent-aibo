@@ -57,6 +57,9 @@ struct AiboAppMenu: View {
 
         Menu(String(localized: "Tools")) {
             Toggle(String(localized: "Keystroke"), isOn: $settings.keystrokeOverlayEnabled)
+            Button(String(localized: "Hook Cleanup")) {
+                SettingsNavigator.shared.showHookCleanup()
+            }
         }
 
         Button(String(localized: "Settings…")) {
