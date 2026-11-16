@@ -36,6 +36,14 @@ public enum HookInventoryEditor {
             } else {
                 hooks = config
             }
+        case .zcode:
+            guard let wrapper = config["hooks"] as? [String: Any],
+                  let events = wrapper["events"] as? [String: Any]
+            else {
+                let malformed = config["hooks"] != nil
+                return HookInventory(owners: [], unrecognizedCount: malformed ? 1 : 0)
+            }
+            hooks = events
         case .cursor, .codex:
             guard let wrapped = config["hooks"] as? [String: Any] else {
                 let unrecognized = config["hooks"] == nil ? 0 : 1
@@ -47,10 +55,12 @@ public enum HookInventoryEditor {
         var occurrences: [Occurrence] = []
         var unrecognized = 0
         let factoryRoot = style == .factory && (config["hooks"] as? [String: Any]) == nil
+        let ignoreNonArrays = factoryRoot || style == .zcode
         for eventName in orderedEventNames(Array(hooks.keys)) {
             guard let entries = hooks[eventName] as? [Any] else {
                 // Factory's unwrapped hooks.json can sit next to a description string.
-                if !factoryRoot { unrecognized += 1 }
+                // ZCode's event map can sit next to timeout settings.
+                if !ignoreNonArrays { unrecognized += 1 }
                 continue
             }
             switch style {
@@ -63,7 +73,7 @@ public enum HookInventoryEditor {
                     homeDirectory: homeDirectory,
                     into: &occurrences
                 )
-            case .codex, .factory:
+            case .codex, .factory, .zcode:
                 unrecognized += collectCodex(
                     entries: entries,
                     eventName: eventName,
@@ -125,6 +135,14 @@ public enum HookInventoryEditor {
                 return next
             }
             return replacingRootEvents(edited, droppedFrom: config)
+        case .zcode:
+            guard var wrapper = config["hooks"] as? [String: Any],
+                  let events = wrapper["events"] as? [String: Any]
+            else { return config }
+            wrapper["events"] = removingEvents(placements, from: events, nested: true)
+            var next = config
+            next["hooks"] = wrapper
+            return next
         case .cursor, .codex:
             guard let hooks = config["hooks"] as? [String: Any] else { return config }
             var next = config
@@ -706,6 +724,8 @@ public enum HookFileStyle: Equatable, Sendable {
     case codex
     /// Factory `hooks.json`: the same groups, either under `hooks` or at the file root.
     case factory
+    /// ZCode keeps grouped commands under `hooks.events`, beside timeout settings.
+    case zcode
     /// Antigravity: each top-level name owns its own event map.
     case named
 }

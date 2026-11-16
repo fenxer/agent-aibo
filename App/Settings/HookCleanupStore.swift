@@ -35,6 +35,8 @@ enum HookCleanupStore {
         "Antigravity",
         "Factory Droid",
         "GitHub Copilot",
+        "Grok",
+        "ZCode",
     ]
 
     static func load() -> [File] {
@@ -130,9 +132,11 @@ enum HookCleanupStore {
             source("qwen", "Qwen Code", ".qwen/settings.json", .codex, home: home),
             source("windsurf", "Windsurf", ".codeium/windsurf/hooks.json", .cursor, home: home),
             source("antigravity", "Antigravity", ".gemini/config/hooks.json", .named, home: home),
+            source("zcode", "ZCode", ".zcode/cli/config.json", .zcode, home: home),
         ]
         sources.append(factorySource(home: home))
         sources.append(contentsOf: copilotSources(home: home))
+        sources.append(contentsOf: grokSources(home: home))
         return sources
     }
 
@@ -201,6 +205,35 @@ enum HookCleanupStore {
             )
         }
         return sources
+    }
+
+    /// Grok stores each hook file under `~/.grok/hooks/`, in Codex's grouped shape.
+    private static func grokSources(home: URL) -> [Source] {
+        let directory = home.appending(path: ".grok/hooks", directoryHint: .isDirectory)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        let hookFiles = names
+            .filter { $0.hasSuffix(".json") && !$0.hasPrefix(".") }
+            .sorted()
+        if hookFiles.isEmpty {
+            return [
+                Source(
+                    id: "grok",
+                    agentName: "Grok",
+                    heading: "Grok",
+                    style: .codex,
+                    url: home.appending(path: ".grok/hooks.json")
+                ),
+            ]
+        }
+        return hookFiles.map { name in
+            Source(
+                id: "grok-\(name)",
+                agentName: "Grok",
+                heading: hookFiles.count == 1 ? "Grok" : "Grok · \(name)",
+                style: .codex,
+                url: directory.appending(path: name)
+            )
+        }
     }
 
     private static func source(

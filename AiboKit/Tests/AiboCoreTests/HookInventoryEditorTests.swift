@@ -470,3 +470,56 @@ private let codexBase = URL(fileURLWithPath: "/Users/tester/.codex", isDirectory
     let events = try #require(kept["PreInvocation"] as? [[String: Any]])
     #expect(events.first?["command"] as? String == "./scripts/reminder.sh")
 }
+
+@Test func zcodeEventsKeepSettingsAndReadProcessHooks() throws {
+    let base = home.appending(path: ".zcode/cli")
+    let config: [String: Any] = [
+        "theme": "keep",
+        "hooks": [
+            "enabled": true,
+            "timeoutMs": 60000,
+            "events": [
+                "PreToolUse": [
+                    [
+                        "matcher": "Write|Edit",
+                        "hooks": [
+                            [
+                                "type": "process",
+                                "command": "node",
+                                "args": ["./scripts/check.js"],
+                            ],
+                            ["type": "command", "command": "echo stay"],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ]
+    let inventory = HookInventoryEditor.inventory(
+        config: config,
+        style: .zcode,
+        baseDirectory: base,
+        homeDirectory: home
+    )
+    let script = try #require(inventory.owners.first { $0.title == "check.js" })
+    #expect(script.kind == .script)
+    #expect(script.resolvedPath == "/Users/tester/.zcode/cli/scripts/check.js")
+    #expect(inventory.unrecognizedCount == 0)
+
+    let removed = HookInventoryEditor.removingOwner(
+        id: script.id,
+        from: config,
+        style: .zcode,
+        baseDirectory: base,
+        homeDirectory: home
+    )
+    #expect(removed["theme"] as? String == "keep")
+    let hooks = try #require(removed["hooks"] as? [String: Any])
+    #expect(hooks["enabled"] as? Bool == true)
+    #expect(hooks["timeoutMs"] as? Int == 60000)
+    let events = try #require(hooks["events"] as? [String: Any])
+    let pre = try #require(events["PreToolUse"] as? [[String: Any]])
+    let nested = try #require(pre[0]["hooks"] as? [[String: Any]])
+    #expect(nested.count == 1)
+    #expect(nested[0]["command"] as? String == "echo stay")
+}
