@@ -26,10 +26,6 @@ Stays perched on your desktop, broadcasting two types of info via speech bubbles
   - Slice spritesheets to keep resident resources down
   - Minimalist extension
 
-## Roadmap
-
-[View here](https://github.com/users/fenxer/projects/1/views/2)
-
 ## Skills
 
 - [hatch-aibo](Skills/hatch-aibo): a rework of the original `hatch-pet` skill for more controllable sprite quality

@@ -24,6 +24,19 @@ enum HookCleanupStore {
         case failed
     }
 
+    /// Agents whose user-level hook files this page knows how to read.
+    static let supportedAgentNames = [
+        "Cursor",
+        "Codex",
+        "Claude Code",
+        "Gemini CLI",
+        "Qwen Code",
+        "Windsurf",
+        "Antigravity",
+        "Factory Droid",
+        "GitHub Copilot",
+    ]
+
     static func load() -> [File] {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return sources(home: home).map { source in
@@ -63,11 +76,40 @@ enum HookCleanupStore {
             baseDirectory: base,
             homeDirectory: home
         )
+        let encoded: Data
         do {
-            let encoded = try HooksConfigJSON.encodePretty(next)
-            try encoded.write(to: file.url, options: .atomic)
+            encoded = try HooksConfigJSON.encodePretty(next)
         } catch {
             throw WriteError.failed
+        }
+        do {
+            try replaceTrashingOriginal(at: file.url, with: encoded)
+        } catch {
+            throw WriteError.failed
+        }
+    }
+
+    /// The previous file goes to the Trash. The path then receives only the
+    /// edited JSON, so a bad removal can be put back from the Trash.
+    private static func replaceTrashingOriginal(at url: URL, with data: Data) throws {
+        let temporary = url.deletingLastPathComponent()
+            .appendingPathComponent(".\(url.lastPathComponent).aibo-new")
+        try data.write(to: temporary, options: .atomic)
+        var trashed: NSURL?
+        do {
+            try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
+        } catch {
+            try? FileManager.default.removeItem(at: temporary)
+            throw error
+        }
+        do {
+            try FileManager.default.moveItem(at: temporary, to: url)
+        } catch {
+            if let trashed {
+                try? FileManager.default.moveItem(at: trashed as URL, to: url)
+            }
+            try? FileManager.default.removeItem(at: temporary)
+            throw error
         }
     }
 

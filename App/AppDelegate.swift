@@ -3,6 +3,10 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // A menu-bar app is not replaced when Xcode runs it again, so a second
+        // pet would stay on screen. The instance that just launched keeps the
+        // socket and the panel; the older ones go away.
+        replaceOtherInstances()
         NSApp.setActivationPolicy(.accessory)
         AiboPaths.migrateLegacyLibraryDirectoryIfNeeded()
         // Theme + language before Sparkle / UI copy.
@@ -50,6 +54,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         persistAiboPositionIfNeeded()
         PlaytimeStore.shared.flushForTermination()
         AiboRuntime.shared.stop()
+    }
+
+    private func replaceOtherInstances() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .filter { $0.processIdentifier != me && !$0.isTerminated }
+        guard !others.isEmpty else { return }
+        for other in others {
+            other.forceTerminate()
+        }
+        let deadline = Date().addingTimeInterval(1)
+        while others.contains(where: { !$0.isTerminated }), Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
+        }
     }
 
     private static func isBackupArchive(_ url: URL) -> Bool {

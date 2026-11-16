@@ -26,10 +26,6 @@
   - 切割 sprite 图片以优化常驻资源；
   - 简洁的扩展插件；
 
-## 更新计划  
-
-[点此查看](https://github.com/users/fenxer/projects/1/views/2)
-
 ## Skills
 
 - [hatch-aibo](Skills/hatch-aibo): 改造了原有的 'hatch-pet' skills 用于生成质量更可控的 sprite 图；
