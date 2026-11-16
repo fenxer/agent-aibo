@@ -34,6 +34,10 @@ struct HookCleanupSettingsView: View {
     @State private var selection: [String: Set<String>] = [:]
     @State private var showsSupportedAgents = false
     @State private var writeError: HookCleanupStore.WriteError?
+    /// Shown only for the Scan Again button. `nil` means the bar is hidden.
+    @State private var scanProgress: Double?
+    @State private var scanTask: Task<Void, Never>?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Form {
@@ -41,8 +45,11 @@ struct HookCleanupSettingsView: View {
                 HookCleanupSummaryRow(
                     appCount: board.apps.count,
                     agentCount: board.localAgents.count,
-                    onRescan: reload
+                    scanProgress: scanProgress,
+                    onRescan: rescan
                 )
+            } footer: {
+                Text("Tip: Prefer an agent's own command for uninstalling hooks.")
             }
 
             if !board.apps.isEmpty {
@@ -94,6 +101,7 @@ struct HookCleanupSettingsView: View {
             }
         }
         .task { reload() }
+        .onDisappear { scanTask?.cancel() }
         .alert(
             String(localized: "Couldn't Update Hooks"),
             isPresented: Binding(
@@ -116,8 +124,40 @@ struct HookCleanupSettingsView: View {
         }
     }
 
-    private func reload() {
+    /// The file read is instant. The bar still runs to full before the new
+    /// results replace the old ones.
+    private func rescan() {
+        guard scanProgress == nil else { return }
+        scanTask?.cancel()
         let files = HookCleanupStore.load()
+        scanProgress = 0
+        let reduceMotion = reduceMotion
+        scanTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            if reduceMotion {
+                scanProgress = 1
+                try? await Task.sleep(for: .milliseconds(500))
+            } else {
+                let steps = 24
+                for step in 1...steps {
+                    try? await Task.sleep(for: .milliseconds(25))
+                    guard !Task.isCancelled else { return }
+                    scanProgress = Double(step) / Double(steps)
+                }
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            guard !Task.isCancelled else { return }
+            apply(files)
+            scanProgress = nil
+        }
+    }
+
+    private func reload() {
+        apply(HookCleanupStore.load())
+    }
+
+    private func apply(_ files: [HookCleanupStore.File]) {
         let next = HookCleanupBoard.make(files: files)
         var selected: [String: Set<String>] = [:]
         for app in next.apps where app.missing {
@@ -151,12 +191,15 @@ struct HookCleanupSettingsView: View {
                 try HookCleanupStore.remove(ownerID: target.ownerID, from: target.file)
             }
             reload()
+            AiboRuntime.shared.refreshHookInstallation()
         } catch let error as HookCleanupStore.WriteError {
             writeError = error
             reload()
+            AiboRuntime.shared.refreshHookInstallation()
         } catch {
             writeError = .failed
             reload()
+            AiboRuntime.shared.refreshHookInstallation()
         }
     }
 }
@@ -164,6 +207,7 @@ struct HookCleanupSettingsView: View {
 private struct HookCleanupSummaryRow: View {
     var appCount: Int
     var agentCount: Int
+    var scanProgress: Double?
     var onRescan: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -192,6 +236,16 @@ private struct HookCleanupSummaryRow: View {
             Spacer(minLength: 8)
 
             Button("Scan Again", action: onRescan)
+                .disabled(scanProgress != nil)
+                .opacity(scanProgress == nil ? 1 : 0)
+                .overlay {
+                    if let scanProgress {
+                        ProgressView(value: scanProgress)
+                            .progressViewStyle(.linear)
+                            .controlSize(.small)
+                            .accessibilityLabel(Text("Scanning…"))
+                    }
+                }
         }
     }
 }

@@ -3640,6 +3640,26 @@
         }
       }
     },
+    "Tip: Prefer an agent's own command for uninstalling hooks." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提示：本地 Agent 可优先使用自带的 Hook 卸载命令。"
+          }
+        }
+      }
+    },
+    "Scanning…" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在扫描…"
+          }
+        }
+      }
+    },
     "Scan Again" : {
       "localizations" : {
         "zh-Hans" : {

@@ -163,9 +163,7 @@ final class AiboRuntime {
     }
 
     func start() {
-        cursorHooksInstalled = (try? CursorHooksFile.isInstalled()) ?? false
-        codexHooksInstalled = (try? CodexHooksFile.isInstalled()) ?? false
-        deepseekPluginInstalled = (try? DshAiboPluginFile.isInstalled()) ?? false
+        refreshHookInstallation()
         refreshHostAppPresence()
         reloadReceiveLog()
 
@@ -724,6 +722,14 @@ final class AiboRuntime {
         case .codex: codexHostAppInstalled
         case .deepseek: true
         }
+    }
+
+    /// Re-reads hook files. Cleanup can delete aibo's entries without going
+    /// through `uninstallHooks(for:)`, and this flag would otherwise stay stale.
+    func refreshHookInstallation() {
+        cursorHooksInstalled = (try? CursorHooksFile.isInstalled()) ?? false
+        codexHooksInstalled = (try? CodexHooksFile.isInstalled()) ?? false
+        deepseekPluginInstalled = (try? DshAiboPluginFile.isInstalled()) ?? false
     }
 
     func refreshHostAppPresence() {

@@ -81,7 +81,10 @@ private struct AgentHookSettingsRootView: View {
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .settingsDetailChrome(title: String(localized: "Agent Hook"))
-        .onAppear { runtime.refreshHostAppPresence() }
+        .onAppear {
+            runtime.refreshHostAppPresence()
+            runtime.refreshHookInstallation()
+        }
     }
 }
 
