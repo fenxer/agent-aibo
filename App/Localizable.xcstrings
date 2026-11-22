@@ -1825,6 +1825,16 @@
         }
       }
     },
+    "Failed to install Antigravity hooks" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装 Antigravity Hook 失败"
+          }
+        }
+      }
+    },
     "Failed to install Codex hooks" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1894,6 +1904,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启动 Webhook 监听服务失败"
+          }
+        }
+      }
+    },
+    "Failed to uninstall Antigravity hooks" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卸载 Antigravity Hook 失败"
           }
         }
       }
@@ -2977,6 +2997,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音符颜色"
+          }
+        }
+      }
+    },
+    "Antigravity has no approval-wait hook. Tool hooks only report status and leave Auto alone. Click the bubble to open Antigravity." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antigravity 没有等待批准的 Hook。工具 Hook 只上报状态，不会改动 Auto。点击气泡可打开 Antigravity。"
           }
         }
       }

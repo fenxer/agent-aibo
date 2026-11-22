@@ -8,15 +8,19 @@ public struct HookSpriteMappingFile: Codable, Sendable, Equatable {
     public var codex: [String: String]
     /// DeepSeek Harness hook event name → `PetdexSpriteState.rawValue`.
     public var deepseek: [String: String]
+    /// Antigravity hook event name → `PetdexSpriteState.rawValue`.
+    public var antigravity: [String: String]
 
     public init(
         cursor: [String: String] = [:],
         codex: [String: String] = [:],
-        deepseek: [String: String] = [:]
+        deepseek: [String: String] = [:],
+        antigravity: [String: String] = [:]
     ) {
         self.cursor = cursor
         self.codex = codex
         self.deepseek = deepseek
+        self.antigravity = antigravity
     }
 
     public init(from decoder: Decoder) throws {
@@ -24,6 +28,7 @@ public struct HookSpriteMappingFile: Codable, Sendable, Equatable {
         cursor = try container.decodeIfPresent([String: String].self, forKey: .cursor) ?? [:]
         codex = try container.decodeIfPresent([String: String].self, forKey: .codex) ?? [:]
         deepseek = try container.decodeIfPresent([String: String].self, forKey: .deepseek) ?? [:]
+        antigravity = try container.decodeIfPresent([String: String].self, forKey: .antigravity) ?? [:]
     }
 }
 
@@ -37,6 +42,8 @@ public enum HookSpriteMapping {
             return CodexHooksInstaller.codexEventNames
         case .deepseek:
             return DeepSeekHarnessPlugin.eventNames
+        case .antigravity:
+            return AntigravityHooksInstaller.eventNames
         }
     }
 
@@ -46,6 +53,8 @@ public enum HookSpriteMapping {
             return defaultCursorSprite(hookEventName)
         case .codex, .deepseek:
             return defaultCodexSprite(hookEventName)
+        case .antigravity:
+            return defaultAntigravitySprite(hookEventName)
         }
     }
 
@@ -78,6 +87,12 @@ public enum HookSpriteMapping {
                 switch activity {
                 case .failed: return .failed
                 case .interrupted: return .waving
+                default: return .waving
+                }
+            }
+            if agent == .antigravity, lookupEvent == "Stop" {
+                switch activity {
+                case .failed: return .failed
                 default: return .waving
                 }
             }
@@ -123,6 +138,7 @@ public enum HookSpriteMapping {
         case .cursor: file.cursor[hookEventName]
         case .codex: file.codex[hookEventName]
         case .deepseek: file.deepseek[hookEventName]
+        case .antigravity: file.antigravity[hookEventName]
         }
     }
 
@@ -154,6 +170,19 @@ public enum HookSpriteMapping {
             return .waving
         case "SessionEnd":
             return .idle
+        default:
+            return .jumping
+        }
+    }
+
+    private static func defaultAntigravitySprite(_ hook: String) -> PetdexSpriteState {
+        switch hook {
+        case "SessionStart", "PreInvocation", "PostToolUse":
+            return .jumping
+        case "PreToolUse":
+            return .running
+        case "Stop":
+            return .waving
         default:
             return .jumping
         }

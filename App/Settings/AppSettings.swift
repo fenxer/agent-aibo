@@ -32,12 +32,15 @@ final class AppSettings {
         static let cursorBubbleGlassStyle = "settings.agentBubbleGlassStyle.cursor"
         static let codexBubbleGlassStyle = "settings.agentBubbleGlassStyle.codex"
         static let deepseekBubbleGlassStyle = "settings.agentBubbleGlassStyle.deepseek"
+        static let antigravityBubbleGlassStyle = "settings.agentBubbleGlassStyle.antigravity"
         static let cursorBubbleGlassTint = "settings.agentBubbleGlassTint.cursor"
         static let codexBubbleGlassTint = "settings.agentBubbleGlassTint.codex"
         static let deepseekBubbleGlassTint = "settings.agentBubbleGlassTint.deepseek"
+        static let antigravityBubbleGlassTint = "settings.agentBubbleGlassTint.antigravity"
         static let cursorCapsuleColor = "settings.agentCapsuleColor.cursor"
         static let codexCapsuleColor = "settings.agentCapsuleColor.codex"
         static let deepseekCapsuleColor = "settings.agentCapsuleColor.deepseek"
+        static let antigravityCapsuleColor = "settings.agentCapsuleColor.antigravity"
         static let codexPlanProgressShaderEnabled = "settings.planProgressShaderEnabled.codex"
         static let codexPlanProgressShaderPrimary = "settings.planProgressShaderPrimary.codex"
         static let deepseekPlanProgressShaderEnabled = "settings.planProgressShaderEnabled.deepseek"
@@ -281,6 +284,15 @@ final class AppSettings {
         }
     }
 
+    /// Optional Antigravity agent-capsule fill. `nil` keeps the default black/white capsule.
+    var antigravityCapsuleColor: Color? {
+        didSet {
+            guard oldValue != antigravityCapsuleColor else { return }
+            Self.persistColor(antigravityCapsuleColor, key: Keys.antigravityCapsuleColor)
+            AiboPanelController.shared.refreshContent()
+        }
+    }
+
     /// Codex plasma fill behind TODO progress. Default on.
     var codexPlanProgressShaderEnabled: Bool {
         didSet {
@@ -354,6 +366,17 @@ final class AppSettings {
         }
     }
 
+    var antigravityBubbleGlassStyle: BubbleGlassStyle {
+        didSet {
+            guard oldValue != antigravityBubbleGlassStyle else { return }
+            UserDefaults.standard.set(
+                antigravityBubbleGlassStyle.rawValue,
+                forKey: Keys.antigravityBubbleGlassStyle
+            )
+            AiboPanelController.shared.refreshContent()
+        }
+    }
+
     /// Optional Cursor glass tint. `nil` means no tint.
     var cursorBubbleGlassTint: Color? {
         didSet {
@@ -375,6 +398,14 @@ final class AppSettings {
         didSet {
             guard oldValue != deepseekBubbleGlassTint else { return }
             Self.persistColor(deepseekBubbleGlassTint, key: Keys.deepseekBubbleGlassTint)
+            AiboPanelController.shared.refreshContent()
+        }
+    }
+
+    var antigravityBubbleGlassTint: Color? {
+        didSet {
+            guard oldValue != antigravityBubbleGlassTint else { return }
+            Self.persistColor(antigravityBubbleGlassTint, key: Keys.antigravityBubbleGlassTint)
             AiboPanelController.shared.refreshContent()
         }
     }
@@ -494,9 +525,18 @@ final class AppSettings {
         )
         deepseekBubbleGlassStyle = deepseekGlass.style
         deepseekBubbleGlassTint = deepseekGlass.tint
+        let antigravityGlass = Self.migrateAgentGlass(
+            styleKey: Keys.antigravityBubbleGlassStyle,
+            tintKey: Keys.antigravityBubbleGlassTint,
+            globalStyle: resolvedGlassStyle,
+            globalTint: resolvedGlassTint
+        )
+        antigravityBubbleGlassStyle = antigravityGlass.style
+        antigravityBubbleGlassTint = antigravityGlass.tint
         cursorCapsuleColor = Self.loadColor(key: Keys.cursorCapsuleColor)
         codexCapsuleColor = Self.loadColor(key: Keys.codexCapsuleColor)
         deepseekCapsuleColor = Self.loadColor(key: Keys.deepseekCapsuleColor)
+        antigravityCapsuleColor = Self.loadColor(key: Keys.antigravityCapsuleColor)
         if UserDefaults.standard.object(forKey: Keys.codexPlanProgressShaderEnabled) != nil {
             codexPlanProgressShaderEnabled = UserDefaults.standard.bool(
                 forKey: Keys.codexPlanProgressShaderEnabled
@@ -633,6 +673,7 @@ final class AppSettings {
         case .cursor: cursorCapsuleColor
         case .codex: codexCapsuleColor
         case .deepseek: deepseekCapsuleColor
+        case .antigravity: antigravityCapsuleColor
         }
     }
 
@@ -641,6 +682,7 @@ final class AppSettings {
         case .cursor: cursorCapsuleColor = color
         case .codex: codexCapsuleColor = color
         case .deepseek: deepseekCapsuleColor = color
+        case .antigravity: antigravityCapsuleColor = color
         }
     }
 
@@ -649,7 +691,7 @@ final class AppSettings {
         switch agent {
         case .codex: return codexPlanProgressShaderEnabled
         case .deepseek: return deepseekPlanProgressShaderEnabled
-        case .cursor: return false
+        case .cursor, .antigravity: return false
         }
     }
 
@@ -657,7 +699,7 @@ final class AppSettings {
         switch agent {
         case .codex: codexPlanProgressShaderEnabled = enabled
         case .deepseek: deepseekPlanProgressShaderEnabled = enabled
-        case .cursor: break
+        case .cursor, .antigravity: break
         }
     }
 
@@ -665,7 +707,7 @@ final class AppSettings {
         switch agent {
         case .codex: codexPlanProgressShaderPrimary
         case .deepseek: deepseekPlanProgressShaderPrimary
-        case .cursor: nil
+        case .cursor, .antigravity: nil
         }
     }
 
@@ -677,7 +719,7 @@ final class AppSettings {
         switch agent {
         case .codex: codexPlanProgressShaderPrimary = color
         case .deepseek: deepseekPlanProgressShaderPrimary = color
-        case .cursor: break
+        case .cursor, .antigravity: break
         }
     }
 
@@ -687,6 +729,7 @@ final class AppSettings {
         case .cursor: cursorBubbleGlassStyle
         case .codex: codexBubbleGlassStyle
         case .deepseek: deepseekBubbleGlassStyle
+        case .antigravity: antigravityBubbleGlassStyle
         }
     }
 
@@ -695,6 +738,7 @@ final class AppSettings {
         case .cursor: cursorBubbleGlassStyle = style
         case .codex: codexBubbleGlassStyle = style
         case .deepseek: deepseekBubbleGlassStyle = style
+        case .antigravity: antigravityBubbleGlassStyle = style
         }
     }
 
@@ -703,6 +747,7 @@ final class AppSettings {
         case .cursor: cursorBubbleGlassTint
         case .codex: codexBubbleGlassTint
         case .deepseek: deepseekBubbleGlassTint
+        case .antigravity: antigravityBubbleGlassTint
         }
     }
 
@@ -711,6 +756,7 @@ final class AppSettings {
         case .cursor: cursorBubbleGlassTint = color
         case .codex: codexBubbleGlassTint = color
         case .deepseek: deepseekBubbleGlassTint = color
+        case .antigravity: antigravityBubbleGlassTint = color
         }
     }
 

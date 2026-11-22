@@ -46,6 +46,12 @@ final class HookSpriteSettings {
             } else {
                 next.deepseek[hookEventName] = sprite.rawValue
             }
+        case .antigravity:
+            if sprite == defaultValue {
+                next.antigravity.removeValue(forKey: hookEventName)
+            } else {
+                next.antigravity[hookEventName] = sprite.rawValue
+            }
         }
         file = next
         persist()
@@ -56,7 +62,8 @@ final class HookSpriteSettings {
         self.file = HookSpriteMappingFile(
             cursor: file.cursor.filter { PetdexSpriteState(rawValue: $0.value) != nil },
             codex: file.codex.filter { PetdexSpriteState(rawValue: $0.value) != nil },
-            deepseek: file.deepseek.filter { PetdexSpriteState(rawValue: $0.value) != nil }
+            deepseek: file.deepseek.filter { PetdexSpriteState(rawValue: $0.value) != nil },
+            antigravity: file.antigravity.filter { PetdexSpriteState(rawValue: $0.value) != nil }
         )
         persist()
         AiboRuntime.shared.noteHookSpriteMappingChanged()
@@ -68,6 +75,7 @@ final class HookSpriteSettings {
         case .cursor: next.cursor = [:]
         case .codex: next.codex = [:]
         case .deepseek: next.deepseek = [:]
+        case .antigravity: next.antigravity = [:]
         }
         file = next
         persist()
@@ -79,6 +87,7 @@ final class HookSpriteSettings {
         case .cursor: !file.cursor.isEmpty
         case .codex: !file.codex.isEmpty
         case .deepseek: !file.deepseek.isEmpty
+        case .antigravity: !file.antigravity.isEmpty
         }
     }
 

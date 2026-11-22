@@ -13,6 +13,7 @@ extension AppSettings {
         guard BubbleGlassStyle(rawValue: backup.cursorBubbleGlassStyle) != nil else { return false }
         guard BubbleGlassStyle(rawValue: backup.codexBubbleGlassStyle) != nil else { return false }
         guard BubbleGlassStyle(rawValue: backup.deepseekBubbleGlassStyle) != nil else { return false }
+        guard BubbleGlassStyle(rawValue: backup.antigravityBubbleGlassStyle) != nil else { return false }
         guard MusicNotesColorMode(rawValue: backup.musicNotesColorMode) != nil else { return false }
         guard WebhookDismissMode(rawValue: backup.webhookDismissMode) != nil else { return false }
         return true
@@ -27,12 +28,15 @@ extension AppSettings {
             cursorBubbleGlassStyle: cursorBubbleGlassStyle.rawValue,
             codexBubbleGlassStyle: codexBubbleGlassStyle.rawValue,
             deepseekBubbleGlassStyle: deepseekBubbleGlassStyle.rawValue,
+            antigravityBubbleGlassStyle: antigravityBubbleGlassStyle.rawValue,
             cursorBubbleGlassTint: Self.backupColor(cursorBubbleGlassTint),
             codexBubbleGlassTint: Self.backupColor(codexBubbleGlassTint),
             deepseekBubbleGlassTint: Self.backupColor(deepseekBubbleGlassTint),
+            antigravityBubbleGlassTint: Self.backupColor(antigravityBubbleGlassTint),
             cursorCapsuleColor: Self.backupColor(cursorCapsuleColor),
             codexCapsuleColor: Self.backupColor(codexCapsuleColor),
             deepseekCapsuleColor: Self.backupColor(deepseekCapsuleColor),
+            antigravityCapsuleColor: Self.backupColor(antigravityCapsuleColor),
             codexPlanProgressShaderEnabled: codexPlanProgressShaderEnabled,
             codexPlanProgressShaderPrimary: Self.backupColor(codexPlanProgressShaderPrimary),
             deepseekPlanProgressShaderEnabled: deepseekPlanProgressShaderEnabled,
@@ -76,12 +80,17 @@ extension AppSettings {
         if let style = BubbleGlassStyle(rawValue: backup.deepseekBubbleGlassStyle) {
             deepseekBubbleGlassStyle = style
         }
+        if let style = BubbleGlassStyle(rawValue: backup.antigravityBubbleGlassStyle) {
+            antigravityBubbleGlassStyle = style
+        }
         cursorBubbleGlassTint = backup.cursorBubbleGlassTint.map(Self.color(from:))
         codexBubbleGlassTint = backup.codexBubbleGlassTint.map(Self.color(from:))
         deepseekBubbleGlassTint = backup.deepseekBubbleGlassTint.map(Self.color(from:))
+        antigravityBubbleGlassTint = backup.antigravityBubbleGlassTint.map(Self.color(from:))
         cursorCapsuleColor = backup.cursorCapsuleColor.map(Self.color(from:))
         codexCapsuleColor = backup.codexCapsuleColor.map(Self.color(from:))
         deepseekCapsuleColor = backup.deepseekCapsuleColor.map(Self.color(from:))
+        antigravityCapsuleColor = backup.antigravityCapsuleColor.map(Self.color(from:))
         codexPlanProgressShaderEnabled = backup.codexPlanProgressShaderEnabled
         codexPlanProgressShaderPrimary = backup.codexPlanProgressShaderPrimary.map(Self.color(from:))
         deepseekPlanProgressShaderEnabled = backup.deepseekPlanProgressShaderEnabled

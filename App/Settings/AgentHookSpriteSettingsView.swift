@@ -116,6 +116,8 @@ private struct AgentHookAdvancedHeaderSection: View {
             String(localized: "Codex permission prompts show “request permission”. Click the bubble to open Codex.")
         case .deepseek:
             String(localized: "Observe-only Cordis plugin. Writes a marked block into ~/.dsh/cordis.patch.yml (or $DSH_HOME). Restart `dsh` after install. Don’t also `dsh plugin add` the same plugin. Click the bubble to open DSH.")
+        case .antigravity:
+            String(localized: "Antigravity has no approval-wait hook. Tool hooks only report status and leave Auto alone. Click the bubble to open Antigravity.")
         }
     }
 }

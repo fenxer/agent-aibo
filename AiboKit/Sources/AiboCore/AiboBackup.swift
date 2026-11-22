@@ -44,12 +44,15 @@ public struct AiboBackupSettings: Codable, Equatable, Sendable {
     public var cursorBubbleGlassStyle: String
     public var codexBubbleGlassStyle: String
     public var deepseekBubbleGlassStyle: String
+    public var antigravityBubbleGlassStyle: String
     public var cursorBubbleGlassTint: AiboBackupColor?
     public var codexBubbleGlassTint: AiboBackupColor?
     public var deepseekBubbleGlassTint: AiboBackupColor?
+    public var antigravityBubbleGlassTint: AiboBackupColor?
     public var cursorCapsuleColor: AiboBackupColor?
     public var codexCapsuleColor: AiboBackupColor?
     public var deepseekCapsuleColor: AiboBackupColor?
+    public var antigravityCapsuleColor: AiboBackupColor?
     public var codexPlanProgressShaderEnabled: Bool
     public var codexPlanProgressShaderPrimary: AiboBackupColor?
     public var deepseekPlanProgressShaderEnabled: Bool
@@ -81,12 +84,15 @@ public struct AiboBackupSettings: Codable, Equatable, Sendable {
         cursorBubbleGlassStyle: String,
         codexBubbleGlassStyle: String,
         deepseekBubbleGlassStyle: String,
+        antigravityBubbleGlassStyle: String,
         cursorBubbleGlassTint: AiboBackupColor?,
         codexBubbleGlassTint: AiboBackupColor?,
         deepseekBubbleGlassTint: AiboBackupColor?,
+        antigravityBubbleGlassTint: AiboBackupColor?,
         cursorCapsuleColor: AiboBackupColor?,
         codexCapsuleColor: AiboBackupColor?,
         deepseekCapsuleColor: AiboBackupColor?,
+        antigravityCapsuleColor: AiboBackupColor?,
         codexPlanProgressShaderEnabled: Bool,
         codexPlanProgressShaderPrimary: AiboBackupColor?,
         deepseekPlanProgressShaderEnabled: Bool,
@@ -116,12 +122,15 @@ public struct AiboBackupSettings: Codable, Equatable, Sendable {
         self.cursorBubbleGlassStyle = cursorBubbleGlassStyle
         self.codexBubbleGlassStyle = codexBubbleGlassStyle
         self.deepseekBubbleGlassStyle = deepseekBubbleGlassStyle
+        self.antigravityBubbleGlassStyle = antigravityBubbleGlassStyle
         self.cursorBubbleGlassTint = cursorBubbleGlassTint
         self.codexBubbleGlassTint = codexBubbleGlassTint
         self.deepseekBubbleGlassTint = deepseekBubbleGlassTint
+        self.antigravityBubbleGlassTint = antigravityBubbleGlassTint
         self.cursorCapsuleColor = cursorCapsuleColor
         self.codexCapsuleColor = codexCapsuleColor
         self.deepseekCapsuleColor = deepseekCapsuleColor
+        self.antigravityCapsuleColor = antigravityCapsuleColor
         self.codexPlanProgressShaderEnabled = codexPlanProgressShaderEnabled
         self.codexPlanProgressShaderPrimary = codexPlanProgressShaderPrimary
         self.deepseekPlanProgressShaderEnabled = deepseekPlanProgressShaderEnabled
@@ -143,6 +152,61 @@ public struct AiboBackupSettings: Codable, Equatable, Sendable {
         self.publicWebhookURL = publicWebhookURL
         self.hookSprites = hookSprites
         self.actionSprites = actionSprites
+    }
+
+    /// Older archives have no Antigravity keys. Missing ones use the same
+    /// defaults as a fresh install: clear glass, no tint, no capsule color.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        themeMode = try container.decode(String.self, forKey: .themeMode)
+        languageMode = try container.decode(String.self, forKey: .languageMode)
+        bubbleGlassStyle = try container.decode(String.self, forKey: .bubbleGlassStyle)
+        bubbleGlassTint = try container.decodeIfPresent(AiboBackupColor.self, forKey: .bubbleGlassTint)
+        cursorBubbleGlassStyle = try container.decode(String.self, forKey: .cursorBubbleGlassStyle)
+        codexBubbleGlassStyle = try container.decode(String.self, forKey: .codexBubbleGlassStyle)
+        deepseekBubbleGlassStyle = try container.decode(String.self, forKey: .deepseekBubbleGlassStyle)
+        antigravityBubbleGlassStyle = try container.decodeIfPresent(
+            String.self,
+            forKey: .antigravityBubbleGlassStyle
+        ) ?? "clear"
+        cursorBubbleGlassTint = try container.decodeIfPresent(AiboBackupColor.self, forKey: .cursorBubbleGlassTint)
+        codexBubbleGlassTint = try container.decodeIfPresent(AiboBackupColor.self, forKey: .codexBubbleGlassTint)
+        deepseekBubbleGlassTint = try container.decodeIfPresent(AiboBackupColor.self, forKey: .deepseekBubbleGlassTint)
+        antigravityBubbleGlassTint = try container.decodeIfPresent(
+            AiboBackupColor.self,
+            forKey: .antigravityBubbleGlassTint
+        )
+        cursorCapsuleColor = try container.decodeIfPresent(AiboBackupColor.self, forKey: .cursorCapsuleColor)
+        codexCapsuleColor = try container.decodeIfPresent(AiboBackupColor.self, forKey: .codexCapsuleColor)
+        deepseekCapsuleColor = try container.decodeIfPresent(AiboBackupColor.self, forKey: .deepseekCapsuleColor)
+        antigravityCapsuleColor = try container.decodeIfPresent(AiboBackupColor.self, forKey: .antigravityCapsuleColor)
+        codexPlanProgressShaderEnabled = try container.decode(Bool.self, forKey: .codexPlanProgressShaderEnabled)
+        codexPlanProgressShaderPrimary = try container.decodeIfPresent(
+            AiboBackupColor.self,
+            forKey: .codexPlanProgressShaderPrimary
+        )
+        deepseekPlanProgressShaderEnabled = try container.decode(Bool.self, forKey: .deepseekPlanProgressShaderEnabled)
+        deepseekPlanProgressShaderPrimary = try container.decodeIfPresent(
+            AiboBackupColor.self,
+            forKey: .deepseekPlanProgressShaderPrimary
+        )
+        restoreLastAiboPosition = try container.decode(Bool.self, forKey: .restoreLastAiboPosition)
+        hideWhenFullscreen = try container.decode(Bool.self, forKey: .hideWhenFullscreen)
+        disableMouseTracking = try container.decode(Bool.self, forKey: .disableMouseTracking)
+        mouseShakeDodgeEnabled = try container.decode(Bool.self, forKey: .mouseShakeDodgeEnabled)
+        centerXPercent = try container.decodeIfPresent(Double.self, forKey: .centerXPercent)
+        centerYPercent = try container.decodeIfPresent(Double.self, forKey: .centerYPercent)
+        musicNotesEnabled = try container.decode(Bool.self, forKey: .musicNotesEnabled)
+        musicNotesColorMode = try container.decode(String.self, forKey: .musicNotesColorMode)
+        musicNotesCustomColor = try container.decode(AiboBackupColor.self, forKey: .musicNotesCustomColor)
+        customMusicNotificationNames = try container.decode(String.self, forKey: .customMusicNotificationNames)
+        webhookEnabled = try container.decode(Bool.self, forKey: .webhookEnabled)
+        webhookPort = try container.decode(Int.self, forKey: .webhookPort)
+        webhookDismissMode = try container.decode(String.self, forKey: .webhookDismissMode)
+        webhookAutoDismissSeconds = try container.decode(Int.self, forKey: .webhookAutoDismissSeconds)
+        publicWebhookURL = try container.decode(String.self, forKey: .publicWebhookURL)
+        hookSprites = try container.decode(HookSpriteMappingFile.self, forKey: .hookSprites)
+        actionSprites = try container.decode([String: String].self, forKey: .actionSprites)
     }
 
     /// Structural checks that do not depend on UI enums.
@@ -172,12 +236,15 @@ public struct AiboBackupSettings: Codable, Equatable, Sendable {
         if cursorBubbleGlassStyle != other.cursorBubbleGlassStyle { count += 1 }
         if codexBubbleGlassStyle != other.codexBubbleGlassStyle { count += 1 }
         if deepseekBubbleGlassStyle != other.deepseekBubbleGlassStyle { count += 1 }
+        if antigravityBubbleGlassStyle != other.antigravityBubbleGlassStyle { count += 1 }
         if cursorBubbleGlassTint != other.cursorBubbleGlassTint { count += 1 }
         if codexBubbleGlassTint != other.codexBubbleGlassTint { count += 1 }
         if deepseekBubbleGlassTint != other.deepseekBubbleGlassTint { count += 1 }
+        if antigravityBubbleGlassTint != other.antigravityBubbleGlassTint { count += 1 }
         if cursorCapsuleColor != other.cursorCapsuleColor { count += 1 }
         if codexCapsuleColor != other.codexCapsuleColor { count += 1 }
         if deepseekCapsuleColor != other.deepseekCapsuleColor { count += 1 }
+        if antigravityCapsuleColor != other.antigravityCapsuleColor { count += 1 }
         if codexPlanProgressShaderEnabled != other.codexPlanProgressShaderEnabled { count += 1 }
         if codexPlanProgressShaderPrimary != other.codexPlanProgressShaderPrimary { count += 1 }
         if deepseekPlanProgressShaderEnabled != other.deepseekPlanProgressShaderEnabled { count += 1 }

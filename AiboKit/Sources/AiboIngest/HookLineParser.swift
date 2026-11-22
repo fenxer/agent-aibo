@@ -16,6 +16,12 @@ public enum HookLineParser {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
 
+        // Antigravity stamps `aibo_agent` and a PascalCase event name. Its
+        // session key is `conversationId`, which Codex does not use.
+        if aiboAgent == AntigravityHooksInstaller.agentArgument {
+            return AntigravityHookParser.parse(payload: payload)
+        }
+
         // DeepSeek Harness plugin stamps `aibo_agent` so PascalCase payloads
         // are not mistaken for Codex (same stdin vocabulary).
         if aiboAgent == DeepSeekHarnessPlugin.agentMarker, hasSessionID {

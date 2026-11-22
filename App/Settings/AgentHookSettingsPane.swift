@@ -185,6 +185,7 @@ extension AgentKind {
         case .cursor: "cursor"
         case .codex: "codex"
         case .deepseek: "deepseek"
+        case .antigravity: "antigravity"
         }
     }
 }

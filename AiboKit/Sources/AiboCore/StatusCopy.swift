@@ -75,6 +75,9 @@ public enum StatusCopy {
         if agent == .cursor, hookEventName == "stop" {
             return "finished · was interrupted · failed"
         }
+        if agent == .antigravity, hookEventName == "Stop" {
+            return "finished · was interrupted · failed"
+        }
 
         let transition: StateTransition?
         switch agent {
@@ -88,6 +91,12 @@ public enum StatusCopy {
             transition = CodexEventMapper.transition(
                 eventName: hookEventName,
                 toolName: "Bash"
+            )
+        case .antigravity:
+            transition = AntigravityEventMapper.transition(
+                eventName: hookEventName,
+                toolName: "run_command",
+                terminationReason: "model_stop"
             )
         }
 
@@ -167,6 +176,21 @@ public enum StatusCopy {
             default:
                 return nil
             }
+        case .antigravity:
+            switch hookEventName {
+            case "SessionStart":
+                return "Start a new conversation" // 发起新对话
+            case "PreInvocation":
+                return "Started thinking" // 开始思考
+            case "PreToolUse":
+                return "About to use a tool (e.g. is using run_command)" // 即将调用工具。比如 is using run_command
+            case "PostToolUse":
+                return "Tool finished; still thinking" // 工具跑完，继续思考
+            case "Stop":
+                return "Turn ended" // 本轮对话结束
+            default:
+                return nil
+            }
         }
     }
 
@@ -175,6 +199,7 @@ public enum StatusCopy {
         case .cursor: "Cursor"
         case .codex: "Codex"
         case .deepseek: "DeepSeek Harness"
+        case .antigravity: "Antigravity"
         }
     }
 
@@ -182,7 +207,7 @@ public enum StatusCopy {
     /// the capsule is width-constrained, so a long name steals room from the status.
     public static func capsuleName(_ agent: AgentKind) -> String {
         switch agent {
-        case .cursor, .codex: displayName(agent)
+        case .cursor, .codex, .antigravity: displayName(agent)
         case .deepseek: "DSH"
         }
     }

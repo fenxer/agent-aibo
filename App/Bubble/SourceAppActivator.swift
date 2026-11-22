@@ -15,14 +15,34 @@ enum SourceAppActivator {
         case .deepseek:
             // DeepSeek Harness desktop (DSH).
             ["com.deepseek.dsh"]
+        case .antigravity:
+            // Antigravity.app, then the standalone Antigravity IDE.
+            ["com.google.antigravity", "com.google.antigravity-ide"]
         }
     }
 
     /// Launch Services lookup by bundle ID. Does not enumerate installed apps.
+    /// Antigravity's CLI (`agy`) shares the same hooks file, so it counts too.
     static func isHostAppInstalled(_ agent: AgentKind) -> Bool {
-        bundleIDs(for: agent).contains {
+        if bundleIDs(for: agent).contains(where: {
             NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
+        }) {
+            return true
         }
+        if agent == .antigravity {
+            return antigravityCLIInstalled()
+        }
+        return false
+    }
+
+    private static func antigravityCLIInstalled() -> Bool {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = [
+            "/opt/homebrew/bin/agy",
+            "/usr/local/bin/agy",
+            "\(home)/.local/bin/agy",
+        ]
+        return candidates.contains { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
     static func activate(_ agent: AgentKind) {

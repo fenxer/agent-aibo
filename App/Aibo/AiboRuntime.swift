@@ -18,8 +18,10 @@ final class AiboRuntime {
     private(set) var cursorHooksInstalled = false
     private(set) var codexHooksInstalled = false
     private(set) var deepseekPluginInstalled = false
+    private(set) var antigravityHooksInstalled = false
     private(set) var cursorHostAppInstalled = false
     private(set) var codexHostAppInstalled = false
+    private(set) var antigravityHostAppInstalled = false
     private(set) var webhookListening = false
     private(set) var lastErrorMessage: String?
     /// Last tunnel probe result for Webhook settings (Unknown / OK / Down / …).
@@ -708,11 +710,33 @@ final class AiboRuntime {
         }
     }
 
+    func installAntigravityHooks() {
+        do {
+            let command = try Self.hookCommandPath()
+            try AntigravityHooksFile.install(binaryPath: command)
+            antigravityHooksInstalled = true
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = String(localized: "Failed to install Antigravity hooks")
+        }
+    }
+
+    func uninstallAntigravityHooks() {
+        do {
+            try AntigravityHooksFile.uninstall()
+            antigravityHooksInstalled = false
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = String(localized: "Failed to uninstall Antigravity hooks")
+        }
+    }
+
     func isHookInstalled(for agent: AgentKind) -> Bool {
         switch agent {
         case .cursor: cursorHooksInstalled
         case .codex: codexHooksInstalled
         case .deepseek: deepseekPluginInstalled
+        case .antigravity: antigravityHooksInstalled
         }
     }
 
@@ -721,6 +745,7 @@ final class AiboRuntime {
         case .cursor: cursorHostAppInstalled
         case .codex: codexHostAppInstalled
         case .deepseek: true
+        case .antigravity: antigravityHostAppInstalled
         }
     }
 
@@ -730,11 +755,13 @@ final class AiboRuntime {
         cursorHooksInstalled = (try? CursorHooksFile.isInstalled()) ?? false
         codexHooksInstalled = (try? CodexHooksFile.isInstalled()) ?? false
         deepseekPluginInstalled = (try? DshAiboPluginFile.isInstalled()) ?? false
+        antigravityHooksInstalled = (try? AntigravityHooksFile.isInstalled()) ?? false
     }
 
     func refreshHostAppPresence() {
         cursorHostAppInstalled = SourceAppActivator.isHostAppInstalled(.cursor)
         codexHostAppInstalled = SourceAppActivator.isHostAppInstalled(.codex)
+        antigravityHostAppInstalled = SourceAppActivator.isHostAppInstalled(.antigravity)
     }
 
     func installHooks(for agent: AgentKind) {
@@ -743,6 +770,7 @@ final class AiboRuntime {
         case .cursor: installCursorHooks()
         case .codex: installCodexHooks()
         case .deepseek: installDeepSeekPlugin()
+        case .antigravity: installAntigravityHooks()
         }
     }
 
@@ -751,6 +779,7 @@ final class AiboRuntime {
         case .cursor: uninstallCursorHooks()
         case .codex: uninstallCodexHooks()
         case .deepseek: uninstallDeepSeekPlugin()
+        case .antigravity: uninstallAntigravityHooks()
         }
     }
 
@@ -959,6 +988,12 @@ final class AiboRuntime {
             }
             if let projectPath { payload["cwd"] = projectPath }
             if hasModel { payload["model"] = model }
+        case .antigravity:
+            payload["aibo_agent"] = "antigravity"
+            payload["conversationId"] = conversationID
+            payload["hook_event_name"] = "PreInvocation"
+            if let projectPath { payload["workspacePaths"] = [projectPath] }
+            if hasModel { payload["modelName"] = model }
         }
         return encodeDebugHookJSON(payload, conversationID: conversationID)
     }
@@ -977,6 +1012,7 @@ final class AiboRuntime {
 
     private static func debugAgentKind(from agentName: String) -> AgentKind {
         let lowered = agentName.lowercased()
+        if lowered.contains("antigravity") { return .antigravity }
         if lowered.contains("deepseek") { return .deepseek }
         if lowered.contains("codex") { return .codex }
         return .cursor
@@ -1610,6 +1646,7 @@ final class AiboRuntime {
         case .cursor: "cursor"
         case .codex: "codex"
         case .deepseek: "deepseek"
+        case .antigravity: "antigravity"
         }
     }
 
