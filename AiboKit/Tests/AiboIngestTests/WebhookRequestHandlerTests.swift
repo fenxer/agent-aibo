@@ -80,3 +80,69 @@ import Testing
     #expect(result.statusCode == 401)
     #expect(result.delivery == nil)
 }
+
+@Test func httpParserRejectsMalformedLengthChunkedAndOversizedPayloads() {
+    let badLength = Data("POST /webhook HTTP/1.1\r\nContent-Length: abc\r\n\r\n".utf8)
+    #expect(throws: HTTPRequestParser.ParseError.malformed) {
+        try HTTPRequestParser.parse(badLength)
+    }
+
+    let negativeLength = Data("POST /webhook HTTP/1.1\r\nContent-Length: -5\r\n\r\n".utf8)
+    #expect(throws: HTTPRequestParser.ParseError.malformed) {
+        try HTTPRequestParser.parse(negativeLength)
+    }
+
+    let chunked = Data("POST /webhook HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n".utf8)
+    #expect(throws: HTTPRequestParser.ParseError.unsupported) {
+        try HTTPRequestParser.parse(chunked)
+    }
+
+    let oversizedHeader = Data(repeating: UInt8(ascii: "A"), count: 128)
+    #expect(throws: HTTPRequestParser.ParseError.payloadTooLarge) {
+        try HTTPRequestParser.parse(oversizedHeader, maxHeaderBytes: 64)
+    }
+
+    let oversizedBody = Data("POST /webhook HTTP/1.1\r\nContent-Length: 500\r\n\r\n".utf8)
+    #expect(throws: HTTPRequestParser.ParseError.payloadTooLarge) {
+        try HTTPRequestParser.parse(oversizedBody, maxBodyBytes: 100)
+    }
+}
+
+@Test func webhookHandlerTreatsEmptyWebhookIDAsMissing() {
+    let secret = "s3cret"
+    let bodyA = Data(#"{"status":"FINISHED","summary":"first"}"#.utf8)
+    let bodyB = Data(#"{"status":"FINISHED","summary":"second"}"#.utf8)
+    var cache = WebhookIDCache()
+
+    let first = WebhookRequestHandler.handle(
+        request: HTTPRequest(
+            method: "POST",
+            path: "/webhook",
+            headers: [
+                "X-Webhook-Signature": WebhookSignature.sign(body: bodyA, secret: secret),
+                "X-Webhook-ID": "   ",
+            ],
+            body: bodyA
+        ),
+        secret: secret,
+        idCache: &cache
+    )
+    let second = WebhookRequestHandler.handle(
+        request: HTTPRequest(
+            method: "POST",
+            path: "/webhook",
+            headers: [
+                "X-Webhook-Signature": WebhookSignature.sign(body: bodyB, secret: secret),
+                "X-Webhook-ID": "",
+            ],
+            body: bodyB
+        ),
+        secret: secret,
+        idCache: &cache
+    )
+    #expect(first.statusCode == 200)
+    #expect(first.delivery != nil)
+    #expect(second.statusCode == 200)
+    #expect(second.delivery != nil)
+    #expect(first.delivery?.id != second.delivery?.id)
+}

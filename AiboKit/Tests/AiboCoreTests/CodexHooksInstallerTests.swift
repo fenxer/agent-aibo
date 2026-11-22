@@ -79,3 +79,40 @@ import Testing
     #expect(nested?.first?["type"] as? String == "command")
     #expect(nested?.first?["command"] as? String == command)
 }
+
+@Test func codexInstallAndUninstallPreserveSiblingHooksInSameMatcherGroup() throws {
+    let command = "/Applications/aibo.app/Contents/Helpers/aibo-hook"
+    let shared: [String: Any] = [
+        "hooks": [
+            "PreToolUse": [
+                [
+                    "matcher": "*",
+                    "hooks": [
+                        ["type": "command", "command": "/usr/local/bin/user-sibling"],
+                        ["type": "command", "command": command],
+                    ],
+                ],
+            ],
+        ],
+    ]
+
+    let uninstalled = try CodexHooksInstaller.uninstall(config: shared)
+    let hooks = uninstalled["hooks"] as? [String: Any]
+    let pre = hooks?["PreToolUse"] as? [[String: Any]]
+    #expect(pre?.count == 1)
+    let nested = pre?.first?["hooks"] as? [[String: Any]]
+    #expect(nested?.count == 1)
+    #expect(nested?.first?["command"] as? String == "/usr/local/bin/user-sibling")
+}
+
+@Test func codexInstallRefusesMalformedHooksShape() {
+    let badHooks: [String: Any] = ["hooks": "not-an-object"]
+    #expect(throws: HooksInstallerError.invalidHooksShape) {
+        try CodexHooksInstaller.install(config: badHooks, command: "/tmp/aibo-hook")
+    }
+
+    let badEvent: [String: Any] = ["hooks": ["PreToolUse": ["not-a-dictionary"]]]
+    #expect(throws: HooksInstallerError.invalidHooksShape) {
+        try CodexHooksInstaller.install(config: badEvent, command: "/tmp/aibo-hook")
+    }
+}

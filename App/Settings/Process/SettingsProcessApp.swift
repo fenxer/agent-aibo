@@ -1,3 +1,4 @@
+import AiboCore
 import AppKit
 import SwiftUI
 
@@ -37,8 +38,16 @@ final class SettingsProcessAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         _ = AppSettings.shared
-        ExtensionCenter.shared.reloadForSettingsProcess()
         SettingsProcessClient.shared.start()
+        Task { @MainActor in
+            await Task.yield()
+            ExtensionCenter.shared.reloadForSettingsProcess()
+        }
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        SettingsProcessClient.shared.sendCommand(.recheckAccessibility)
+        SettingsProcessClient.shared.sendCommand(.refreshHostAppPresence)
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

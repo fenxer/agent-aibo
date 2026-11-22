@@ -60,7 +60,7 @@ final class AiboPanelController {
     private weak var promptCaretDrag: PromptTextView?
     private let fullscreenMonitor = FullscreenSpaceMonitor()
     /// True while hide-when-fullscreen is suppressing the panel (not user Hide Aibo).
-    private var isSuppressedForFullscreen = false
+    private(set) var isSuppressedForFullscreen = false
     private var hasPlacedInitially = false
     private var hideTask: Task<Void, Never>?
     /// Last layout we sized/positioned for — used to keep the aibo fixed on screen.
@@ -501,6 +501,7 @@ final class AiboPanelController {
     private func suppressForFullscreen() {
         cancelDodge(persist: true)
         isSuppressedForFullscreen = true
+        stopClickThroughMonitoring()
         applyFullscreenVisibility()
         // Leave the fullscreen Space entirely — do not float above the transition.
         panel?.orderOut(nil)
@@ -515,6 +516,7 @@ final class AiboPanelController {
         applyFullscreenCollectionBehavior(to: panel)
         if wasSuppressed {
             panel.orderFrontRegardless()
+            startClickThroughMonitoringIfNeeded()
         } else {
             reaffirmPetVisibilityIfNeeded()
             return
@@ -2006,17 +2008,21 @@ final class AiboPanelController {
         panel?.ignoresMouseEvents = false
     }
 
-    private func refreshDragAction(deltaX: CGFloat) {
+    /// Update the drag sprite when horizontal travel crosses the threshold.
+    /// Returns `true` when the sprite changed and `.default` was drained.
+    @discardableResult
+    private func refreshDragAction(deltaX: CGFloat) -> Bool {
         pendingDragDeltaX += deltaX
-        guard abs(pendingDragDeltaX) >= Self.dragDirectionThreshold else { return }
+        guard abs(pendingDragDeltaX) >= Self.dragDirectionThreshold else { return false }
         let action: AiboUserAction = pendingDragDeltaX < 0 ? .dragLeft : .dragRight
         pendingDragDeltaX = 0
         let next = AiboActionSettings.shared.sprite(for: action)
-        guard dragActionSprite != next else { return }
+        guard dragActionSprite != next else { return false }
         dragActionSprite = next
         // Event-tracking mode doesn't pump `.default`; drain it once so SwiftUI
         // can swap the sprite layer while the drag is still in progress.
         RunLoop.current.run(mode: .default, before: Date())
+        return true
     }
 
     private func refreshClickThroughState() {
@@ -2092,6 +2098,7 @@ final class AiboPanelController {
             )
         }
         clampToVisibleScreen()
+        applyGeometryNow()
     }
 
     private func placeInitially() {
@@ -2241,6 +2248,7 @@ final class AiboPanelController {
         guard let panel, !isLaunchPortalPlaying else { return }
         cancelDodge(persist: false)
         beginPetDrag()
+        let initialBackingScale = spriteBackingScale
         let grabOffset = grabOffsetFromAibo(for: startEvent)
         var lastMouseX = NSEvent.mouseLocation.x
         while true {
@@ -2255,10 +2263,14 @@ final class AiboPanelController {
             let dx = mouseX - lastMouseX
             lastMouseX = mouseX
             pinAiboToMouse(grabOffset: grabOffset)
-            refreshDragAction(deltaX: dx)
-            pinAiboToMouse(grabOffset: grabOffset)
+            if refreshDragAction(deltaX: dx) {
+                pinAiboToMouse(grabOffset: grabOffset)
+            }
         }
         endPetDrag()
+        if spriteBackingScale != initialBackingScale {
+            applyGeometryNow()
+        }
         persistRelativePositionNow()
     }
 
@@ -2450,6 +2462,10 @@ final class AiboPanelController {
             return
         }
         guard isVisible, isContentPresented, !isSuppressedForFullscreen, let panel else {
+            return
+        }
+        // Hook presentations override pointer look anyway; skip sprite-cache lookup & trig.
+        if AiboRuntime.shared.hookPresentation != nil {
             return
         }
         let record = AiboLibraryStore.shared.selectedRecord

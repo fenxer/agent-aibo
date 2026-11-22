@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// One round of `aibo/run`. Plugins stay stateless; cross-round context is `requestState`.
@@ -139,10 +140,13 @@ public enum ExtensionRoundCodec {
         }
     }
 
+    private static let maxInputRequestsPerRound = 16
+
     private static func inputRequests(from value: ExtensionValue?) throws -> [String: ExtensionInputRequest] {
         guard let object = value?.objectValue else { return [:] }
         var requests: [String: ExtensionInputRequest] = [:]
         for (key, raw) in object {
+            guard requests.count < maxInputRequestsPerRound else { break }
             guard let body = raw.objectValue, let method = body["method"]?.stringValue else { continue }
             requests[key] = ExtensionInputRequest(
                 method: method,
@@ -246,15 +250,61 @@ public enum ExtensionURLPolicy {
     }
 
     private static func isBlockedAddress(_ host: String) -> Bool {
-        if let ipv4 = IPv4(host) {
-            return ipv4.isLoopback || ipv4.isPrivate || ipv4.isLinkLocal || ipv4.isUnspecified
+        let stripped = host
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+            .lowercased()
+        if let ipv4 = IPv4(stripped) {
+            return ipv4.isBlocked
         }
-        let lowered = host.lowercased()
-        if lowered == "::1" || lowered == "0:0:0:0:0:0:0:1" {
+        // Catch numeric / hex / shortened IPv4 literals (e.g. 2130706433, 0x7f000001, 127.1).
+        if isAlternateIPv4Literal(stripped) {
             return true
         }
-        if lowered.hasPrefix("fe80:") || lowered.hasPrefix("fc") || lowered.hasPrefix("fd") {
+        if stripped.contains(":") {
+            return isBlockedIPv6(stripped)
+        }
+        return false
+    }
+
+    private static func isAlternateIPv4Literal(_ host: String) -> Bool {
+        guard !host.isEmpty else { return false }
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard (1...4).contains(parts.count) else { return false }
+        for part in parts {
+            guard !part.isEmpty else { return false }
+            if part.hasPrefix("0x") {
+                let hex = part.dropFirst(2)
+                guard !hex.isEmpty, hex.allSatisfy(\.isHexDigit) else { return false }
+            } else {
+                guard part.allSatisfy(\.isNumber) else { return false }
+            }
+        }
+        return true
+    }
+
+    private static func isBlockedIPv6(_ host: String) -> Bool {
+        // Strip optional zone ID (e.g. fe80::1%en0).
+        let bare = host.split(separator: "%", maxSplits: 1).first.map(String.init) ?? host
+        var addr = in6_addr()
+        guard inet_pton(AF_INET6, bare, &addr) == 1 else {
+            // Malformed IPv6 literal with colon — reject conservatively.
             return true
+        }
+        let bytes = withUnsafeBytes(of: &addr) { Array($0) }
+        guard bytes.count == 16 else { return true }
+
+        // Unspecified `::`
+        if bytes.allSatisfy({ $0 == 0 }) { return true }
+        // Loopback `::1`
+        if bytes[0..<15].allSatisfy({ $0 == 0 }) && bytes[15] == 1 { return true }
+        // Unique local `fc00::/7`
+        if (bytes[0] & 0xfe) == 0xfc { return true }
+        // Link-local `fe80::/10`
+        if bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80 { return true }
+        // IPv4-mapped `::ffff:0:0/96`
+        if bytes[0..<10].allSatisfy({ $0 == 0 }) && bytes[10] == 0xff && bytes[11] == 0xff {
+            let mapped = IPv4(octets: [bytes[12], bytes[13], bytes[14], bytes[15]])
+            return mapped.isBlocked
         }
         return false
     }
@@ -263,19 +313,28 @@ public enum ExtensionURLPolicy {
 private struct IPv4 {
     var octets: [UInt8]
 
+    init(octets: [UInt8]) {
+        self.octets = octets
+    }
+
     init?(_ host: String) {
-        let parts = host.split(separator: ".")
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 4 else { return nil }
         var octets: [UInt8] = []
         for part in parts {
-            guard let value = UInt8(part) else { return nil }
+            guard !part.isEmpty, let value = UInt8(part) else { return nil }
             octets.append(value)
         }
         self.octets = octets
     }
 
+    var isBlocked: Bool {
+        isLoopback || isPrivate || isLinkLocal || isUnspecified || isCGNAT
+    }
+
     var isLoopback: Bool { octets[0] == 127 }
     var isUnspecified: Bool { octets[0] == 0 }
+    var isCGNAT: Bool { octets[0] == 100 && (64...127).contains(octets[1]) }
     var isPrivate: Bool {
         if octets[0] == 10 { return true }
         if octets[0] == 192 && octets[1] == 168 { return true }

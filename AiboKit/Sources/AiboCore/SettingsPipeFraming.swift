@@ -39,12 +39,14 @@ public enum SettingsPipeFraming: Sendable {
             buffer.append(chunk)
 
             var frames: [Data] = []
-            while buffer.count >= SettingsPipeFraming.headerByteCount {
-                let start = buffer.startIndex
-                let b0 = UInt32(buffer[start])
-                let b1 = UInt32(buffer[start + 1])
-                let b2 = UInt32(buffer[start + 2])
-                let b3 = UInt32(buffer[start + 3])
+            var offset = buffer.startIndex
+            let end = buffer.endIndex
+
+            while end - offset >= SettingsPipeFraming.headerByteCount {
+                let b0 = UInt32(buffer[offset])
+                let b1 = UInt32(buffer[offset + 1])
+                let b2 = UInt32(buffer[offset + 2])
+                let b3 = UInt32(buffer[offset + 3])
                 let length = Int((b0 << 24) | (b1 << 16) | (b2 << 8) | b3)
 
                 guard length <= maxPayloadBytes else {
@@ -53,12 +55,18 @@ public enum SettingsPipeFraming: Sendable {
                 }
 
                 let frameSize = SettingsPipeFraming.headerByteCount + length
-                guard buffer.count >= frameSize else { break }
+                guard end - offset >= frameSize else { break }
 
-                let payloadStart = start + SettingsPipeFraming.headerByteCount
-                let payloadEnd = start + frameSize
+                let payloadStart = offset + SettingsPipeFraming.headerByteCount
+                let payloadEnd = offset + frameSize
                 frames.append(Data(buffer[payloadStart..<payloadEnd]))
-                buffer.removeSubrange(start..<payloadEnd)
+                offset = payloadEnd
+            }
+
+            if offset == end {
+                buffer.removeAll(keepingCapacity: false)
+            } else if offset > buffer.startIndex {
+                buffer.removeSubrange(buffer.startIndex..<offset)
             }
             return frames
         }

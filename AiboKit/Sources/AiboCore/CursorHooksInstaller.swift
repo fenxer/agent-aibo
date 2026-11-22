@@ -32,10 +32,10 @@ public enum CursorHooksInstaller {
         command: String
     ) throws -> [String: Any] {
         var next = try normalizedRoot(config)
-        var hooks = (next["hooks"] as? [String: Any]) ?? [:]
+        var hooks = try validatedHooksDictionary(in: next)
 
         for eventName in cursorEventNames {
-            var entries = (hooks[eventName] as? [[String: Any]]) ?? []
+            var entries = try validatedEventEntries(in: hooks, key: eventName)
             entries = entries.filter { !isAiboEntry($0) }
             entries.append(aiboEntry(command: command))
             hooks[eventName] = entries
@@ -50,7 +50,8 @@ public enum CursorHooksInstaller {
 
     public static func uninstall(config: [String: Any]) throws -> [String: Any] {
         var next = try normalizedRoot(config)
-        guard var hooks = next["hooks"] as? [String: Any] else { return next }
+        guard next["hooks"] != nil, !(next["hooks"] is NSNull) else { return next }
+        var hooks = try validatedHooksDictionary(in: next)
 
         for key in Array(hooks.keys) {
             guard let entries = hooks[key] as? [[String: Any]] else { continue }
@@ -64,6 +65,25 @@ public enum CursorHooksInstaller {
 
         next["hooks"] = hooks
         return next
+    }
+
+    private static func validatedHooksDictionary(in config: [String: Any]) throws -> [String: Any] {
+        guard let raw = config["hooks"], !(raw is NSNull) else { return [:] }
+        guard let hooks = raw as? [String: Any] else {
+            throw HooksInstallerError.invalidHooksShape
+        }
+        return hooks
+    }
+
+    private static func validatedEventEntries(
+        in hooks: [String: Any],
+        key: String
+    ) throws -> [[String: Any]] {
+        guard let raw = hooks[key], !(raw is NSNull) else { return [] }
+        guard let entries = raw as? [[String: Any]] else {
+            throw HooksInstallerError.invalidHooksShape
+        }
+        return entries
     }
 
     public static func isAiboEntry(_ entry: [String: Any]) -> Bool {

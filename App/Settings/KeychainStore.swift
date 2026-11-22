@@ -4,12 +4,37 @@ import Security
 enum KeychainStore {
     private static let service = "work.fenx.aibo"
 
+    enum ReadResult<Value> {
+        case found(Value)
+        case notFound
+        case failure(OSStatus)
+    }
+
     static func string(forAccount account: String) -> String? {
-        guard let data = data(forAccount: account) else { return nil }
-        return String(data: data, encoding: .utf8)
+        guard case .found(let value) = readString(forAccount: account) else { return nil }
+        return value
+    }
+
+    static func readString(forAccount account: String) -> ReadResult<String> {
+        switch readData(forAccount: account) {
+        case .found(let data):
+            if let text = String(data: data, encoding: .utf8) {
+                return .found(text)
+            }
+            return .notFound
+        case .notFound:
+            return .notFound
+        case .failure(let status):
+            return .failure(status)
+        }
     }
 
     static func data(forAccount account: String) -> Data? {
+        guard case .found(let data) = readData(forAccount: account) else { return nil }
+        return data
+    }
+
+    static func readData(forAccount account: String) -> ReadResult<Data> {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -19,8 +44,13 @@ enum KeychainStore {
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else { return nil }
-        return data
+        if status == errSecSuccess, let data = item as? Data {
+            return .found(data)
+        }
+        if status == errSecItemNotFound {
+            return .notFound
+        }
+        return .failure(status)
     }
 
     static func setString(_ value: String, forAccount account: String) throws {
@@ -46,6 +76,11 @@ enum KeychainStore {
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         let status = SecItemAdd(add as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            let retry = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            guard retry == errSecSuccess else { throw KeychainError.unhandled(retry) }
+            return
+        }
         guard status == errSecSuccess else { throw KeychainError.unhandled(status) }
     }
 

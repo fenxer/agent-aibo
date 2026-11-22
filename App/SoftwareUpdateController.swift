@@ -34,7 +34,9 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
         super.init()
         hasUpdateFeed = (Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String)?
             .isEmpty == false
-        restorePendingUpdateIfNeeded()
+        if AppProcessRole.isMain {
+            restorePendingUpdateIfNeeded()
+        }
     }
 
     func start() {
@@ -153,9 +155,16 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
         defer { foundUpdateThisCycle = false }
 
         // User-initiated Check includes skipped versions. No update then means
-        // we're actually current. Background checks omit skipped items, so they
-        // must not wipe the About hint.
-        if updateCheck == .updates, !foundUpdateThisCycle {
+        // we're actually current. Only clear when Sparkle actually confirmed no
+        // update (error == nil or SUNoUpdateError), never on offline/network errors.
+        let confirmedUpToDate: Bool
+        if let nsError = error as NSError? {
+            confirmedUpToDate = nsError.domain == SUSparkleErrorDomain
+                && nsError.code == SUError.noUpdateError.rawValue
+        } else {
+            confirmedUpToDate = true
+        }
+        if updateCheck == .updates, !foundUpdateThisCycle, confirmedUpToDate {
             clearPendingUpdate()
         }
     }

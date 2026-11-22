@@ -60,6 +60,18 @@ enum ExtensionClipboardImage {
         return rep.representation(using: .png, properties: [:])
     }
 
+    /// Removes temporary clipboard-paste image files previously written by `ExtensionClipboardImage`.
+    static func cleanupTemporaryFiles<S: Sequence>(in paths: S) where S.Element == String {
+        let tempRoot = FileManager.default.temporaryDirectory.standardizedFileURL.path
+        for path in paths where !path.isEmpty {
+            let url = URL(fileURLWithPath: path).standardizedFileURL
+            guard url.path.hasPrefix(tempRoot + "/"),
+                  url.lastPathComponent.hasPrefix("aibo-paste-")
+            else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     private static func write(_ data: Data, pathExtension: String) -> URL? {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("aibo-paste-\(UUID().uuidString)")

@@ -251,12 +251,37 @@ import Testing
 }
 
 @Test func extensionURLPolicyAllowsOnlyListedHTTPSHosts() {
-    let hosts: Set<String> = ["api.openai.com"]
+    let hosts: Set<String> = ["api.openai.com", "fcm.googleapis.com", "fd.io"]
     #expect(ExtensionURLPolicy.rejection(urlString: "https://api.openai.com/v1/chat/completions", allowedHosts: hosts) == nil)
+    #expect(ExtensionURLPolicy.rejection(urlString: "https://fcm.googleapis.com/v1/messages", allowedHosts: hosts) == nil)
+    #expect(ExtensionURLPolicy.rejection(urlString: "https://fd.io/api", allowedHosts: hosts) == nil)
     #expect(ExtensionURLPolicy.rejection(urlString: "http://api.openai.com/v1", allowedHosts: hosts) == "https-only")
     #expect(ExtensionURLPolicy.rejection(urlString: "https://evil.example/v1", allowedHosts: hosts) == "host-not-allowed")
     #expect(ExtensionURLPolicy.rejection(urlString: "https://127.0.0.1/v1", allowedHosts: ["127.0.0.1"]) == "private-address")
+    #expect(ExtensionURLPolicy.rejection(urlString: "https://100.64.0.1/v1", allowedHosts: ["100.64.0.1"]) == "private-address")
+    #expect(ExtensionURLPolicy.rejection(urlString: "https://2130706433/v1", allowedHosts: ["2130706433"]) == "private-address")
+    #expect(ExtensionURLPolicy.rejection(urlString: "https://[::1]/v1", allowedHosts: ["::1"]) == "private-address")
+    #expect(ExtensionURLPolicy.rejection(urlString: "https://[::ffff:127.0.0.1]/v1", allowedHosts: ["::ffff:127.0.0.1"]) == "private-address")
+    #expect(ExtensionURLPolicy.rejection(urlString: "https://[fc00::1]/v1", allowedHosts: ["fc00::1"]) == "private-address")
+    #expect(ExtensionURLPolicy.rejection(urlString: "https://[fe80::1]/v1", allowedHosts: ["fe80::1"]) == "private-address")
     #expect(ExtensionURLPolicy.rejection(urlString: "https://localhost/v1", allowedHosts: ["localhost"]) == "local-host")
+}
+
+@Test func extensionManifestRejectsDefaultValueOnImageControl() {
+    var manifest = sampleManifest()
+    manifest.prompt = ExtensionObjectSchema(
+        type: "object",
+        properties: [
+            "photo": ExtensionFieldSchema(
+                type: "string",
+                control: "image",
+                title: "Photo",
+                defaultValue: .string("/etc/passwd")
+            ),
+        ],
+        required: ["photo"]
+    )
+    #expect(ExtensionManifestValidator.validate(manifest) == .invalidSchema)
 }
 
 @Test func extensionCopyUsesLocaleStrings() {

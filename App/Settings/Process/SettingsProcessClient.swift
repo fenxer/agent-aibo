@@ -37,13 +37,17 @@ final class SettingsProcessClient {
                 guard let message = try? JSONDecoder().decode(MainToSettingsMessage.self, from: data) else {
                     return
                 }
-                Task { @MainActor in
-                    SettingsProcessClient.shared.handleIncoming(message)
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        SettingsProcessClient.shared.handleIncoming(message)
+                    }
                 }
             },
             onClose: {
-                Task { @MainActor in
-                    SettingsProcessClient.shared.handleDisconnected()
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        SettingsProcessClient.shared.handleDisconnected()
+                    }
                 }
             }
         )
@@ -93,13 +97,17 @@ final class SettingsProcessClient {
         }
     }
 
-    /// Called when the Settings window closes: flushes pending edits to main and exits.
+    /// Called when the Settings window closes: yields one turn so SwiftUI `onDisappear`
+    /// saves flush over the pipe, then handshakes `.closing` and exits.
     func beginGracefulCloseAndExit() {
         guard AppProcessRole.isSettings else { return }
-        if !prepareForTermination(reply: {
-            Darwin.exit(0)
-        }) {
-            Darwin.exit(0)
+        Task { @MainActor in
+            await Task.yield()
+            if !self.prepareForTermination(reply: {
+                Darwin.exit(0)
+            }) {
+                Darwin.exit(0)
+            }
         }
     }
 

@@ -131,8 +131,9 @@ final class AiboLaunchPortalRenderer {
         {
             encoder.generateMipmaps(for: texture)
             encoder.endEncoding()
+            // Submitted on the same MTLCommandQueue as draw(), so GPU ordering
+            // is guaranteed without blocking the main thread.
             blit.commit()
-            blit.waitUntilCompleted()
         }
         return texture
     }

@@ -219,6 +219,10 @@ struct StatusBubble: View {
     /// does not affect intrinsic size. The outer height interpolates between
     /// the two faces so the card never dips (status removed) then grows —
     /// that dip is what made the near-aibo bubble overshoot its top.
+    private var animationsPaused: Bool {
+        AppProcessRole.isMain && AiboPanelController.shared.isSuppressedForFullscreen
+    }
+
     @ViewBuilder
     private func agentFace(
         ink: Color,
@@ -227,6 +231,10 @@ struct StatusBubble: View {
         prefersLightInk: Bool
     ) -> some View {
         let inspecting = item.isInspecting
+        let prettyInspectJSON = (inspecting && item.hookJSON != nil && !suppressBubbleGlass)
+            ? HookPayloadJSON.prettyPrinted(item.hookJSON ?? "")
+            : nil
+        let inspectJSONHeightValue = prettyInspectJSON.map { inspectJSONHeight(for: $0) }
         agentBubbleContent(
             ink: ink,
             capsuleFill: capsuleFill,
@@ -253,22 +261,32 @@ struct StatusBubble: View {
         // on the status face made the JSON representable report height 0.
         .frame(
             width: sideLockedContentWidth,
-            height: agentFaceHeight(inspecting: inspecting),
+            height: agentFaceHeight(inspecting: inspecting, inspectJSONHeight: inspectJSONHeightValue),
             alignment: .topLeading
         )
         .overlay(alignment: .topLeading) {
-            if item.hookJSON != nil, !suppressBubbleGlass {
-                inspectOverlay(ink: ink, prefersLightInk: prefersLightInk)
-                    .opacity(inspecting ? 1 : 0)
-                    .animation(.easeOut(duration: 0.12), value: inspecting)
-                    .allowsHitTesting(inspecting)
+            if let prettyInspectJSON, let inspectJSONHeightValue {
+                inspectOverlay(
+                    prettyJSON: prettyInspectJSON,
+                    jsonHeight: inspectJSONHeightValue,
+                    ink: ink,
+                    prefersLightInk: prefersLightInk
+                )
+                .transition(.opacity)
+                .allowsHitTesting(inspecting)
             }
         }
+        .animation(.easeOut(duration: 0.12), value: inspecting)
         .clipped()
     }
 
-    private func agentFaceHeight(inspecting: Bool) -> CGFloat? {
-        if inspecting { return inspectFaceHeight }
+    private func agentFaceHeight(inspecting: Bool, inspectJSONHeight: CGFloat?) -> CGFloat? {
+        if inspecting {
+            let jsonHeight = inspectJSONHeight ?? self.inspectJSONHeight(for: HookPayloadJSON.prettyPrinted(item.hookJSON ?? ""))
+            return jsonHeight
+                + HookInspectLayout.sectionSpacing
+                + HookInspectLayout.buttonRowHeight
+        }
         return statusFaceHeight > 0 ? statusFaceHeight : nil
     }
 
@@ -279,16 +297,7 @@ struct StatusBubble: View {
         return statusFaceWidth
     }
 
-    /// Content height of the inspect face (no card padding). Matches the
-    /// panel's `estimatedHookInspectHeight` minus padding.
-    private var inspectFaceHeight: CGFloat {
-        inspectJSONHeight()
-            + HookInspectLayout.sectionSpacing
-            + HookInspectLayout.buttonRowHeight
-    }
-
-    private func inspectJSONHeight() -> CGFloat {
-        let pretty = HookPayloadJSON.prettyPrinted(item.hookJSON ?? "")
+    private func inspectJSONHeight(for pretty: String) -> CGFloat {
         let width = max(
             1,
             sideLockedContentWidth ?? (320 - contentPadding * 2)
@@ -308,15 +317,20 @@ struct StatusBubble: View {
     }
 
     @ViewBuilder
-    private func inspectOverlay(ink: Color, prefersLightInk: Bool) -> some View {
+    private func inspectOverlay(
+        prettyJSON: String,
+        jsonHeight: CGFloat,
+        ink: Color,
+        prefersLightInk: Bool
+    ) -> some View {
         VStack(alignment: .leading, spacing: HookInspectLayout.sectionSpacing) {
             InspectJSONScrollView(
-                text: HookPayloadJSON.prettyPrinted(item.hookJSON ?? ""),
+                text: prettyJSON,
                 prefersLightInk: prefersLightInk,
                 maxHeight: HookInspectLayout.jsonMaxHeight
             )
             .frame(maxWidth: .infinity)
-            .frame(height: inspectJSONHeight())
+            .frame(height: jsonHeight)
             .animation(nil, value: item.isInspecting)
 
             HStack(spacing: HookInspectLayout.buttonSpacing) {
@@ -394,11 +408,18 @@ struct StatusBubble: View {
                 // Keep aging while the bubble stays up (nudge to click / dismiss).
                 // Minute cadence matches RelativeDateTimeFormatter granularity —
                 // avoid .animation (would wake every display refresh).
-                TimelineView(.everyMinute) { context in
-                    Text(Self.relativeTimeString(from: item.lastEventAt, relativeTo: context.date))
+                if animationsPaused {
+                    Text(Self.relativeTimeString(from: item.lastEventAt, relativeTo: Date()))
                         .font(.system(size: 12))
                         .foregroundStyle(ink.opacity(0.6))
                         .lineLimit(1)
+                } else {
+                    TimelineView(.everyMinute) { context in
+                        Text(Self.relativeTimeString(from: item.lastEventAt, relativeTo: context.date))
+                            .font(.system(size: 12))
+                            .foregroundStyle(ink.opacity(0.6))
+                            .lineLimit(1)
+                    }
                 }
             }
 
@@ -465,11 +486,18 @@ struct StatusBubble: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(ink)
                     .lineLimit(1)
-                TimelineView(.everyMinute) { context in
-                    Text(Self.relativeTimeString(from: item.lastEventAt, relativeTo: context.date))
+                if animationsPaused {
+                    Text(Self.relativeTimeString(from: item.lastEventAt, relativeTo: Date()))
                         .font(.system(size: 12))
                         .foregroundStyle(ink.opacity(0.6))
                         .lineLimit(1)
+                } else {
+                    TimelineView(.everyMinute) { context in
+                        Text(Self.relativeTimeString(from: item.lastEventAt, relativeTo: context.date))
+                            .font(.system(size: 12))
+                            .foregroundStyle(ink.opacity(0.6))
+                            .lineLimit(1)
+                    }
                 }
             }
 
@@ -497,7 +525,7 @@ struct StatusBubble: View {
 
     @ViewBuilder
     private func statusText(ink: Color) -> some View {
-        if item.animatesEllipsis {
+        if item.animatesEllipsis, !animationsPaused {
             let base = Self.strippingTrailingEllipsis(item.text)
             TimelineView(.periodic(from: Self.ellipsisEpoch, by: Self.ellipsisInterval)) { context in
                 let count = Int(context.date.timeIntervalSinceReferenceDate / Self.ellipsisInterval) % 3 + 1
@@ -603,7 +631,8 @@ struct StatusBubble: View {
                 CapsulePlanShaderBackground(
                     progress: plan.fraction,
                     track: fill,
-                    primary: AppSettings.shared.resolvedPlanProgressShaderPrimary(for: shaderAgent)
+                    primary: AppSettings.shared.resolvedPlanProgressShaderPrimary(for: shaderAgent),
+                    isPaused: animationsPaused
                 )
             } else {
                 Capsule().fill(fill)

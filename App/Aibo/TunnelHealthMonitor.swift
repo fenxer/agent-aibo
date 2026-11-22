@@ -41,6 +41,23 @@ final class TunnelHealthMonitor {
 
     private init() {}
 
+    func syncMonitoringState(triggerCheck: Bool = false) {
+        let shouldMonitor = AppSettings.shared.webhookEnabled
+            && AppSettings.shared.resolvedPublicWebhookURL != nil
+        if shouldMonitor {
+            if pathMonitor == nil {
+                start()
+            } else if triggerCheck {
+                scheduleCheck(reason: .settingsChanged)
+            }
+        } else {
+            stop()
+            if triggerCheck {
+                scheduleCheck(reason: .settingsChanged)
+            }
+        }
+    }
+
     func start() {
         guard pathMonitor == nil else { return }
 

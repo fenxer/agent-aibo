@@ -11,25 +11,28 @@ struct CapsulePlanShaderBackground: NSViewRepresentable {
     var progress: Double
     var track: Color
     var primary: Color
+    var isPaused: Bool = false
 
     func makeNSView(context: Context) -> CapsulePlanMetalView {
         CapsulePlanMetalView()
     }
 
     func updateNSView(_ view: CapsulePlanMetalView, context: Context) {
-        view.updateProgress(Float(progress))
-        view.trackColor = CapsulePlanShaderStyle.simdColor(from: NSColor(track))
-        view.primaryColor = CapsulePlanShaderStyle.simdColor(from: NSColor(primary))
+        view.apply(
+            progress: Float(progress),
+            track: CapsulePlanShaderStyle.simdColor(from: NSColor(track)),
+            primary: CapsulePlanShaderStyle.simdColor(from: NSColor(primary)),
+            paused: isPaused
+        )
     }
 }
 
 final class CapsulePlanMetalView: NSView {
-    var trackColor: SIMD3<Float> = .zero {
-        didSet { if trackColor != oldValue { drawCurrent() } }
-    }
-    var primaryColor: SIMD3<Float> = CapsulePlanShaderStyle.defaultPrimary {
-        didSet { if primaryColor != oldValue { drawCurrent() } }
-    }
+    private var trackColor: SIMD3<Float> = .zero
+    private var primaryColor: SIMD3<Float> = CapsulePlanShaderStyle.defaultPrimary
+    private var cachedPalette: CapsulePlanShaderStyle.DerivedPalette =
+        CapsulePlanShaderStyle.derivedPalette(from: CapsulePlanShaderStyle.defaultPrimary)
+    private var isPaused = false
 
     private let tickProxy = TickProxy()
     private let metalLayer = CAMetalLayer()
@@ -85,7 +88,7 @@ final class CapsulePlanMetalView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window != nil {
+        if window != nil, !isPaused {
             updateDrawableSize()
             startLink()
             drawCurrent()
@@ -97,10 +100,42 @@ final class CapsulePlanMetalView: NSView {
     override func layout() {
         super.layout()
         updateDrawableSize()
-        drawCurrent()
+        if !isPaused {
+            drawCurrent()
+        }
     }
 
-    func updateProgress(_ value: Float) {
+    func apply(progress: Float, track: SIMD3<Float>, primary: SIMD3<Float>, paused: Bool) {
+        var needsDraw = false
+        if trackColor != track {
+            trackColor = track
+            needsDraw = true
+        }
+        if primaryColor != primary {
+            primaryColor = primary
+            cachedPalette = CapsulePlanShaderStyle.derivedPalette(from: primary)
+            needsDraw = true
+        }
+        if isPaused != paused {
+            isPaused = paused
+            if paused {
+                stopLink()
+            } else if window != nil {
+                updateDrawableSize()
+                startLink()
+                needsDraw = true
+            }
+        }
+        if updateProgress(progress) {
+            needsDraw = true
+        }
+        if needsDraw, !isPaused {
+            drawCurrent()
+        }
+    }
+
+    @discardableResult
+    private func updateProgress(_ value: Float) -> Bool {
         let clamped = max(0, min(1, value))
         if !hasReceivedProgress {
             hasReceivedProgress = true
@@ -108,17 +143,15 @@ final class CapsulePlanMetalView: NSView {
             progressFrom = clamped
             progressTo = clamped
             progressAnimDuration = 0
-            drawCurrent()
-            return
+            return true
         }
-        guard abs(clamped - progressTo) > 0.0005 else { return }
+        guard abs(clamped - progressTo) > 0.0005 else { return false }
         if displayLink == nil {
             displayedProgress = clamped
             progressFrom = clamped
             progressTo = clamped
             progressAnimDuration = 0
-            drawCurrent()
-            return
+            return true
         }
         progressFrom = displayedProgress
         progressTo = clamped
@@ -128,11 +161,12 @@ final class CapsulePlanMetalView: NSView {
             Self.maxProgressSeconds,
             max(Self.minProgressSeconds, delta * Self.fullBarSeconds)
         )
+        return false
     }
 
     private func startLink() {
         stopLink()
-        guard window != nil, CapsulePlanShaderRenderer.shared != nil else { return }
+        guard window != nil, !isPaused, CapsulePlanShaderRenderer.shared != nil else { return }
         let link = (window?.screen ?? NSScreen.main)?.displayLink(
             target: tickProxy,
             selector: #selector(TickProxy.tick(_:))
@@ -180,7 +214,8 @@ final class CapsulePlanMetalView: NSView {
     }
 
     private func drawCurrent() {
-        guard let renderer = CapsulePlanShaderRenderer.shared,
+        guard !isPaused,
+              let renderer = CapsulePlanShaderRenderer.shared,
               metalLayer.drawableSize.width >= 1
         else { return }
         let uniforms = CapsulePlanShaderStyle.uniforms(
@@ -191,7 +226,7 @@ final class CapsulePlanMetalView: NSView {
             time: Float(CACurrentMediaTime() - startedAt),
             progress: displayedProgress,
             track: trackColor,
-            primary: primaryColor,
+            palette: cachedPalette,
             backingScale: window?.backingScaleFactor ?? metalLayer.contentsScale
         )
         renderer.draw(layer: metalLayer, uniforms: uniforms)

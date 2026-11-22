@@ -2,6 +2,7 @@ import Foundation
 
 public enum HooksInstallerError: Error, Equatable, Sendable {
     case invalidJSONObject
+    case invalidHooksShape
 }
 
 /// Shared JSON object helpers for hooks.json installers.

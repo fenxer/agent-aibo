@@ -112,12 +112,16 @@ public struct ExtensionStore {
                 try fileManager.copyItem(at: file.source, to: destination)
             }
             let entry = staging.appendingPathComponent(manifest.entry)
-            guard fileManager.fileExists(atPath: entry.path), !isSymlink(entry) else {
+            var isEntryDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: entry.path, isDirectory: &isEntryDirectory),
+                  !isEntryDirectory.boolValue,
+                  !isSymlink(entry)
+            else {
                 throw ExtensionStoreError.entryMissing
             }
             let resolved = entry.resolvingSymlinksInPath().standardizedFileURL.path
             let root = staging.resolvingSymlinksInPath().standardizedFileURL.path
-            guard resolved.hasPrefix(root + "/") || resolved == root else {
+            guard resolved.hasPrefix(root + "/") else {
                 throw ExtensionStoreError.unsafePath(manifest.entry)
             }
             let replacing = fileManager.fileExists(
@@ -140,6 +144,9 @@ public struct ExtensionStore {
     }
 
     public func uninstall(id: String) throws {
+        guard ExtensionManifestValidator.isReverseDNS(id) else {
+            throw ExtensionStoreError.unsafePath(id)
+        }
         let package = extensionsRoot.appendingPathComponent(id, isDirectory: true)
         let data = dataRoot.appendingPathComponent(id, isDirectory: true)
         if fileManager.fileExists(atPath: package.path) {
@@ -168,6 +175,7 @@ public struct ExtensionStore {
     }
 
     public func loadSettings(id: String) -> [String: ExtensionValue] {
+        guard ExtensionManifestValidator.isReverseDNS(id) else { return [:] }
         let url = settingsURL(id: id)
         guard let data = try? Data(contentsOf: url),
               let object = try? ExtensionJSON.object(from: data)
@@ -178,6 +186,9 @@ public struct ExtensionStore {
     }
 
     public func saveSettings(id: String, values: [String: ExtensionValue]) throws {
+        guard ExtensionManifestValidator.isReverseDNS(id) else {
+            throw ExtensionStoreError.unsafePath(id)
+        }
         try writeAtomic(try ExtensionJSON.encodeObject(values), to: settingsURL(id: id))
     }
 

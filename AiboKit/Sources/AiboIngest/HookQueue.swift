@@ -39,15 +39,17 @@ public enum HookQueue {
         uuid: UUID = UUID()
     ) throws {
         try ensureDirectories(fileManager: fileManager)
-        try trimIfNeeded(fileManager: fileManager)
-
-        let filename = String(format: "%.6f-%@.json", now.timeIntervalSince1970, uuid.uuidString)
-        let url = AiboPaths.queueDirectory.appendingPathComponent(filename)
         var payload = line
         if !payload.hasSuffix("\n") {
             payload.append("\n")
         }
-        try Data(payload.utf8).write(to: url, options: .atomic)
+        let payloadData = Data(payload.utf8)
+        guard payloadData.count <= maxTotalBytes else { return }
+        try trimIfNeeded(fileManager: fileManager, reservingBytes: payloadData.count)
+
+        let filename = String(format: "%.6f-%@.json", now.timeIntervalSince1970, uuid.uuidString)
+        let url = AiboPaths.queueDirectory.appendingPathComponent(filename)
+        try payloadData.write(to: url, options: .atomic)
     }
 
     /// Drains the offline queue oldest-first and deletes each file.
@@ -66,7 +68,14 @@ public enum HookQueue {
         var items: [QueuedHookLine] = []
         for url in urls {
             let filename = url.lastPathComponent
-            let data = try Data(contentsOf: url)
+            let data: Data
+            do {
+                data = try Data(contentsOf: url)
+            } catch {
+                // `aibo-hook` may concurrently trim the oldest file while draining; skip missing files.
+                if isFileNotFound(error) { continue }
+                throw error
+            }
             if let text = String(data: data, encoding: .utf8) {
                 let trimmed = text.trimmingCharacters(in: .newlines)
                 if !trimmed.isEmpty {
@@ -93,7 +102,10 @@ public enum HookQueue {
         return Date(timeIntervalSince1970: interval)
     }
 
-    public static func trimIfNeeded(fileManager: FileManager = .default) throws {
+    public static func trimIfNeeded(
+        fileManager: FileManager = .default,
+        reservingBytes incomingBytes: Int = 0
+    ) throws {
         let urls = try fileManager.contentsOfDirectory(
             at: AiboPaths.queueDirectory,
             includingPropertiesForKeys: [.fileSizeKey],
@@ -102,19 +114,32 @@ public enum HookQueue {
         .filter { $0.pathExtension == "json" }
         .sorted { $0.lastPathComponent < $1.lastPathComponent }
 
-        var total = 0
+        var total = incomingBytes
+        var sizes: [URL: Int] = [:]
         for url in urls {
-            let values = try url.resourceValues(forKeys: [.fileSizeKey])
-            total += values.fileSize ?? 0
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            sizes[url] = size
+            total += size
         }
 
+        let fileLimit = incomingBytes > 0 ? maxFileCount - 1 : maxFileCount
         var mutable = urls
-        while mutable.count > maxFileCount || total > maxTotalBytes {
+        while mutable.count > fileLimit || total > maxTotalBytes {
             guard let oldest = mutable.first else { break }
-            let values = try oldest.resourceValues(forKeys: [.fileSizeKey])
-            total -= values.fileSize ?? 0
+            total -= sizes[oldest] ?? 0
             try? fileManager.removeItem(at: oldest)
             mutable.removeFirst()
         }
+    }
+
+    private static func isFileNotFound(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileReadNoSuchFileError {
+            return true
+        }
+        if nsError.domain == NSPOSIXErrorDomain && nsError.code == Int(ENOENT) {
+            return true
+        }
+        return false
     }
 }

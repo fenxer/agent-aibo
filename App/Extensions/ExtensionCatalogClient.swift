@@ -35,7 +35,13 @@ final class ExtensionCatalogClient {
     private init() {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        session = URLSession(configuration: configuration)
+        configuration.timeoutIntervalForRequest = 20
+        configuration.timeoutIntervalForResource = 60
+        session = URLSession(
+            configuration: configuration,
+            delegate: CatalogRedirectGuard(),
+            delegateQueue: nil
+        )
         center = .shared
         #if DEBUG
         let stored = UserDefaults.standard.string(forKey: Keys.source) ?? ""
@@ -240,28 +246,41 @@ final class ExtensionCatalogClient {
         return root
     }
 
+    private static let maxDownloadDepth = 8
+
     private func download(
         remotePath: String,
         entryPath: String,
         into root: URL,
         catalog: ExtensionCatalog,
-        tally: DownloadTally
+        tally: DownloadTally,
+        depth: Int = 0
     ) async throws {
+        guard depth <= Self.maxDownloadDepth else { throw DownloadError.unsafe }
+        guard catalog.repository == ExtensionCatalogLocation.repository else { throw DownloadError.unsafe }
         guard let url = catalog.contentsAPIURL(path: remotePath) else { throw DownloadError.unsafe }
-        let data = try await fetch(url, accept: "application/vnd.github+json")
+        let data = try await fetch(url, accept: "application/vnd.github+json", maxBytes: 2 * 1_048_576)
         let items = try JSONDecoder().decode([GitHubContentItem].self, from: data)
         for item in items {
             guard item.path == entryPath || item.path.hasPrefix(entryPath + "/") else { throw DownloadError.unsafe }
             switch item.type {
             case "dir":
-                try await download(remotePath: item.path, entryPath: entryPath, into: root, catalog: catalog, tally: tally)
+                try await download(
+                    remotePath: item.path,
+                    entryPath: entryPath,
+                    into: root,
+                    catalog: catalog,
+                    tally: tally,
+                    depth: depth + 1
+                )
             case "file":
                 guard let downloadURL = item.downloadURL, isAllowedDownload(downloadURL) else { throw DownloadError.unsafe }
                 let prefix = entryPath + "/"
                 guard item.path.hasPrefix(prefix) else { throw DownloadError.unsafe }
                 let relative = String(item.path.dropFirst(prefix.count))
                 guard ExtensionCatalogPath.error(relative) == nil else { throw DownloadError.unsafe }
-                let file = try await fetch(downloadURL, accept: nil)
+                let remainingBytes = max(0, ExtensionStore.maxBytes - tally.bytes)
+                let file = try await fetch(downloadURL, accept: nil, maxBytes: remainingBytes)
                 tally.files += 1
                 tally.bytes += file.count
                 if tally.files > ExtensionStore.maxFiles || tally.bytes > ExtensionStore.maxBytes {
@@ -279,9 +298,11 @@ final class ExtensionCatalogClient {
         }
     }
 
-    private func fetch(_ url: URL, accept: String?) async throws -> Data {
+    private func fetch(_ url: URL, accept: String?, maxBytes: Int = ExtensionStore.maxBytes) async throws -> Data {
         let host = url.host?.lowercased()
-        guard host == "api.github.com" || host == "raw.githubusercontent.com" else {
+        guard url.scheme?.lowercased() == "https",
+              host == "api.github.com" || host == "raw.githubusercontent.com"
+        else {
             throw DownloadError.unsafe
         }
         var request = URLRequest(url: url, timeoutInterval: 20)
@@ -289,18 +310,31 @@ final class ExtensionCatalogClient {
         if let accept {
             request.setValue(accept, forHTTPHeaderField: "Accept")
         }
-        let (data, response) = try await session.data(for: request)
+        let (bytes, response) = try await session.bytes(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw DownloadError.failed
         }
         let finalHost = http.url?.host?.lowercased()
-        let stayed = finalHost == host || finalHost == "objects.githubusercontent.com"
+        let stayed = http.url?.scheme?.lowercased() == "https"
+            && (finalHost == host || finalHost == "objects.githubusercontent.com")
         guard stayed else { throw DownloadError.unsafe }
+        if http.expectedContentLength > Int64(maxBytes) {
+            throw DownloadError.tooLarge
+        }
+        var data = Data()
+        for try await byte in bytes {
+            if data.count >= maxBytes {
+                throw DownloadError.tooLarge
+            }
+            data.append(byte)
+        }
         return data
     }
 
     private func isAllowedDownload(_ url: URL) -> Bool {
-        url.scheme == "https" && url.host?.lowercased() == "raw.githubusercontent.com"
+        url.scheme == "https"
+            && url.host?.lowercased() == "raw.githubusercontent.com"
+            && url.path.hasPrefix("/\(ExtensionCatalogLocation.repository)/")
     }
 
     private func status(for count: Int) -> String {
@@ -343,4 +377,30 @@ final class ExtensionCatalogClient {
         static let file = "debug.extensionCatalogFile"
     }
     #endif
+}
+
+private final class CatalogRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private static let allowedHosts: Set<String> = [
+        "api.github.com",
+        "raw.githubusercontent.com",
+        "objects.githubusercontent.com",
+    ]
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        if let url = request.url,
+           url.scheme?.lowercased() == "https",
+           let host = url.host?.lowercased(),
+           Self.allowedHosts.contains(host)
+        {
+            completionHandler(request)
+        } else {
+            completionHandler(nil)
+        }
+    }
 }

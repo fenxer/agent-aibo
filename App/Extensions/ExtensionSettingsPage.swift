@@ -69,10 +69,18 @@ struct ExtensionSettingsPage: View {
             String(localized: "Couldn't install the plugin."),
             isPresented: Binding(
                 get: { installError != nil },
-                set: { if !$0 { installError = nil } }
+                set: {
+                    if !$0 {
+                        installError = nil
+                        center.clearLastError()
+                    }
+                }
             )
         ) {
-            Button(String(localized: "Done")) { installError = nil }
+            Button(String(localized: "Done")) {
+                installError = nil
+                center.clearLastError()
+            }
         } message: {
             if let installError, installError != String(localized: "Couldn't install the plugin.") {
                 Text(installError)
@@ -313,6 +321,7 @@ struct ExtensionDetailPage: View {
     @State private var confirmEnable = false
     @State private var confirmUninstall = false
     @State private var catalogClient = ExtensionCatalogClient.shared
+    @State private var didSaveDraftsOnExit = false
 
     var body: some View {
         Group {
@@ -326,7 +335,7 @@ struct ExtensionDetailPage: View {
         .settingsDetailChrome(title: pageTitle, canGoBack: true, onBack: goBack)
         .onAppear(perform: load)
         .onDisappear {
-            guard !record.manifest.providesModel else { return }
+            guard !record.manifest.providesModel, !didSaveDraftsOnExit else { return }
             center.saveSettings(id: record.id, drafts: drafts)
         }
         .sheet(item: $editor) { token in
@@ -677,6 +686,7 @@ struct ExtensionDetailPage: View {
             return
         }
         if !record.manifest.providesModel {
+            didSaveDraftsOnExit = true
             center.saveSettings(id: record.id, drafts: drafts)
         }
         onBack()

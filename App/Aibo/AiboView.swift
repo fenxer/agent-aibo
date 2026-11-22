@@ -578,6 +578,7 @@ private struct DesktopPetView: View {
         AppSettings.shared.musicNotesEnabled
             && musicMonitor.isPlaying
             && panelController.isContentPresented
+            && !panelController.isSuppressedForFullscreen
             && !panelController.isLaunchPortalPlaying
     }
 

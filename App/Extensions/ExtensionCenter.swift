@@ -582,6 +582,10 @@ final class ExtensionCenter {
         }
     }
 
+    func clearLastError() {
+        lastError = nil
+    }
+
     func beginManualPrompt(id: String, fileURL: URL? = nil) {
         fileChoice = nil
         guard let record = plugins.first(where: { $0.id == id }),
@@ -591,7 +595,14 @@ final class ExtensionCenter {
         if fileURL == nil, case .running = session?.phase, session?.pluginID == id {
             return
         }
-        if fileURL != nil {
+        if let existing = session {
+            ExtensionClipboardImage.cleanupTemporaryFiles(in: existing.values.values)
+            if case .running = existing.phase {
+                runGeneration += 1
+            } else if fileURL != nil {
+                runGeneration += 1
+            }
+        } else if fileURL != nil {
             runGeneration += 1
         }
         var form = promptForm(for: record)
@@ -700,7 +711,8 @@ final class ExtensionCenter {
     }
 
     func cancelSession() {
-        guard session != nil else { return }
+        guard let existing = session else { return }
+        ExtensionClipboardImage.cleanupTemporaryFiles(in: existing.values.values)
         runGeneration += 1
         let detached = ExtensionBubbleWindowController.shared.isDetached
         // Hold the side row, then remove the card so its transition can poof
@@ -946,8 +958,11 @@ final class ExtensionCenter {
                     toggles[key] = boolDefault(field.defaultValue)
                 case .menu, .radio:
                     values[key] = field.defaultValue?.stringValue ?? control.choices.first?.value ?? ""
-                case .text, .line, .image:
+                case .text, .line:
                     values[key] = field.defaultValue?.stringValue ?? ""
+                case .image:
+                    // Image paths must only come from explicit user pick/paste/drop, never manifest defaults.
+                    values[key] = ""
                 }
                 return control
             }
@@ -1067,6 +1082,9 @@ final class ExtensionCenter {
                 var next: [String: ExtensionValue] = [:]
                 let allowedImagePaths = Self.imagePaths(in: input, manifest: record.manifest)
                 for (key, request) in requests {
+                    if generation != runGeneration {
+                        return .failed(String(localized: "Plugin failed"))
+                    }
                     next[key] = await fulfill(
                         request,
                         caller: record,
@@ -1100,7 +1118,7 @@ final class ExtensionCenter {
     ) async -> ExtensionValue {
         switch request.method {
         case "aibo/llm":
-            guard depth == 0 else {
+            guard depth == 0, caller.manifest.usesModel else {
                 return .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
             }
             let params: [String: ExtensionValue]
@@ -1163,15 +1181,18 @@ final class ExtensionCenter {
             }
             switch round {
             case .complete(let completion):
+                let secrets = secretValues(for: record)
                 if let message = completion.output["error"]?.objectValue?["message"]?.stringValue {
-                    let secrets = secretValues(for: record)
                     return .object(["error": .object(["message": .string(redact(message, secrets: secrets))])])
                 }
-                return .object(completion.output)
+                return redactValue(.object(completion.output), secrets: secrets)
             case .inputRequired(let requests, let state):
                 requestState = state
                 var next: [String: ExtensionValue] = [:]
                 for (key, request) in requests {
+                    if generation != runGeneration {
+                        return .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
+                    }
                     if request.method == "aibo/llm" {
                         next[key] = .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
                     } else {
@@ -1247,16 +1268,16 @@ final class ExtensionCenter {
 
     private func allowedHosts(for record: ExtensionRecord) -> Set<String> {
         var hosts = Set(record.manifest.network.hosts.map { $0.lowercased() })
-        let settings = runtimeSettings(for: record)
-        if let base = settings["baseURL"]?.stringValue, let host = ExtensionURLPolicy.host(ofURLString: base) {
-            hosts.insert(host)
-        }
-        for provider in providers(for: record.id) {
-            if let host = ExtensionURLPolicy.host(ofURLString: provider.baseURL) {
-                hosts.insert(host.lowercased())
-            }
-        }
         if record.manifest.providesModel {
+            let settings = runtimeSettings(for: record)
+            if let base = settings["baseURL"]?.stringValue, let host = ExtensionURLPolicy.host(ofURLString: base) {
+                hosts.insert(host)
+            }
+            for provider in providers(for: record.id) {
+                if let host = ExtensionURLPolicy.host(ofURLString: provider.baseURL) {
+                    hosts.insert(host.lowercased())
+                }
+            }
             hosts.insert("generativelanguage.googleapis.com")
             hosts.insert("api.openai.com")
         }
@@ -1428,7 +1449,27 @@ final class ExtensionCenter {
                 "model": .string(provider.model),
             ])
         }
-        try? store.saveSettings(id: pluginID, values: ["providers": .array(array)])
+        var existing = store.loadSettings(id: pluginID)
+        existing["providers"] = .array(array)
+        try? store.saveSettings(id: pluginID, values: existing)
+    }
+
+    private func redactValue(_ value: ExtensionValue, secrets: [String]) -> ExtensionValue {
+        guard !secrets.isEmpty else { return value }
+        switch value {
+        case .string(let text):
+            var result = text
+            for secret in secrets where secret.count >= 4 {
+                result = result.replacingOccurrences(of: secret, with: "‹redacted›")
+            }
+            return .string(result)
+        case .array(let items):
+            return .array(items.map { redactValue($0, secrets: secrets) })
+        case .object(let dictionary):
+            return .object(dictionary.mapValues { redactValue($0, secrets: secrets) })
+        case .number, .bool, .null:
+            return value
+        }
     }
 
     private func redact(_ text: String, secrets: [String]) -> String {

@@ -20,6 +20,7 @@ export AIBO_CODEX_HOOKS_JSON="$CODEX_HOOKS_JSON"
 python3 <<'PY'
 import json
 import os
+import tempfile
 from pathlib import Path
 
 command = os.environ["AIBO_HOOK_COMMAND"]
@@ -34,6 +35,8 @@ cursor_events = [
     "postToolUseFailure",
     "beforeShellExecution",
     "afterAgentResponse",
+    "subagentStart",
+    "subagentStop",
     "stop",
 ]
 
@@ -63,9 +66,15 @@ def load_object(path: Path) -> dict:
 
 def write_atomic(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    tmp.replace(path)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(data, indent=2, sort_keys=True) + "\n")
+        tmp.replace(path)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def install_cursor(path: Path) -> None:
@@ -103,16 +112,23 @@ def install_codex(path: Path) -> None:
     elif not isinstance(hooks, dict):
         raise SystemExit(f"error: {path} has invalid hooks value; refusing to overwrite")
 
-    def is_aibo_group(group):
+    def strip_aibo_from_group(group):
         if not isinstance(group, dict):
-            return False
+            return group
         nested = group.get("hooks")
         if not isinstance(nested, list):
-            return False
-        return any(
-            isinstance(entry, dict) and marker in str(entry.get("command", ""))
-            for entry in nested
-        )
+            return group
+        kept = [
+            entry for entry in nested
+            if not (isinstance(entry, dict) and marker in str(entry.get("command", "")))
+        ]
+        if not kept:
+            return None
+        if len(kept) == len(nested):
+            return group
+        updated = dict(group)
+        updated["hooks"] = kept
+        return updated
 
     for event in codex_events:
         groups = hooks.get(event, [])
@@ -120,9 +136,13 @@ def install_codex(path: Path) -> None:
             groups = []
         if not isinstance(groups, list):
             raise SystemExit(f"error: hooks.{event} is not an array; refusing to overwrite")
-        groups = [g for g in groups if not is_aibo_group(g)]
-        groups.append({"hooks": [{"type": "command", "command": command}]})
-        hooks[event] = groups
+        cleaned = []
+        for g in groups:
+            kept_group = strip_aibo_from_group(g)
+            if kept_group is not None:
+                cleaned.append(kept_group)
+        cleaned.append({"hooks": [{"type": "command", "command": command}]})
+        hooks[event] = cleaned
 
     data["hooks"] = hooks
     write_atomic(path, data)

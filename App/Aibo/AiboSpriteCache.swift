@@ -103,6 +103,10 @@ final class AiboSpriteCache {
     ) -> [CGImage] {
         guard playsClips(record), var pet = pet(for: record) else { return [] }
         if let cached = pet.framesByState[state], !cached.isEmpty {
+            if state == .idle, pet.framesByState.count > 1 {
+                evictUnusedStates(in: &pet, keeping: [.idle])
+                pets[record.id] = pet
+            }
             return cached
         }
         let loaded = restoreFrames(
@@ -329,18 +333,20 @@ final class AiboSpriteCache {
     ) -> [CGImage] {
         guard let clip = manifest.clips[state.rawValue],
               let url = AiboSpritePack.resolveExistingFile(named: clip.file, in: directory),
-              let decoded = loadCGImage(url: url),
-              let image = detachedBitmap(decoded)
+              let decoded = loadCGImage(url: url)
         else { return [] }
         let frames = max(clip.frames, 1)
-        if frames == 1 { return [image] }
+        if frames == 1 {
+            guard let copy = detachedBitmap(decoded) else { return [] }
+            return [copy]
+        }
         let cellW = manifest.cellWidth
         let cellH = manifest.cellHeight
         var result: [CGImage] = []
         result.reserveCapacity(frames)
         for index in 0..<frames {
             let rect = CGRect(x: index * cellW, y: 0, width: cellW, height: cellH)
-            guard let cropped = image.cropping(to: rect),
+            guard let cropped = decoded.cropping(to: rect),
                   let copy = detachedBitmap(cropped)
             else { continue }
             result.append(copy)

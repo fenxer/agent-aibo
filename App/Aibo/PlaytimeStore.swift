@@ -15,6 +15,8 @@ final class PlaytimeStore {
     private let power = PlaytimePowerObserver()
     private var lastGoodPersistedAt: Date?
     private var didStart = false
+    /// Set when Keychain failed with a transient error at launch; prevents overwriting existing playtime.
+    private var snapshotWriteBlocked = false
 
     private init() {
         if AppProcessRole.isMain {
@@ -23,8 +25,12 @@ final class PlaytimeStore {
     }
 
     func applyMirroredState(snapshot: PlaytimeSnapshot, daily: PlaytimeDailyBook) {
-        self.snapshot = snapshot
-        self.daily = daily
+        if self.snapshot != snapshot {
+            self.snapshot = snapshot
+        }
+        if self.daily != daily {
+            self.daily = daily
+        }
     }
 
     func start() {
@@ -149,14 +155,18 @@ final class PlaytimeStore {
     }
 
     private func handleSleepOrLidResume() {
-        if snapshot.openSession != nil {
+        let hadOpenSession = snapshot.openSession != nil
+        if hadOpenSession {
             snapshot.discardOpenSession()
         }
-        persist(includingLastGood: false)
-        syncSession(persistLastGood: false)
+        let didSyncPersist = syncSession(persistLastGood: false)
+        if hadOpenSession, !didSyncPersist {
+            persist(includingLastGood: false)
+        }
     }
 
-    private func syncSession(persistLastGood: Bool) {
+    @discardableResult
+    private func syncSession(persistLastGood: Bool) -> Bool {
         let now = Date()
         let selected = AiboLibraryStore.shared.selectedRecord
         if canAccumulate {
@@ -165,11 +175,14 @@ final class PlaytimeStore {
                 snapshot.ensureRecord(for: selected, now: now)
                 snapshot.beginSession(aiboID: selected.id, now: now)
                 persist(includingLastGood: persistLastGood)
+                return true
             }
         } else if snapshot.openSession != nil {
             closeOpenSession(now: now)
             persist(includingLastGood: persistLastGood)
+            return true
         }
+        return false
     }
 
     private func closeOpenSession(now: Date) {
@@ -194,6 +207,7 @@ final class PlaytimeStore {
         displayName: String,
         totalSeconds: Int
     ) {
+        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = String(localized: "Continue Previous Time?")
         alert.informativeText = String(
@@ -224,23 +238,35 @@ final class PlaytimeStore {
     }
 
     private func loadSnapshot() {
-        if let data = KeychainStore.data(forAccount: Self.currentAccount),
-           let loaded = PlaytimeCodec.decode(data)
-        {
-            snapshot = loaded
-            snapshot.discardOpenSession()
-            if KeychainStore.data(forAccount: Self.lastGoodAccount).flatMap(PlaytimeCodec.decode) != nil {
+        switch KeychainStore.readData(forAccount: Self.currentAccount) {
+        case .found(let data):
+            if let loaded = PlaytimeCodec.decode(data) {
+                snapshot = loaded
+                snapshot.discardOpenSession()
+                if KeychainStore.data(forAccount: Self.lastGoodAccount).flatMap(PlaytimeCodec.decode) != nil {
+                    lastGoodPersistedAt = Date()
+                }
+                return
+            }
+        case .failure:
+            // Do not overwrite persisted playtime if Keychain is temporarily unavailable.
+            snapshotWriteBlocked = true
+            return
+        case .notFound:
+            break
+        }
+        switch KeychainStore.readData(forAccount: Self.lastGoodAccount) {
+        case .found(let backup):
+            if let loaded = PlaytimeCodec.decode(backup) {
+                snapshot = loaded
+                snapshot.discardOpenSession()
+                try? KeychainStore.setData(backup, forAccount: Self.currentAccount)
                 lastGoodPersistedAt = Date()
             }
-            return
-        }
-        if let backup = KeychainStore.data(forAccount: Self.lastGoodAccount),
-           let loaded = PlaytimeCodec.decode(backup)
-        {
-            snapshot = loaded
-            snapshot.discardOpenSession()
-            try? KeychainStore.setData(backup, forAccount: Self.currentAccount)
-            lastGoodPersistedAt = Date()
+        case .failure:
+            snapshotWriteBlocked = true
+        case .notFound:
+            break
         }
     }
 
@@ -267,7 +293,7 @@ final class PlaytimeStore {
 
     private func persist(includingLastGood: Bool) {
         let refreshLastGood = includingLastGood || shouldRefreshLastGood()
-        if let data = try? PlaytimeCodec.encode(snapshot) {
+        if !snapshotWriteBlocked, let data = try? PlaytimeCodec.encode(snapshot) {
             try? KeychainStore.setData(data, forAccount: Self.currentAccount)
             if refreshLastGood {
                 try? KeychainStore.setData(data, forAccount: Self.lastGoodAccount)
@@ -297,7 +323,7 @@ final class PlaytimeStore {
     }
 
     private func shouldRefreshLastGood() -> Bool {
-        guard let lastGoodPersistedAt else { return false }
+        guard let lastGoodPersistedAt else { return true }
         return !Calendar.current.isDate(lastGoodPersistedAt, inSameDayAs: Date())
     }
 }

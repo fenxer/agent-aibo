@@ -118,16 +118,21 @@ public enum AiboBackupArchive {
             )
         }
 
-        if fileManager.fileExists(atPath: archiveURL.path) {
-            try fileManager.removeItem(at: archiveURL)
-        }
         try fileManager.createDirectory(
             at: archiveURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
+        let tempArchive = archiveURL.deletingLastPathComponent()
+            .appendingPathComponent(".aibo-export-\(UUID().uuidString).\(fileExtension)")
+        defer { try? fileManager.removeItem(at: tempArchive) }
         try runDitto(
-            arguments: ["-c", "-k", "--norsrc", "--noextattr", "--noqtn", staging.path, archiveURL.path]
+            arguments: ["-c", "-k", "--norsrc", "--noextattr", "--noqtn", staging.path, tempArchive.path]
         )
+        if fileManager.fileExists(atPath: archiveURL.path) {
+            _ = try fileManager.replaceItemAt(archiveURL, withItemAt: tempArchive)
+        } else {
+            try fileManager.moveItem(at: tempArchive, to: archiveURL)
+        }
     }
 
     /// Extracts into `root`, which the caller owns and deletes.
@@ -468,7 +473,7 @@ public enum AiboBackupArchive {
         guard let names = try? fileManager.contentsOfDirectory(atPath: root.path) else {
             throw AiboBackupError.unreadable
         }
-        for name in names where !name.hasPrefix(".") {
+        for name in names {
             let url = root.appendingPathComponent(name)
             if isSymlink(url) { throw AiboBackupError.unsafePath }
             var isDirectory: ObjCBool = false
@@ -497,7 +502,7 @@ public enum AiboBackupArchive {
         }
         while let relative = enumerator.nextObject() as? String {
             if relative.split(separator: "/").contains("..") { throw AiboBackupError.unsafePath }
-            let url = root.appendingPathComponent(relative).standardizedFileURL
+            let url = root.appendingPathComponent(relative).resolvingSymlinksInPath().standardizedFileURL
             let path = url.path
             guard path == rootPath || path.hasPrefix(rootPath + "/") else {
                 throw AiboBackupError.unsafePath

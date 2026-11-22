@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        AiboLibraryStore.shared.flushPendingPersist()
         persistAiboPositionIfNeeded()
         PlaytimeStore.shared.flushForTermination()
         if AiboPanelController.shared.playQuitPortal(completion: {
@@ -52,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         SettingsProcessHost.shared.terminateForAppQuit()
+        AiboLibraryStore.shared.flushPendingPersist()
         persistAiboPositionIfNeeded()
         PlaytimeStore.shared.flushForTermination()
         AiboRuntime.shared.stop()

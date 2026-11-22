@@ -15,6 +15,9 @@ public struct HTTPRequest: Equatable, Sendable {
 
     public func header(_ name: String) -> String? {
         let target = name.lowercased()
+        if let direct = headers[target] {
+            return direct
+        }
         for (key, value) in headers where key.lowercased() == target {
             return value
         }
@@ -23,16 +26,32 @@ public struct HTTPRequest: Equatable, Sendable {
 }
 
 public enum HTTPRequestParser {
+    public static let defaultMaxHeaderBytes = 32 * 1024
+    public static let defaultMaxBodyBytes = 1_048_576
+
     public enum ParseError: Error, Equatable {
         case incomplete
         case malformed
         case unsupported
+        case payloadTooLarge
     }
 
     /// Parses one HTTP/1.1 request. Returns `.incomplete` when more bytes are needed.
-    public static func parse(_ data: Data) throws -> HTTPRequest {
+    public static func parse(
+        _ data: Data,
+        maxHeaderBytes: Int = defaultMaxHeaderBytes,
+        maxBodyBytes: Int = defaultMaxBodyBytes
+    ) throws -> HTTPRequest {
         guard let headerRange = data.range(of: Data("\r\n\r\n".utf8)) else {
+            if data.count > maxHeaderBytes {
+                throw ParseError.payloadTooLarge
+            }
             throw ParseError.incomplete
+        }
+
+        let headerByteCount = data.distance(from: data.startIndex, to: headerRange.lowerBound)
+        guard headerByteCount <= maxHeaderBytes else {
+            throw ParseError.payloadTooLarge
         }
 
         let headerData = data.subdata(in: data.startIndex..<headerRange.lowerBound)
@@ -51,24 +70,45 @@ public enum HTTPRequestParser {
         let path = String(parts[1].split(separator: "?", maxSplits: 1).first ?? parts[1])
 
         var headers: [String: String] = [:]
+        var contentLengthHeader: String?
         for line in lines where !line.isEmpty {
             guard let separator = line.firstIndex(of: ":") else { throw ParseError.malformed }
-            let name = String(line[..<separator]).trimmingCharacters(in: .whitespaces)
+            let name = String(line[..<separator]).trimmingCharacters(in: .whitespaces).lowercased()
+            guard !name.isEmpty else { throw ParseError.malformed }
             let value = String(line[line.index(after: separator)...])
                 .trimmingCharacters(in: .whitespaces)
+            if name == "content-length" {
+                if let existing = contentLengthHeader, existing != value {
+                    throw ParseError.malformed
+                }
+                contentLengthHeader = value
+            }
             headers[name] = value
+        }
+
+        if let transferEncoding = headers["transfer-encoding"],
+           !transferEncoding.isEmpty
+        {
+            throw ParseError.unsupported
         }
 
         let bodyStart = headerRange.upperBound
         let contentLength: Int
-        if let lengthValue = headers.first(where: { $0.key.lowercased() == "content-length" })?.value,
-           let length = Int(lengthValue)
-        {
+        if let lengthValue = contentLengthHeader {
+            guard !lengthValue.isEmpty,
+                  lengthValue.allSatisfy(\.isASCII),
+                  let length = Int(lengthValue),
+                  length >= 0
+            else {
+                throw ParseError.malformed
+            }
+            guard length <= maxBodyBytes else {
+                throw ParseError.payloadTooLarge
+            }
             contentLength = length
         } else {
             contentLength = 0
         }
-        guard contentLength >= 0 else { throw ParseError.malformed }
 
         let available = data.distance(from: bodyStart, to: data.endIndex)
         if available < contentLength {

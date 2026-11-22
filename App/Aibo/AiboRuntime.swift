@@ -87,20 +87,49 @@ final class AiboRuntime {
     }
 
     func applyMirroredSnapshot(_ snapshot: SettingsMainSnapshot) {
-        cursorHooksInstalled = snapshot.cursorHooksInstalled
-        codexHooksInstalled = snapshot.codexHooksInstalled
-        deepseekPluginInstalled = snapshot.deepseekPluginInstalled
-        antigravityHooksInstalled = snapshot.antigravityHooksInstalled
-        cursorHostAppInstalled = snapshot.cursorHostAppInstalled
-        codexHostAppInstalled = snapshot.codexHostAppInstalled
-        antigravityHostAppInstalled = snapshot.antigravityHostAppInstalled
-        webhookListening = snapshot.webhookListening
-        tunnelHealthStatus = TunnelHealthStatus(wire: snapshot.tunnelHealthStatus)
-        lastErrorMessage = snapshot.lastRuntimeErrorMessage
-        ingestLoggingEnabled = snapshot.ingestLoggingEnabled
-        ingestLogEntryCount = snapshot.ingestLogEntryCount
-        receiveLogEntries = snapshot.receiveLogEntries
-        receiveLogTotalCount = snapshot.receiveLogTotalCount
+        if cursorHooksInstalled != snapshot.cursorHooksInstalled {
+            cursorHooksInstalled = snapshot.cursorHooksInstalled
+        }
+        if codexHooksInstalled != snapshot.codexHooksInstalled {
+            codexHooksInstalled = snapshot.codexHooksInstalled
+        }
+        if deepseekPluginInstalled != snapshot.deepseekPluginInstalled {
+            deepseekPluginInstalled = snapshot.deepseekPluginInstalled
+        }
+        if antigravityHooksInstalled != snapshot.antigravityHooksInstalled {
+            antigravityHooksInstalled = snapshot.antigravityHooksInstalled
+        }
+        if cursorHostAppInstalled != snapshot.cursorHostAppInstalled {
+            cursorHostAppInstalled = snapshot.cursorHostAppInstalled
+        }
+        if codexHostAppInstalled != snapshot.codexHostAppInstalled {
+            codexHostAppInstalled = snapshot.codexHostAppInstalled
+        }
+        if antigravityHostAppInstalled != snapshot.antigravityHostAppInstalled {
+            antigravityHostAppInstalled = snapshot.antigravityHostAppInstalled
+        }
+        if webhookListening != snapshot.webhookListening {
+            webhookListening = snapshot.webhookListening
+        }
+        let nextTunnelStatus = TunnelHealthStatus(wire: snapshot.tunnelHealthStatus)
+        if tunnelHealthStatus != nextTunnelStatus {
+            tunnelHealthStatus = nextTunnelStatus
+        }
+        if lastErrorMessage != snapshot.lastRuntimeErrorMessage {
+            lastErrorMessage = snapshot.lastRuntimeErrorMessage
+        }
+        if ingestLoggingEnabled != snapshot.ingestLoggingEnabled {
+            ingestLoggingEnabled = snapshot.ingestLoggingEnabled
+        }
+        if ingestLogEntryCount != snapshot.ingestLogEntryCount {
+            ingestLogEntryCount = snapshot.ingestLogEntryCount
+        }
+        if receiveLogEntries != snapshot.receiveLogEntries {
+            receiveLogEntries = snapshot.receiveLogEntries
+        }
+        if receiveLogTotalCount != snapshot.receiveLogTotalCount {
+            receiveLogTotalCount = snapshot.receiveLogTotalCount
+        }
     }
 
     private static let tunnelWarningBubbleID = "tunnel:health"
@@ -134,6 +163,7 @@ final class AiboRuntime {
     private let liveHookLines = HookLineBuffer()
     private var liveHookDrainTask: Task<Void, Never>?
     private let ingestLogQueue = DispatchQueue(label: "work.fenx.aibo.ingest-log", qos: .utility)
+    private let receiveLogQueue = DispatchQueue(label: "work.fenx.aibo.receive-log", qos: .utility)
     private var webhookTask: Task<Void, Never>?
     private var idleTask: Task<Void, Never>?
     private var watchdogTask: Task<Void, Never>?
@@ -144,7 +174,7 @@ final class AiboRuntime {
     /// Separate from webhookBubbles so dismiss mode / Receive Log never touch it.
     private var tunnelWarningBubble: StatusBubbleItem?
     private var webhookExpiryTasks: [String: Task<Void, Never>] = [:]
-    private var tunnelProbeTask: Task<Void, Never>?
+    private var tunnelProbeTask: Task<TunnelHealthStatus, Never>?
     /// Bumps on each probe so a cancelled check doesn't clobber a newer one.
     private var tunnelProbeGeneration = 0
     /// Project / model labels keyed by session; merged across hook events.
@@ -200,13 +230,13 @@ final class AiboRuntime {
         } else if UserDefaults.standard.object(forKey: Self.legacyIngestLoggingDefaultsKey) != nil {
             ingestLoggingEnabled = UserDefaults.standard.bool(forKey: Self.legacyIngestLoggingDefaultsKey)
         }
-        ingestLogEntryCount = (try? IngestLogStore.count()) ?? 0
     }
 
     func start() {
         refreshHookInstallation()
         refreshHostAppPresence()
         reloadReceiveLog()
+        refreshIngestLogCount()
 
         do {
             let queued = try HookQueue.drain()
@@ -241,7 +271,7 @@ final class AiboRuntime {
         syncWebhookServer()
         syncMusicPlaybackMonitor()
         scheduleWatchdog()
-        TunnelHealthMonitor.shared.start()
+        TunnelHealthMonitor.shared.syncMonitoringState()
     }
 
     func stop() {
@@ -292,7 +322,10 @@ final class AiboRuntime {
         webhookServer = nil
         webhookListening = false
 
-        guard AppSettings.shared.webhookEnabled else { return }
+        guard AppSettings.shared.webhookEnabled else {
+            TunnelHealthMonitor.shared.syncMonitoringState(triggerCheck: true)
+            return
+        }
 
         let port = AppSettings.shared.webhookPort
         // Snapshot for the accept queue; regenerate restarts the server via syncWebhookServer().
@@ -320,13 +353,14 @@ final class AiboRuntime {
             webhookListening = false
             lastErrorMessage = String(localized: "Failed to start webhook listener")
         }
-        TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+        TunnelHealthMonitor.shared.syncMonitoringState(triggerCheck: true)
     }
 
     /// Probe the configured public URL once. GET: 405 from our listener means the tunnel reached this Mac.
     @discardableResult
     func checkTunnelHealth(clearPolicy: TunnelHealthClearPolicy = .immediate) async -> TunnelHealthStatus {
         tunnelProbeTask?.cancel()
+        tunnelProbeTask = nil
 
         guard AppSettings.shared.webhookEnabled else {
             applyTunnelHealth(.skipped, clearPolicy: clearPolicy)
@@ -348,9 +382,12 @@ final class AiboRuntime {
         tunnelHealthStatus = .checking
 
         let probe = Task { await Self.probePublicWebhookURL() }
-        tunnelProbeTask = Task { _ = await probe.value }
+        tunnelProbeTask = probe
         let status = await probe.value
-        guard !Task.isCancelled else {
+        if generation == tunnelProbeGeneration {
+            tunnelProbeTask = nil
+        }
+        guard !Task.isCancelled, !probe.isCancelled else {
             if generation == tunnelProbeGeneration, tunnelHealthStatus == .checking {
                 tunnelHealthStatus = statusBeforeProbe
             }
@@ -655,19 +692,25 @@ final class AiboRuntime {
             SettingsProcessClient.shared.sendCommand(.clearReceiveLog)
             return
         }
-        do {
-            try ReceiveLogStore.clear()
-            receiveLogEntries = []
-            receiveLogTotalCount = 0
-            lastErrorMessage = nil
-        } catch {
-            lastErrorMessage = String(localized: "Failed to clear received log")
+        receiveLogEntries = []
+        receiveLogTotalCount = 0
+        lastErrorMessage = nil
+        receiveLogQueue.async {
+            do {
+                try ReceiveLogStore.clear()
+            } catch {
+                Task { @MainActor in
+                    AiboRuntime.shared.lastErrorMessage = String(localized: "Failed to clear received log")
+                }
+            }
         }
     }
 
     func exportReceiveLog() -> Data? {
         do {
-            return try ReceiveLogStore.exportJSON()
+            return try receiveLogQueue.sync {
+                try ReceiveLogStore.exportJSON()
+            }
         } catch {
             lastErrorMessage = String(localized: "Failed to export received log")
             return nil
@@ -681,21 +724,41 @@ final class AiboRuntime {
             message: delivery.displayText,
             deliveryID: delivery.id
         )
-        do {
-            try ReceiveLogStore.append(entry)
-            receiveLogEntries.insert(entry, at: 0)
-            if receiveLogEntries.count > ReceiveLogStore.uiDisplayLimit {
-                receiveLogEntries = Array(receiveLogEntries.prefix(ReceiveLogStore.uiDisplayLimit))
+        receiveLogEntries.insert(entry, at: 0)
+        if receiveLogEntries.count > ReceiveLogStore.uiDisplayLimit {
+            receiveLogEntries = Array(receiveLogEntries.prefix(ReceiveLogStore.uiDisplayLimit))
+        }
+        let nextCount = receiveLogTotalCount + 1
+        if nextCount - ReceiveLogStore.diskMaxEntries > 0,
+           (nextCount - ReceiveLogStore.diskMaxEntries).isMultiple(of: 100)
+        {
+            receiveLogTotalCount = ReceiveLogStore.diskMaxEntries
+        } else {
+            receiveLogTotalCount = nextCount
+        }
+        receiveLogQueue.async {
+            do {
+                try ReceiveLogStore.append(entry, knownLineCount: nextCount)
+            } catch {
+                Task { @MainActor in
+                    AiboRuntime.shared.lastErrorMessage = String(localized: "Failed to write received log")
+                }
             }
-            receiveLogTotalCount = (try? ReceiveLogStore.count()) ?? receiveLogEntries.count
-        } catch {
-            lastErrorMessage = String(localized: "Failed to write received log")
         }
     }
 
     private func reloadReceiveLog() {
-        receiveLogEntries = (try? ReceiveLogStore.load(limit: ReceiveLogStore.uiDisplayLimit)) ?? []
-        receiveLogTotalCount = (try? ReceiveLogStore.count()) ?? receiveLogEntries.count
+        receiveLogQueue.async {
+            let loaded = (try? ReceiveLogStore.loadWithCount(limit: ReceiveLogStore.uiDisplayLimit))
+                ?? (entries: [], totalCount: 0)
+            Task { @MainActor in
+                let runtime = AiboRuntime.shared
+                if runtime.receiveLogEntries.isEmpty {
+                    runtime.receiveLogEntries = loaded.entries
+                    runtime.receiveLogTotalCount = loaded.totalCount
+                }
+            }
+        }
     }
 
     func installCursorHooks() {
@@ -1161,19 +1224,25 @@ final class AiboRuntime {
             SettingsProcessClient.shared.sendCommand(.clearIngestLog)
             return
         }
-        do {
-            try IngestLogStore.clear()
-            ingestLogEntryCount = 0
-            lastErrorMessage = nil
-        } catch {
-            lastErrorMessage = String(localized: "Failed to clear ingest log")
+        ingestLogEntryCount = 0
+        lastErrorMessage = nil
+        ingestLogQueue.async {
+            do {
+                try IngestLogStore.clear()
+            } catch {
+                Task { @MainActor in
+                    AiboRuntime.shared.lastErrorMessage = String(localized: "Failed to clear ingest log")
+                }
+            }
         }
     }
 
     /// Raw JSONL for pasting into a bug report.
     func copyIngestLogJSONL() -> String? {
         do {
-            let data = try IngestLogStore.exportJSONL()
+            let data = try ingestLogQueue.sync {
+                try IngestLogStore.exportJSONL()
+            }
             guard !data.isEmpty else { return "" }
             return String(data: data, encoding: .utf8)
         } catch {
@@ -1187,7 +1256,12 @@ final class AiboRuntime {
             SettingsProcessClient.shared.sendCommand(.refreshIngestLogCount)
             return
         }
-        ingestLogEntryCount = (try? IngestLogStore.count()) ?? 0
+        ingestLogQueue.async {
+            let count = (try? IngestLogStore.count()) ?? 0
+            Task { @MainActor in
+                AiboRuntime.shared.ingestLogEntryCount = count
+            }
+        }
     }
 
     /// Copies the live hook log aside so an export does not race an append. `nil` when no log has been written.
@@ -1476,6 +1550,10 @@ final class AiboRuntime {
             if lines.isEmpty { break }
             didApply = true
             let parsed = await Self.parseHookLines(lines)
+            guard !Task.isCancelled else {
+                liveHookDrainTask = nil
+                return
+            }
             let now = Date()
             for item in parsed {
                 switch item {
@@ -1640,9 +1718,12 @@ final class AiboRuntime {
         }
         let now = Date()
         var items: [StatusBubbleItem] = []
+        var staleIdleKeys: [SessionKey] = []
         for (key, snapshot) in world.sessions {
             if snapshot.activity == .idle {
                 sessionDisplayMeta.removeValue(forKey: key)
+                sessionHookEvents.removeValue(forKey: key)
+                staleIdleKeys.append(key)
                 continue
             }
             let isEscalatedWaiting = WaitingApprovalEscalationHint.isDue(
@@ -1697,6 +1778,11 @@ final class AiboRuntime {
                     hookJSON: meta?.lastHookJSON
                 )
             )
+        }
+        if !staleIdleKeys.isEmpty {
+            for key in staleIdleKeys {
+                world.sessions.removeValue(forKey: key)
+            }
         }
         items.append(contentsOf: webhookBubbles)
         if let tunnelWarningBubble {
@@ -1890,13 +1976,21 @@ final class AiboRuntime {
 
     private func scheduleWatchdog() {
         watchdogTask?.cancel()
+        watchdogTask = nil
+        let timeout = AiboStateMachine.defaultWatchdogTimeout
+        let earliestExpiry = world.sessions.values
+            .filter { $0.activity != .idle && !$0.activity.waitsForUserReply }
+            .map { $0.lastEventAt.addingTimeInterval(timeout) }
+            .min()
+        guard let earliestExpiry else { return }
+        let delay = max(0, earliestExpiry.timeIntervalSinceNow)
         watchdogTask = Task { [weak self] in
-            let timeout = AiboStateMachine.defaultWatchdogTimeout
-            try? await Task.sleep(for: .seconds(timeout))
+            try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                self?.apply(.watchdog(at: Date(), timeout: timeout))
-                self?.scheduleWatchdog()
+                guard let self else { return }
+                self.apply(.watchdog(at: Date(), timeout: timeout))
+                self.scheduleWatchdog()
             }
         }
     }

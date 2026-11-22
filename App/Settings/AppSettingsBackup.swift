@@ -64,68 +64,23 @@ extension AppSettings {
 
     /// Applies everything except language. Language restarts the app, so call `applyBackupLanguage` last.
     func applyBackup(_ backup: AiboBackupSettings) {
-        if let mode = AppThemeMode(rawValue: backup.themeMode) {
-            themeMode = mode
-        }
-        if let style = BubbleGlassStyle(rawValue: backup.bubbleGlassStyle) {
-            bubbleGlassStyle = style
-        }
-        bubbleGlassTint = backup.bubbleGlassTint.map(Self.color(from:))
-        if let style = BubbleGlassStyle(rawValue: backup.cursorBubbleGlassStyle) {
-            cursorBubbleGlassStyle = style
-        }
-        if let style = BubbleGlassStyle(rawValue: backup.codexBubbleGlassStyle) {
-            codexBubbleGlassStyle = style
-        }
-        if let style = BubbleGlassStyle(rawValue: backup.deepseekBubbleGlassStyle) {
-            deepseekBubbleGlassStyle = style
-        }
-        if let style = BubbleGlassStyle(rawValue: backup.antigravityBubbleGlassStyle) {
-            antigravityBubbleGlassStyle = style
-        }
-        cursorBubbleGlassTint = backup.cursorBubbleGlassTint.map(Self.color(from:))
-        codexBubbleGlassTint = backup.codexBubbleGlassTint.map(Self.color(from:))
-        deepseekBubbleGlassTint = backup.deepseekBubbleGlassTint.map(Self.color(from:))
-        antigravityBubbleGlassTint = backup.antigravityBubbleGlassTint.map(Self.color(from:))
-        cursorCapsuleColor = backup.cursorCapsuleColor.map(Self.color(from:))
-        codexCapsuleColor = backup.codexCapsuleColor.map(Self.color(from:))
-        deepseekCapsuleColor = backup.deepseekCapsuleColor.map(Self.color(from:))
-        antigravityCapsuleColor = backup.antigravityCapsuleColor.map(Self.color(from:))
-        codexPlanProgressShaderEnabled = backup.codexPlanProgressShaderEnabled
-        codexPlanProgressShaderPrimary = backup.codexPlanProgressShaderPrimary.map(Self.color(from:))
-        deepseekPlanProgressShaderEnabled = backup.deepseekPlanProgressShaderEnabled
-        deepseekPlanProgressShaderPrimary = backup.deepseekPlanProgressShaderPrimary.map(Self.color(from:))
-        restoreLastAiboPosition = backup.restoreLastAiboPosition
-        hideWhenFullscreen = backup.hideWhenFullscreen
-        disableMouseTracking = backup.disableMouseTracking
-        mouseShakeDodgeEnabled = backup.mouseShakeDodgeEnabled
-        if let x = backup.centerXPercent, let y = backup.centerYPercent {
-            saveAiboCenterRelativePosition(xPercent: x, yPercent: y, screenUUID: nil)
-        } else {
-            clearSavedAiboPosition()
-        }
-        musicNotesEnabled = backup.musicNotesEnabled
-        if let mode = MusicNotesColorMode(rawValue: backup.musicNotesColorMode) {
-            musicNotesColorMode = mode
-        }
-        musicNotesCustomColor = Self.color(from: backup.musicNotesCustomColor)
-        customMusicNotificationNames = backup.customMusicNotificationNames
-        webhookEnabled = backup.webhookEnabled
-        if backup.webhookPort > 0, backup.webhookPort <= Int(UInt16.max) {
-            webhookPort = UInt16(backup.webhookPort)
-        }
-        if let mode = WebhookDismissMode(rawValue: backup.webhookDismissMode) {
-            webhookDismissMode = mode
-        }
-        webhookAutoDismissSeconds = backup.webhookAutoDismissSeconds
-        publicWebhookURLString = backup.publicWebhookURL
+        let wasApplying = isApplyingRemoteSync
+        isApplyingRemoteSync = true
+        applyBackupFields(backup, screenUUID: nil, includeLanguage: false)
+        isApplyingRemoteSync = wasApplying
+
         HookSpriteSettings.shared.replace(with: backup.hookSprites)
         AiboActionSettings.shared.replace(with: backup.actionSprites)
+        if !wasApplying {
+            notifyPeerPreferencesChanged()
+        }
     }
 
     func applyBackupLanguage(_ backup: AiboBackupSettings) {
         guard let mode = AppLanguageMode(rawValue: backup.languageMode) else { return }
-        languageMode = mode
+        if languageMode != mode {
+            languageMode = mode
+        }
     }
 
     func syncPreferencesWire() -> SettingsAppPreferencesWire {
@@ -140,78 +95,136 @@ extension AppSettings {
     }
 
     func applyRemotePreferencesWire(_ wire: SettingsAppPreferencesWire) {
+        let wasApplying = isApplyingRemoteSync
         isApplyingRemoteSync = true
-        defer { isApplyingRemoteSync = false }
+        defer { isApplyingRemoteSync = wasApplying }
 
-        let backup = wire.backup
-        if let mode = AppThemeMode(rawValue: backup.themeMode) {
-            themeMode = mode
+        applyBackupFields(wire.backup, screenUUID: wire.savedAiboPositionScreenUUID, includeLanguage: true)
+        if keystrokeOverlayEnabled != wire.keystrokeOverlayEnabled {
+            keystrokeOverlayEnabled = wire.keystrokeOverlayEnabled
         }
-        if let mode = AppLanguageMode(rawValue: backup.languageMode) {
-            languageMode = mode
+        if keystrokeLingerSeconds != wire.keystrokeLingerSeconds {
+            keystrokeLingerSeconds = wire.keystrokeLingerSeconds
         }
-        if let style = BubbleGlassStyle(rawValue: backup.bubbleGlassStyle) {
-            bubbleGlassStyle = style
+        if keystrokeMaxCount != wire.keystrokeMaxCount {
+            keystrokeMaxCount = wire.keystrokeMaxCount
         }
-        bubbleGlassTint = backup.bubbleGlassTint.map(Self.color(from:))
-        if let style = BubbleGlassStyle(rawValue: backup.cursorBubbleGlassStyle) {
-            cursorBubbleGlassStyle = style
-        }
-        if let style = BubbleGlassStyle(rawValue: backup.codexBubbleGlassStyle) {
-            codexBubbleGlassStyle = style
-        }
-        if let style = BubbleGlassStyle(rawValue: backup.deepseekBubbleGlassStyle) {
-            deepseekBubbleGlassStyle = style
-        }
-        if let style = BubbleGlassStyle(rawValue: backup.antigravityBubbleGlassStyle) {
-            antigravityBubbleGlassStyle = style
-        }
-        cursorBubbleGlassTint = backup.cursorBubbleGlassTint.map(Self.color(from:))
-        codexBubbleGlassTint = backup.codexBubbleGlassTint.map(Self.color(from:))
-        deepseekBubbleGlassTint = backup.deepseekBubbleGlassTint.map(Self.color(from:))
-        antigravityBubbleGlassTint = backup.antigravityBubbleGlassTint.map(Self.color(from:))
-        cursorCapsuleColor = backup.cursorCapsuleColor.map(Self.color(from:))
-        codexCapsuleColor = backup.codexCapsuleColor.map(Self.color(from:))
-        deepseekCapsuleColor = backup.deepseekCapsuleColor.map(Self.color(from:))
-        antigravityCapsuleColor = backup.antigravityCapsuleColor.map(Self.color(from:))
-        codexPlanProgressShaderEnabled = backup.codexPlanProgressShaderEnabled
-        codexPlanProgressShaderPrimary = backup.codexPlanProgressShaderPrimary.map(Self.color(from:))
-        deepseekPlanProgressShaderEnabled = backup.deepseekPlanProgressShaderEnabled
-        deepseekPlanProgressShaderPrimary = backup.deepseekPlanProgressShaderPrimary.map(Self.color(from:))
-        restoreLastAiboPosition = backup.restoreLastAiboPosition
-        hideWhenFullscreen = backup.hideWhenFullscreen
-        disableMouseTracking = backup.disableMouseTracking
-        mouseShakeDodgeEnabled = backup.mouseShakeDodgeEnabled
-        if let x = backup.centerXPercent, let y = backup.centerYPercent {
-            saveAiboCenterRelativePosition(
-                xPercent: x,
-                yPercent: y,
-                screenUUID: wire.savedAiboPositionScreenUUID
-            )
-        } else {
-            clearSavedAiboPosition()
-        }
-        keystrokeOverlayEnabled = wire.keystrokeOverlayEnabled
-        keystrokeLingerSeconds = wire.keystrokeLingerSeconds
-        keystrokeMaxCount = wire.keystrokeMaxCount
-        musicNotesEnabled = backup.musicNotesEnabled
-        if let mode = MusicNotesColorMode(rawValue: backup.musicNotesColorMode) {
-            musicNotesColorMode = mode
-        }
-        musicNotesCustomColor = Self.color(from: backup.musicNotesCustomColor)
-        customMusicNotificationNames = backup.customMusicNotificationNames
-        webhookEnabled = backup.webhookEnabled
-        if backup.webhookPort > 0, backup.webhookPort <= Int(UInt16.max) {
-            webhookPort = UInt16(backup.webhookPort)
-        }
-        if let mode = WebhookDismissMode(rawValue: backup.webhookDismissMode) {
-            webhookDismissMode = mode
-        }
-        webhookAutoDismissSeconds = backup.webhookAutoDismissSeconds
-        publicWebhookURLString = backup.publicWebhookURL
-        if !wire.webhookSecret.isEmpty {
+        if !wire.webhookSecret.isEmpty, webhookSecret != wire.webhookSecret {
             webhookSecret = wire.webhookSecret
         }
+    }
+
+    private func applyBackupFields(
+        _ backup: AiboBackupSettings,
+        screenUUID: String?,
+        includeLanguage: Bool
+    ) {
+        if let mode = AppThemeMode(rawValue: backup.themeMode), themeMode != mode {
+            themeMode = mode
+        }
+        if includeLanguage, let mode = AppLanguageMode(rawValue: backup.languageMode), languageMode != mode {
+            languageMode = mode
+        }
+        if let style = BubbleGlassStyle(rawValue: backup.bubbleGlassStyle), bubbleGlassStyle != style {
+            bubbleGlassStyle = style
+        }
+        let nextGlassTint = backup.bubbleGlassTint.map(Self.color(from:))
+        if bubbleGlassTint != nextGlassTint { bubbleGlassTint = nextGlassTint }
+        if let style = BubbleGlassStyle(rawValue: backup.cursorBubbleGlassStyle), cursorBubbleGlassStyle != style {
+            cursorBubbleGlassStyle = style
+        }
+        if let style = BubbleGlassStyle(rawValue: backup.codexBubbleGlassStyle), codexBubbleGlassStyle != style {
+            codexBubbleGlassStyle = style
+        }
+        if let style = BubbleGlassStyle(rawValue: backup.deepseekBubbleGlassStyle), deepseekBubbleGlassStyle != style {
+            deepseekBubbleGlassStyle = style
+        }
+        if let style = BubbleGlassStyle(rawValue: backup.antigravityBubbleGlassStyle), antigravityBubbleGlassStyle != style {
+            antigravityBubbleGlassStyle = style
+        }
+        let nextCursorTint = backup.cursorBubbleGlassTint.map(Self.color(from:))
+        if cursorBubbleGlassTint != nextCursorTint { cursorBubbleGlassTint = nextCursorTint }
+        let nextCodexTint = backup.codexBubbleGlassTint.map(Self.color(from:))
+        if codexBubbleGlassTint != nextCodexTint { codexBubbleGlassTint = nextCodexTint }
+        let nextDeepseekTint = backup.deepseekBubbleGlassTint.map(Self.color(from:))
+        if deepseekBubbleGlassTint != nextDeepseekTint { deepseekBubbleGlassTint = nextDeepseekTint }
+        let nextAntigravityTint = backup.antigravityBubbleGlassTint.map(Self.color(from:))
+        if antigravityBubbleGlassTint != nextAntigravityTint { antigravityBubbleGlassTint = nextAntigravityTint }
+        let nextCursorCapsule = backup.cursorCapsuleColor.map(Self.color(from:))
+        if cursorCapsuleColor != nextCursorCapsule { cursorCapsuleColor = nextCursorCapsule }
+        let nextCodexCapsule = backup.codexCapsuleColor.map(Self.color(from:))
+        if codexCapsuleColor != nextCodexCapsule { codexCapsuleColor = nextCodexCapsule }
+        let nextDeepseekCapsule = backup.deepseekCapsuleColor.map(Self.color(from:))
+        if deepseekCapsuleColor != nextDeepseekCapsule { deepseekCapsuleColor = nextDeepseekCapsule }
+        let nextAntigravityCapsule = backup.antigravityCapsuleColor.map(Self.color(from:))
+        if antigravityCapsuleColor != nextAntigravityCapsule { antigravityCapsuleColor = nextAntigravityCapsule }
+        if codexPlanProgressShaderEnabled != backup.codexPlanProgressShaderEnabled {
+            codexPlanProgressShaderEnabled = backup.codexPlanProgressShaderEnabled
+        }
+        let nextCodexShader = backup.codexPlanProgressShaderPrimary.map(Self.color(from:))
+        if codexPlanProgressShaderPrimary != nextCodexShader { codexPlanProgressShaderPrimary = nextCodexShader }
+        if deepseekPlanProgressShaderEnabled != backup.deepseekPlanProgressShaderEnabled {
+            deepseekPlanProgressShaderEnabled = backup.deepseekPlanProgressShaderEnabled
+        }
+        let nextDeepseekShader = backup.deepseekPlanProgressShaderPrimary.map(Self.color(from:))
+        if deepseekPlanProgressShaderPrimary != nextDeepseekShader { deepseekPlanProgressShaderPrimary = nextDeepseekShader }
+        if restoreLastAiboPosition != backup.restoreLastAiboPosition {
+            restoreLastAiboPosition = backup.restoreLastAiboPosition
+        }
+        if hideWhenFullscreen != backup.hideWhenFullscreen {
+            hideWhenFullscreen = backup.hideWhenFullscreen
+        }
+        if disableMouseTracking != backup.disableMouseTracking {
+            disableMouseTracking = backup.disableMouseTracking
+        }
+        if mouseShakeDodgeEnabled != backup.mouseShakeDodgeEnabled {
+            mouseShakeDodgeEnabled = backup.mouseShakeDodgeEnabled
+        }
+        if let x = backup.centerXPercent, let y = backup.centerYPercent {
+            if savedAiboCenterXPercent != x || savedAiboCenterYPercent != y || savedAiboPositionScreenUUID != screenUUID {
+                saveAiboCenterRelativePosition(
+                    xPercent: x,
+                    yPercent: y,
+                    screenUUID: screenUUID
+                )
+            }
+        } else if savedAiboCenterXPercent != nil || savedAiboCenterYPercent != nil || savedAiboPositionScreenUUID != nil {
+            clearSavedAiboPosition()
+        }
+        if musicNotesEnabled != backup.musicNotesEnabled {
+            musicNotesEnabled = backup.musicNotesEnabled
+        }
+        if let mode = MusicNotesColorMode(rawValue: backup.musicNotesColorMode), musicNotesColorMode != mode {
+            musicNotesColorMode = mode
+        }
+        let nextNotesColor = Self.color(from: backup.musicNotesCustomColor)
+        if musicNotesCustomColor != nextNotesColor {
+            musicNotesCustomColor = nextNotesColor
+        }
+        if customMusicNotificationNames != backup.customMusicNotificationNames {
+            customMusicNotificationNames = backup.customMusicNotificationNames
+        }
+        if webhookEnabled != backup.webhookEnabled {
+            webhookEnabled = backup.webhookEnabled
+        }
+        if backup.webhookPort > 0, backup.webhookPort <= Int(UInt16.max) {
+            let nextPort = UInt16(backup.webhookPort)
+            if webhookPort != nextPort { webhookPort = nextPort }
+        }
+        if let mode = WebhookDismissMode(rawValue: backup.webhookDismissMode), webhookDismissMode != mode {
+            webhookDismissMode = mode
+        }
+        if webhookAutoDismissSeconds != backup.webhookAutoDismissSeconds {
+            webhookAutoDismissSeconds = backup.webhookAutoDismissSeconds
+        }
+        if publicWebhookURLString != backup.publicWebhookURL {
+            publicWebhookURLString = backup.publicWebhookURL
+        }
+    }
+
+    static func normalizedSRGBColor(_ color: Color) -> Color {
+        guard let backup = backupColor(color) else { return color }
+        return Self.color(from: backup)
     }
 
     private static func backupColor(_ color: Color?) -> AiboBackupColor? {

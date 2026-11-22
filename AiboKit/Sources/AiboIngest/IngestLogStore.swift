@@ -25,7 +25,7 @@ public enum IngestLogStore {
         fileManager: FileManager = .default
     ) throws -> [IngestLogEntry] {
         let lines = try readLines(url: url, fileManager: fileManager)
-        let selected: ArraySlice<Substring>
+        let selected: ArraySlice<Data>
         if let limit, limit > 0 {
             selected = lines.suffix(limit)
         } else {
@@ -34,8 +34,7 @@ public enum IngestLogStore {
 
         var entries: [IngestLogEntry] = []
         entries.reserveCapacity(selected.count)
-        for line in selected {
-            guard let lineData = line.data(using: .utf8) else { continue }
+        for lineData in selected {
             if let entry = try? decoder.decode(IngestLogEntry.self, from: lineData) {
                 entries.append(entry)
             }
@@ -108,12 +107,11 @@ public enum IngestLogStore {
     private static func readLines(
         url: URL,
         fileManager: FileManager
-    ) throws -> [Substring] {
+    ) throws -> [Data] {
         guard fileManager.fileExists(atPath: url.path) else { return [] }
         let data = try Data(contentsOf: url)
         guard !data.isEmpty else { return [] }
-        guard let text = String(data: data, encoding: .utf8) else { return [] }
-        return text.split(separator: "\n", omittingEmptySubsequences: true)
+        return data.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: true)
     }
 
     private static func trimIfNeeded(
@@ -125,7 +123,13 @@ public enum IngestLogStore {
         let lines = try readLines(url: url, fileManager: fileManager)
         guard lines.count > maxEntries else { return }
 
-        let kept = lines.suffix(maxEntries).joined(separator: "\n") + "\n"
-        try Data(kept.utf8).write(to: url, options: .atomic)
+        let kept = lines.suffix(maxEntries)
+        var output = Data()
+        output.reserveCapacity(kept.reduce(0) { $0 + $1.count + 1 })
+        for line in kept {
+            output.append(line)
+            output.append(UInt8(ascii: "\n"))
+        }
+        try output.write(to: url, options: .atomic)
     }
 }

@@ -63,3 +63,15 @@ import Testing
         try CursorHooksInstaller.parseObject(from: data)
     }
 }
+
+@Test func cursorInstallRefusesMalformedHooksShape() {
+    let badHooks: [String: Any] = ["hooks": 123]
+    #expect(throws: HooksInstallerError.invalidHooksShape) {
+        try CursorHooksInstaller.install(config: badHooks, command: "/tmp/aibo-hook")
+    }
+
+    let badEvent: [String: Any] = ["hooks": ["preToolUse": ["not-a-dictionary"]]]
+    #expect(throws: HooksInstallerError.invalidHooksShape) {
+        try CursorHooksInstaller.install(config: badEvent, command: "/tmp/aibo-hook")
+    }
+}

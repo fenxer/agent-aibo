@@ -19,10 +19,13 @@ final class SettingsProcessHost {
     private var channel: SettingsPipeChannel?
     private var childPID: Int32?
     private var isClosing = false
+    private var inFlightRPCCount = 0
     private var sessionGeneration: UInt64 = 0
     private var snapshotCoalesceTask: Task<Void, Never>?
     private var lastSentSnapshot: SettingsMainSnapshot?
     private var retiringChannels: [UInt64: SettingsPipeChannel] = [:]
+    private var retiringProcesses: [UInt64: Process] = [:]
+    private var retiringKillTasks: [UInt64: Task<Void, Never>] = [:]
 
     private init() {}
 
@@ -83,16 +86,24 @@ final class SettingsProcessHost {
         guard AppProcessRole.isMain else { return }
         let activeProcess = process
         let activeChannel = channel
-        teardownActiveSession()
         activeChannel?.send(MainToSettingsMessage.terminate)
-        activeChannel?.close()
+        teardownActiveSession()
         if let activeProcess, activeProcess.isRunning {
             activeProcess.terminate()
         }
+        for (_, task) in retiringKillTasks {
+            task.cancel()
+        }
+        retiringKillTasks.removeAll()
         for (_, retiring) in retiringChannels {
+            retiring.send(MainToSettingsMessage.terminate)
             retiring.close()
         }
         retiringChannels.removeAll()
+        for (_, retiringProcess) in retiringProcesses where retiringProcess.isRunning {
+            retiringProcess.terminate()
+        }
+        retiringProcesses.removeAll()
     }
 
     // MARK: - Spawn & Lifecycle
@@ -151,13 +162,17 @@ final class SettingsProcessHost {
                 guard let message = try? JSONDecoder().decode(SettingsToMainMessage.self, from: data) else {
                     return
                 }
-                Task { @MainActor in
-                    SettingsProcessHost.shared.handleIncoming(message, generation: generation)
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        SettingsProcessHost.shared.handleIncoming(message, generation: generation)
+                    }
                 }
             },
             onClose: {
-                Task { @MainActor in
-                    SettingsProcessHost.shared.handleChannelClosed(generation: generation)
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        SettingsProcessHost.shared.handleChannelClosed(generation: generation)
+                    }
                 }
             }
         )
@@ -174,16 +189,34 @@ final class SettingsProcessHost {
     }
 
     private func retireActiveSession() {
+        let retiringGeneration = sessionGeneration
         snapshotCoalesceTask?.cancel()
         snapshotCoalesceTask = nil
         lastSentSnapshot = nil
         if let activeChannel = channel {
-            retiringChannels[sessionGeneration] = activeChannel
+            retiringChannels[retiringGeneration] = activeChannel
+        }
+        if let activeProcess = process {
+            retiringProcesses[retiringGeneration] = activeProcess
+            retiringKillTasks[retiringGeneration] = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                guard let self, !Task.isCancelled else { return }
+                if let hung = self.retiringProcesses.removeValue(forKey: retiringGeneration),
+                   hung.isRunning
+                {
+                    hung.terminate()
+                }
+                if let ch = self.retiringChannels.removeValue(forKey: retiringGeneration) {
+                    ch.close()
+                }
+                self.retiringKillTasks.removeValue(forKey: retiringGeneration)
+            }
         }
         process = nil
         channel = nil
         childPID = nil
         isClosing = false
+        inFlightRPCCount = 0
     }
 
     private func teardownActiveSession() {
@@ -196,6 +229,7 @@ final class SettingsProcessHost {
         process = nil
         childPID = nil
         isClosing = false
+        inFlightRPCCount = 0
     }
 
     private func handleChannelClosed(generation: UInt64) {
@@ -207,8 +241,11 @@ final class SettingsProcessHost {
             process = nil
             childPID = nil
             isClosing = false
+            inFlightRPCCount = 0
         } else {
             retiringChannels.removeValue(forKey: generation)
+            retiringProcesses.removeValue(forKey: generation)
+            retiringKillTasks.removeValue(forKey: generation)?.cancel()
         }
     }
 
@@ -322,11 +359,16 @@ final class SettingsProcessHost {
             applyCommand(command)
 
         case .request(let id, let request):
+            inFlightRPCCount += 1
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 let reply = await self.handleRPC(request)
                 guard self.sessionGeneration == generation else { return }
                 self.channel?.send(MainToSettingsMessage.reply(id: id, reply: reply))
+                self.inFlightRPCCount = max(0, self.inFlightRPCCount - 1)
+                if self.isClosing, self.inFlightRPCCount == 0 {
+                    self.channel?.send(MainToSettingsMessage.readyToClose)
+                }
             }
 
         case .openURLs(let rawURLs):
@@ -338,7 +380,10 @@ final class SettingsProcessHost {
             isClosing = true
             snapshotCoalesceTask?.cancel()
             snapshotCoalesceTask = nil
-            channel?.send(MainToSettingsMessage.readyToClose)
+            AiboLibraryStore.shared.flushPendingPersist()
+            if inFlightRPCCount == 0 {
+                channel?.send(MainToSettingsMessage.readyToClose)
+            }
         }
     }
 
@@ -370,6 +415,8 @@ final class SettingsProcessHost {
             AiboRuntime.shared.refreshHostAppPresence()
         case .refreshHookInstallation:
             AiboRuntime.shared.refreshHookInstallation()
+        case .recheckAccessibility:
+            KeystrokeMonitor.shared.recheckAccessibility()
         case .installHooks(let agent):
             AiboRuntime.shared.installHooks(for: agent)
         case .uninstallHooks(let agent):
@@ -380,7 +427,6 @@ final class SettingsProcessHost {
             AiboRuntime.shared.clearReceiveLog()
         case .regenerateWebhookSecret:
             AppSettings.shared.regenerateWebhookSecret()
-            notifyPreferencesChanged()
         case .setIngestLoggingEnabled(let enabled):
             AiboRuntime.shared.setIngestLoggingEnabled(enabled)
         case .refreshIngestLogCount:
@@ -494,7 +540,7 @@ final class SettingsProcessHost {
                 do {
                     try AiboRuntime.shared.importIngestLog(from: URL(fileURLWithPath: hookLogPath))
                 } catch {
-                    AiboLibraryStore.shared.adoptImportedLibrary()
+                    // Settings will restore the previous library on disk; keep Main's in-memory library intact.
                     return .backupImportFinished(errorMessage: error.localizedDescription)
                 }
             }

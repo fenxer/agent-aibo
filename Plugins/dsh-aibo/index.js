@@ -13,7 +13,7 @@
  */
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdirSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync, existsSync } from 'node:fs'
 import { createConnection } from 'node:net'
 import { randomUUID } from 'node:crypto'
 
@@ -24,6 +24,7 @@ const SOCKET_NAME = 'aibo.sock'
 const QUEUE_DIR_NAME = 'queue'
 const MAX_QUEUE_FILES = 200
 const MAX_QUEUE_BYTES = 5 * 1024 * 1024
+const MAX_TRACKED_SESSIONS = 200
 const DELIVERY_DEADLINE_MS = 2000
 
 /**
@@ -38,6 +39,16 @@ const PLAN_TOOL_NAME = 'update_plan'
 const planBySession = new Map()
 /** Latest model each session asked for, learned from its `request/header` events. */
 const modelBySession = new Map()
+
+function setBounded(map, key, value) {
+  if (map.has(key)) map.delete(key)
+  map.set(key, value)
+  while (map.size > MAX_TRACKED_SESSIONS) {
+    const oldestKey = map.keys().next().value
+    if (oldestKey === undefined) break
+    map.delete(oldestKey)
+  }
+}
 
 export function apply(ctx) {
   const support = join(homedir(), 'Library', 'Application Support', 'aibo')
@@ -59,11 +70,11 @@ export function apply(ctx) {
       // loop logs a fresh one whenever the user switches models mid-session.
       if (event?.type === 'request/header') {
         const model = modelFromRequestHeader(event)
-        if (id && model) modelBySession.set(id, model)
+        if (id && model) setBounded(modelBySession, id, model)
       }
       if (event?.type !== 'plan/mode') return
       if (!id) return
-      if (event.data?.active === true) planBySession.set(id, true)
+      if (event.data?.active === true) setBounded(planBySession, id, true)
       else planBySession.delete(id)
     } catch {
       // Observing the session log must never affect other log consumers.
@@ -270,7 +281,9 @@ function textFromBlocks(content) {
 function sendLine(socketPath, queueDir, payload) {
   const line = `${JSON.stringify(payload)}\n`
   const buffer = Buffer.from(line)
+  if (buffer.length > MAX_QUEUE_BYTES) return
   const socket = createConnection(socketPath)
+  socket.unref?.()
   let settled = false
 
   const deliver = () => {
@@ -278,6 +291,8 @@ function sendLine(socketPath, queueDir, payload) {
     settled = true
     clearTimeout(deadline)
     socket.end()
+    const closeTimer = setTimeout(() => socket.destroy(), 250)
+    closeTimer.unref?.()
   }
 
   const fallback = () => {
@@ -292,6 +307,7 @@ function sendLine(socketPath, queueDir, payload) {
   // neither arrives, the deadline closes the socket and queues the line, so a
   // stalled harness can never hold aibo's listener open.
   const deadline = setTimeout(fallback, DELIVERY_DEADLINE_MS)
+  deadline.unref?.()
 
   socket.once('connect', () => {
     socket.write(buffer, (error) => {
@@ -302,33 +318,39 @@ function sendLine(socketPath, queueDir, payload) {
       deliver()
     })
   })
-  socket.once('error', fallback)
+  // Keep an active error listener so late/secondary socket errors never crash the host harness.
+  socket.on('error', fallback)
 }
 
 function enqueue(queueDir, buffer) {
   try {
+    if (buffer.length > MAX_QUEUE_BYTES) return
     const support = join(queueDir, '..')
     if (!existsSync(support)) mkdirSync(support, { recursive: true })
     if (!existsSync(queueDir)) mkdirSync(queueDir, { recursive: true })
-    trimQueue(queueDir)
-    const name = `${(Date.now() / 1000).toFixed(6)}-${randomUUID()}.json`
-    writeFileSync(join(queueDir, name), buffer)
+    trimQueue(queueDir, buffer.length)
+    const id = randomUUID()
+    const name = `${(Date.now() / 1000).toFixed(6)}-${id}.json`
+    const tempPath = join(queueDir, `.tmp-${id}`)
+    const finalPath = join(queueDir, name)
+    writeFileSync(tempPath, buffer)
+    renameSync(tempPath, finalPath)
   } catch {
     // Queue is best-effort; dropping an event is better than throwing into the loop.
   }
 }
 
-function trimQueue(queueDir) {
+function trimQueue(queueDir, incomingBytes = 0) {
   let files
   try {
     files = readdirSync(queueDir)
-      .filter((name) => name.endsWith('.json'))
+      .filter((name) => !name.startsWith('.') && name.endsWith('.json'))
       .sort()
       .map((name) => join(queueDir, name))
   } catch {
     return
   }
-  let total = 0
+  let total = incomingBytes
   const sizes = new Map()
   for (const path of files) {
     let size = 0
@@ -340,7 +362,8 @@ function trimQueue(queueDir) {
     sizes.set(path, size)
     total += size
   }
-  while (files.length > MAX_QUEUE_FILES || total > MAX_QUEUE_BYTES) {
+  const fileLimit = incomingBytes > 0 ? MAX_QUEUE_FILES - 1 : MAX_QUEUE_FILES
+  while (files.length > fileLimit || total > MAX_QUEUE_BYTES) {
     const oldest = files.shift()
     if (!oldest) break
     total -= sizes.get(oldest) ?? 0

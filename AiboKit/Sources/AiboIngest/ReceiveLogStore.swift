@@ -26,8 +26,17 @@ public enum ReceiveLogStore {
         limit: Int? = nil,
         fileManager: FileManager = .default
     ) throws -> [ReceiveLogEntry] {
+        try loadWithCount(url: url, limit: limit, fileManager: fileManager).entries
+    }
+
+    /// Reads the log once and returns both newest-first entries (up to `limit`) and the total line count.
+    public static func loadWithCount(
+        url: URL = AiboPaths.receiveLogURL,
+        limit: Int? = nil,
+        fileManager: FileManager = .default
+    ) throws -> (entries: [ReceiveLogEntry], totalCount: Int) {
         let lines = try readLines(url: url, fileManager: fileManager)
-        let selected: ArraySlice<Substring>
+        let selected: ArraySlice<Data>
         if let limit, limit > 0 {
             selected = lines.suffix(limit)
         } else {
@@ -36,13 +45,12 @@ public enum ReceiveLogStore {
 
         var entries: [ReceiveLogEntry] = []
         entries.reserveCapacity(selected.count)
-        for line in selected {
-            guard let lineData = line.data(using: .utf8) else { continue }
+        for lineData in selected {
             if let entry = try? decoder.decode(ReceiveLogEntry.self, from: lineData) {
                 entries.append(entry)
             }
         }
-        return entries.reversed()
+        return (entries.reversed(), lines.count)
     }
 
     public static func count(
@@ -56,6 +64,7 @@ public enum ReceiveLogStore {
         _ entry: ReceiveLogEntry,
         url: URL = AiboPaths.receiveLogURL,
         maxEntries: Int = diskMaxEntries,
+        knownLineCount: Int? = nil,
         fileManager: FileManager = .default
     ) throws {
         try fileManager.createDirectory(
@@ -75,7 +84,14 @@ public enum ReceiveLogStore {
             try line.write(to: url, options: .atomic)
         }
 
-        try trimIfNeeded(url: url, maxEntries: maxEntries, fileManager: fileManager)
+        if let knownLineCount {
+            let over = knownLineCount - maxEntries
+            if over > 0, over.isMultiple(of: 100) {
+                try trimIfNeeded(url: url, maxEntries: maxEntries, fileManager: fileManager)
+            }
+        } else {
+            try trimIfNeeded(url: url, maxEntries: maxEntries, fileManager: fileManager)
+        }
     }
 
     public static func clear(
@@ -102,12 +118,11 @@ public enum ReceiveLogStore {
     private static func readLines(
         url: URL,
         fileManager: FileManager
-    ) throws -> [Substring] {
+    ) throws -> [Data] {
         guard fileManager.fileExists(atPath: url.path) else { return [] }
         let data = try Data(contentsOf: url)
         guard !data.isEmpty else { return [] }
-        guard let text = String(data: data, encoding: .utf8) else { return [] }
-        return text.split(separator: "\n", omittingEmptySubsequences: true)
+        return data.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: true)
     }
 
     private static func trimIfNeeded(
@@ -119,7 +134,13 @@ public enum ReceiveLogStore {
         let lines = try readLines(url: url, fileManager: fileManager)
         guard lines.count > maxEntries else { return }
 
-        let kept = lines.suffix(maxEntries).joined(separator: "\n") + "\n"
-        try Data(kept.utf8).write(to: url, options: .atomic)
+        let kept = lines.suffix(maxEntries)
+        var output = Data()
+        output.reserveCapacity(kept.reduce(0) { $0 + $1.count + 1 })
+        for line in kept {
+            output.append(line)
+            output.append(UInt8(ascii: "\n"))
+        }
+        try output.write(to: url, options: .atomic)
     }
 }

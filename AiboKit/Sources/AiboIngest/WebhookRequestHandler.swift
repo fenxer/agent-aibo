@@ -37,7 +37,8 @@ public enum WebhookRequestHandler {
             return Result(statusCode: 401)
         }
 
-        let deliveryID = request.header("X-Webhook-ID")
+        let headerID = request.header("X-Webhook-ID")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let deliveryID = (headerID?.isEmpty == false ? headerID : nil)
             ?? fallbackID(for: request.body)
         if idCache.containsOrInsert(deliveryID) {
             return Result(statusCode: 200)

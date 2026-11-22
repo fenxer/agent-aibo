@@ -59,6 +59,7 @@ final class AiboSwitchSignal {
     func desktopMorphDidFinish() {
         guard locksDesktopSize else { return }
         locksDesktopSize = false
+        AiboSpriteCache.shared.invalidate(keeping: [AiboLibraryStore.shared.selectedID])
         AiboPanelController.shared.updateHitTestImage()
         AiboPanelController.shared.refreshContent()
     }

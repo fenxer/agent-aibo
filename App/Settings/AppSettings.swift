@@ -449,7 +449,6 @@ final class AppSettings {
             UserDefaults.standard.set(webhookEnabled, forKey: Keys.webhookEnabled)
             if AppProcessRole.isMain {
                 AiboRuntime.shared.syncWebhookServer()
-                TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
             }
             notifyPeerPreferencesChanged()
         }
@@ -461,7 +460,6 @@ final class AppSettings {
             UserDefaults.standard.set(Int(webhookPort), forKey: Keys.webhookPort)
             if AppProcessRole.isMain {
                 AiboRuntime.shared.syncWebhookServer()
-                TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
             }
             notifyPeerPreferencesChanged()
         }
@@ -479,7 +477,7 @@ final class AppSettings {
             guard oldValue != publicWebhookURLString else { return }
             UserDefaults.standard.set(publicWebhookURLString, forKey: Keys.publicWebhookURL)
             if AppProcessRole.isMain {
-                TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+                TunnelHealthMonitor.shared.syncMonitoringState(triggerCheck: true)
             }
             notifyPeerPreferencesChanged()
         }
@@ -660,7 +658,7 @@ final class AppSettings {
             ?? MusicNotesColorMode.aiboAccent.rawValue
         musicNotesColorMode = MusicNotesColorMode(rawValue: notesColorRaw) ?? .aiboAccent
         musicNotesCustomColor = Self.loadColor(key: Keys.musicNotesCustomColor)
-            ?? Color(nsColor: .systemPink)
+            ?? Self.normalizedSRGBColor(Color(nsColor: .systemPink))
         customMusicNotificationNames =
             UserDefaults.standard.string(forKey: Keys.customMusicNotificationNames) ?? ""
 
@@ -688,12 +686,19 @@ final class AppSettings {
             webhookAutoDismissSeconds = Self.defaultWebhookAutoDismissSeconds
         }
 
-        if let existing = KeychainStore.string(forAccount: Keys.webhookSecretAccount), !existing.isEmpty {
-            webhookSecret = existing
-        } else if AppProcessRole.isMain {
-            webhookSecret = Self.makeSecret()
-            try? KeychainStore.setString(webhookSecret, forAccount: Keys.webhookSecretAccount)
+        if AppProcessRole.isMain {
+            switch KeychainStore.readString(forAccount: Keys.webhookSecretAccount) {
+            case .found(let existing) where !existing.isEmpty:
+                webhookSecret = existing
+            case .found, .notFound:
+                webhookSecret = Self.makeSecret()
+                try? KeychainStore.setString(webhookSecret, forAccount: Keys.webhookSecretAccount)
+            case .failure:
+                // Never overwrite a Keychain secret on transient read failure.
+                webhookSecret = ""
+            }
         } else {
+            // Main process seeds `webhookSecret` in the initial `.preferences` frame.
             webhookSecret = ""
         }
     }
@@ -725,7 +730,7 @@ final class AppSettings {
         notifyPeerPreferencesChanged()
     }
 
-    private func notifyPeerPreferencesChanged() {
+    func notifyPeerPreferencesChanged() {
         guard !isApplyingRemoteSync else { return }
         if AppProcessRole.isSettings {
             SettingsProcessClient.shared.sendPreferences(syncPreferencesWire())

@@ -28,6 +28,7 @@ final class AiboLibraryStore {
     private let installer = PetdexInstaller()
     private var builtInHidden = false
     private var persistedBuiltInRecord = AiboLibraryRecord.builtInDefault
+    private var debouncedPersistTask: Task<Void, Never>?
 
     var selectedRecord: AiboLibraryRecord {
         records.first(where: { $0.id == selectedID }) ?? .builtInDefault
@@ -194,7 +195,7 @@ final class AiboLibraryStore {
             SettingsProcessClient.shared.sendLibrary(.setBubbleDistance(distance: clamped))
             return
         }
-        persist()
+        scheduleDebouncedPersist()
         refreshPanelGeometryAfterMetricChange()
     }
 
@@ -217,7 +218,7 @@ final class AiboLibraryStore {
             SettingsProcessClient.shared.sendLibrary(.setScalePercent(percent: adjusted))
             return
         }
-        persist()
+        scheduleDebouncedPersist()
         AiboPanelController.shared.updateHitTestImage()
         refreshPanelGeometryAfterMetricChange()
     }
@@ -774,7 +775,26 @@ final class AiboLibraryStore {
         }
     }
 
+    func flushPendingPersist() {
+        guard debouncedPersistTask != nil else { return }
+        debouncedPersistTask?.cancel()
+        debouncedPersistTask = nil
+        persist()
+    }
+
+    private func scheduleDebouncedPersist() {
+        debouncedPersistTask?.cancel()
+        debouncedPersistTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard let self, !Task.isCancelled else { return }
+            self.debouncedPersistTask = nil
+            self.persist()
+        }
+    }
+
     private func persist() {
+        debouncedPersistTask?.cancel()
+        debouncedPersistTask = nil
         var source = records
         var hidden = builtInHidden
         if let replay = onboardingReplaySnapshot {

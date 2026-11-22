@@ -632,6 +632,7 @@ public enum ExtensionManifestValidator {
         for field in schema.properties.values {
             if let control = field.control {
                 if !Self.promptControls.contains(control) { return .invalidSchema }
+                if control == "image", field.defaultValue != nil { return .invalidSchema }
                 if (control == "menu" || control == "radio"), field.oneOf.isEmpty, (field.source ?? "").isEmpty {
                     return .invalidSchema
                 }

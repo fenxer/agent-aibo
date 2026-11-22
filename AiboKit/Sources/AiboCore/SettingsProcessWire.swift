@@ -184,6 +184,7 @@ public enum SettingsLibraryMutation: Codable, Sendable, Equatable {
 public enum SettingsCommand: Codable, Sendable, Equatable {
     case refreshHostAppPresence
     case refreshHookInstallation
+    case recheckAccessibility
     case installHooks(AgentKind)
     case uninstallHooks(AgentKind)
     case scheduleTunnelCheck

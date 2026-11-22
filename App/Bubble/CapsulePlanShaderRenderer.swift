@@ -150,10 +150,9 @@ enum CapsulePlanShaderStyle {
         time: Float,
         progress: Float,
         track: SIMD3<Float>,
-        primary: SIMD3<Float>,
+        palette: DerivedPalette,
         backingScale: CGFloat
     ) -> CapsulePlanUniforms {
-        let colors = derivedPalette(from: primary)
         let track4 = SIMD4<Float>(track.x, track.y, track.z, 1)
         let scale = min(max(backingScale, 1), 2)
         return CapsulePlanUniforms(
@@ -178,14 +177,32 @@ enum CapsulePlanShaderStyle {
             tailLength: tailLength,
             refBarWidth: Float(playgroundBarWidth * scale),
             trackColor: track4,
-            deepColor: colors.deep,
-            midColor: colors.mid,
-            glowColor: colors.glow,
-            brightColor: colors.bright,
-            coreColor: colors.core,
-            trailColor: colors.trail,
-            trailHotColor: colors.trailHot,
-            tailColor: colors.deep
+            deepColor: palette.deep,
+            midColor: palette.mid,
+            glowColor: palette.glow,
+            brightColor: palette.bright,
+            coreColor: palette.core,
+            trailColor: palette.trail,
+            trailHotColor: palette.trailHot,
+            tailColor: palette.deep
+        )
+    }
+
+    static func uniforms(
+        resolution: SIMD2<Float>,
+        time: Float,
+        progress: Float,
+        track: SIMD3<Float>,
+        primary: SIMD3<Float>,
+        backingScale: CGFloat
+    ) -> CapsulePlanUniforms {
+        uniforms(
+            resolution: resolution,
+            time: time,
+            progress: progress,
+            track: track,
+            palette: derivedPalette(from: primary),
+            backingScale: backingScale
         )
     }
 
@@ -208,7 +225,7 @@ enum CapsulePlanShaderStyle {
         )
     }
 
-    private struct DerivedPalette {
+    struct DerivedPalette {
         var deep: SIMD4<Float>
         var mid: SIMD4<Float>
         var glow: SIMD4<Float>
@@ -218,7 +235,7 @@ enum CapsulePlanShaderStyle {
         var trailHot: SIMD4<Float>
     }
 
-    private static func derivedPalette(from primary: SIMD3<Float>) -> DerivedPalette {
+    static func derivedPalette(from primary: SIMD3<Float>) -> DerivedPalette {
         let hsl = rgbToHsl(primary)
         let deep = hslToRgb(h: hsl.h + 12, s: max(hsl.s * 0.9, 0.6), l: 0.06)
         let mid = hslToRgb(h: hsl.h + 8, s: max(hsl.s * 0.95, 0.7), l: 0.16)

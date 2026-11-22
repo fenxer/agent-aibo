@@ -100,6 +100,16 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         return window
     }
 
+    nonisolated func windowShouldClose(_ sender: NSWindow) -> Bool {
+        MainActor.assumeIsolated {
+            if BackupSettingsModel.shared.isWorking || AiboLibraryStore.shared.isInstalling {
+                NSSound.beep()
+                return false
+            }
+            return true
+        }
+    }
+
     nonisolated func windowWillClose(_ notification: Notification) {
         MainActor.assumeIsolated {
             self.tearDownAfterClose()
@@ -138,6 +148,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     private func tearDownAfterClose() {
         guard let window else { return }
+        BackupSettingsModel.shared.cancelImport()
         window.saveFrame(usingName: Self.frameAutosaveName)
         self.window = nil
         let closing = window
