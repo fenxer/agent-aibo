@@ -62,6 +62,45 @@ final class AiboRuntime {
             case .unknown, .skipped: "questionmark.circle"
             }
         }
+
+        var wireValue: SettingsTunnelHealthWire {
+            switch self {
+            case .unknown: .unknown
+            case .skipped: .skipped
+            case .checking: .checking
+            case .ok: .ok
+            case .down: .down
+            case .listenerStopped: .listenerStopped
+            }
+        }
+
+        init(wire: SettingsTunnelHealthWire) {
+            switch wire {
+            case .unknown: self = .unknown
+            case .skipped: self = .skipped
+            case .checking: self = .checking
+            case .ok: self = .ok
+            case .down: self = .down
+            case .listenerStopped: self = .listenerStopped
+            }
+        }
+    }
+
+    func applyMirroredSnapshot(_ snapshot: SettingsMainSnapshot) {
+        cursorHooksInstalled = snapshot.cursorHooksInstalled
+        codexHooksInstalled = snapshot.codexHooksInstalled
+        deepseekPluginInstalled = snapshot.deepseekPluginInstalled
+        antigravityHooksInstalled = snapshot.antigravityHooksInstalled
+        cursorHostAppInstalled = snapshot.cursorHostAppInstalled
+        codexHostAppInstalled = snapshot.codexHostAppInstalled
+        antigravityHostAppInstalled = snapshot.antigravityHostAppInstalled
+        webhookListening = snapshot.webhookListening
+        tunnelHealthStatus = TunnelHealthStatus(wire: snapshot.tunnelHealthStatus)
+        lastErrorMessage = snapshot.lastRuntimeErrorMessage
+        ingestLoggingEnabled = snapshot.ingestLoggingEnabled
+        ingestLogEntryCount = snapshot.ingestLogEntryCount
+        receiveLogEntries = snapshot.receiveLogEntries
+        receiveLogTotalCount = snapshot.receiveLogTotalCount
     }
 
     private static let tunnelWarningBubbleID = "tunnel:health"
@@ -486,6 +525,10 @@ final class AiboRuntime {
     /// Local test / DEBUG helper: format raw body the same way as HTTP ingest.
     /// Skips Receive Log — Development probes must not pollute real inbound history.
     func ingestWebhookBody(_ body: Data, id: String = UUID().uuidString) {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.debugIngestWebhookBody(body))
+            return
+        }
         let parsed = WebhookMessageFormatter.parse(from: body)
         ingestWebhook(
             WebhookDelivery(
@@ -587,6 +630,10 @@ final class AiboRuntime {
     #if DEBUG
     /// Stacks the tunnel Warning bubble for Bubble Preview (no probe).
     func showDebugTunnelWarningBubble() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.debugShowTunnelWarningBubble)
+            return
+        }
         cancelDeferredTunnelWarning()
         let detectedAt = tunnelWarningDetectedAt ?? Date()
         tunnelWarningDetectedAt = detectedAt
@@ -604,6 +651,10 @@ final class AiboRuntime {
     #endif
 
     func clearReceiveLog() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.clearReceiveLog)
+            return
+        }
         do {
             try ReceiveLogStore.clear()
             receiveLogEntries = []
@@ -752,6 +803,10 @@ final class AiboRuntime {
     /// Re-reads hook files. Cleanup can delete aibo's entries without going
     /// through `uninstallHooks(for:)`, and this flag would otherwise stay stale.
     func refreshHookInstallation() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.refreshHookInstallation)
+            return
+        }
         cursorHooksInstalled = (try? CursorHooksFile.isInstalled()) ?? false
         codexHooksInstalled = (try? CodexHooksFile.isInstalled()) ?? false
         deepseekPluginInstalled = (try? DshAiboPluginFile.isInstalled()) ?? false
@@ -759,12 +814,20 @@ final class AiboRuntime {
     }
 
     func refreshHostAppPresence() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.refreshHostAppPresence)
+            return
+        }
         cursorHostAppInstalled = SourceAppActivator.isHostAppInstalled(.cursor)
         codexHostAppInstalled = SourceAppActivator.isHostAppInstalled(.codex)
         antigravityHostAppInstalled = SourceAppActivator.isHostAppInstalled(.antigravity)
     }
 
     func installHooks(for agent: AgentKind) {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.installHooks(agent))
+            return
+        }
         guard isHostAppInstalled(for: agent) else { return }
         switch agent {
         case .cursor: installCursorHooks()
@@ -775,6 +838,10 @@ final class AiboRuntime {
     }
 
     func uninstallHooks(for agent: AgentKind) {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.uninstallHooks(agent))
+            return
+        }
         switch agent {
         case .cursor: uninstallCursorHooks()
         case .codex: uninstallCodexHooks()
@@ -802,6 +869,23 @@ final class AiboRuntime {
         showsPlanProgress: Bool = false,
         planProgressIntervalSeconds: Int = 5
     ) {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.debugShowBubble(
+                SettingsDebugBubblePayload(
+                    text: text,
+                    agentName: agentName,
+                    projectName: projectName,
+                    modelName: modelName,
+                    showCursorIcon: showCursorIcon,
+                    isSubagent: isSubagent,
+                    stack: stack,
+                    isAwaitingApproval: isAwaitingApproval,
+                    showsPlanProgress: showsPlanProgress,
+                    planProgressIntervalSeconds: planProgressIntervalSeconds
+                )
+            ))
+            return
+        }
         let trimmedAgent = agentName.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayAgent = isSubagent
             ? "Subagent"
@@ -870,6 +954,10 @@ final class AiboRuntime {
     }
 
     func clearDebugBubble() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.debugClearBubble)
+            return
+        }
         cancelDebugPlanProgress()
         if let inspecting = inspectingBubbleID,
            debugBubbleItems.contains(where: { $0.id == inspecting })
@@ -1020,6 +1108,14 @@ final class AiboRuntime {
 
     /// Posts a signed webhook to the local listener (requires webhook enabled).
     func postTestWebhook(body: Data) async -> String? {
+        if AppProcessRole.isSettings {
+            if case .testWebhookResult(let error) = await SettingsProcessClient.shared.request(
+                .postTestWebhook(body: body)
+            ) {
+                return error
+            }
+            return String(localized: "Webhook test request failed")
+        }
         guard AppSettings.shared.webhookEnabled else {
             return String(localized: "Enable the webhook listener in Webhook settings first.")
         }
@@ -1050,12 +1146,21 @@ final class AiboRuntime {
     #endif
 
     func setIngestLoggingEnabled(_ enabled: Bool) {
+        if AppProcessRole.isSettings {
+            ingestLoggingEnabled = enabled
+            SettingsProcessClient.shared.sendCommand(.setIngestLoggingEnabled(enabled))
+            return
+        }
         guard ingestLoggingEnabled != enabled else { return }
         ingestLoggingEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: Self.ingestLoggingDefaultsKey)
     }
 
     func clearIngestLog() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.clearIngestLog)
+            return
+        }
         do {
             try IngestLogStore.clear()
             ingestLogEntryCount = 0
@@ -1078,6 +1183,10 @@ final class AiboRuntime {
     }
 
     func refreshIngestLogCount() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.refreshIngestLogCount)
+            return
+        }
         ingestLogEntryCount = (try? IngestLogStore.count()) ?? 0
     }
 

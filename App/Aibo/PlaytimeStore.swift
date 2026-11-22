@@ -17,7 +17,14 @@ final class PlaytimeStore {
     private var didStart = false
 
     private init() {
-        load()
+        if AppProcessRole.isMain {
+            load()
+        }
+    }
+
+    func applyMirroredState(snapshot: PlaytimeSnapshot, daily: PlaytimeDailyBook) {
+        self.snapshot = snapshot
+        self.daily = daily
     }
 
     func start() {

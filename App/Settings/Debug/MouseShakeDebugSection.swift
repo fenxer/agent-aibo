@@ -18,7 +18,11 @@ struct MouseShakeDebugSection: View {
 
             HStack {
                 Button {
-                    AiboPanelController.shared.debugTriggerDodge()
+                    if AppProcessRole.isSettings {
+                        SettingsProcessClient.shared.sendCommand(.debugTriggerDodge)
+                    } else {
+                        AiboPanelController.shared.debugTriggerDodge()
+                    }
                 } label: {
                     Text(verbatim: "Test Dodge")
                 }

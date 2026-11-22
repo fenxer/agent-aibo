@@ -42,21 +42,66 @@ final class BackupSettingsModel {
         let destination = Self.archiveURL(picked)
 
         let settings = AppSettings.shared.backupSnapshot()
-        let playtime = PlaytimeStore.shared.ledgerForExport()
         let aibos = AiboPaths.aibosDirectory
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let includeHookLog = exportHookLog
+        isWorking = true
+
+        if AppProcessRole.isSettings {
+            Task { @MainActor in
+                let reply = await SettingsProcessClient.shared.request(
+                    .prepareBackupExport(includeHookLog: includeHookLog)
+                )
+                switch reply {
+                case .backupExportPrepared(let playtime, let hookLogTempPath):
+                    let hookLogCopy = hookLogTempPath.map { URL(fileURLWithPath: $0) }
+                    Task.detached {
+                        defer {
+                            if let hookLogCopy {
+                                try? FileManager.default.removeItem(at: hookLogCopy)
+                            }
+                        }
+                        do {
+                            try AiboBackupArchive.write(
+                                settings: settings,
+                                playtime: playtime,
+                                aibosSource: aibos,
+                                hookLogSource: hookLogCopy,
+                                appVersion: version,
+                                to: destination
+                            )
+                            await MainActor.run { BackupSettingsModel.shared.isWorking = false }
+                        } catch {
+                            await MainActor.run {
+                                BackupSettingsModel.shared.isWorking = false
+                                BackupSettingsModel.shared.errorMessage = Self.message(for: error, importing: false)
+                            }
+                        }
+                    }
+                case .failed:
+                    isWorking = false
+                    errorMessage = Self.message(for: AiboBackupError.ioFailed, importing: false)
+                default:
+                    isWorking = false
+                    errorMessage = Self.message(for: AiboBackupError.ioFailed, importing: false)
+                }
+            }
+            return
+        }
+
+        let playtime = PlaytimeStore.shared.ledgerForExport()
         let hookLogCopy: URL?
-        if exportHookLog {
+        if includeHookLog {
             do {
                 hookLogCopy = try AiboRuntime.shared.copyIngestLogForBackup()
             } catch {
+                isWorking = false
                 errorMessage = Self.message(for: error, importing: false)
                 return
             }
         } else {
             hookLogCopy = nil
         }
-        isWorking = true
         Task.detached {
             defer {
                 if let hookLogCopy {
@@ -97,6 +142,16 @@ final class BackupSettingsModel {
     /// Finder double-click. Opens Backup, then the same preview as Import….
     func importArchiveFromOutside(_ url: URL) {
         SettingsNavigator.shared.showBackup()
+        guard !isWorking else { return }
+        if pendingRoot != nil || showPreview {
+            cancelImport()
+        }
+        startImport(from: url)
+    }
+
+    /// Settings process: starts an import preview forwarded from the main app's `open` handler.
+    func startImportFromRemotePath(_ path: String) {
+        let url = URL(fileURLWithPath: path)
         guard !isWorking else { return }
         if pendingRoot != nil || showPreview {
             cancelImport()
@@ -149,6 +204,38 @@ final class BackupSettingsModel {
                     localSelectedID: localSelectedID,
                     duplicates: duplicates
                 )
+                if AppProcessRole.isSettings {
+                    let reply = await SettingsProcessClient.shared.request(
+                        .finishBackupImport(
+                            hookLogPath: document.hookLogURL?.path,
+                            playtimeFile: playtimeFile,
+                            playtimeMode: playtime,
+                            applySettings: settingsChoice == .apply ? settings : nil
+                        )
+                    )
+                    if case .backupImportFinished(let errorMessage) = reply, errorMessage == nil {
+                        replacement.commit()
+                        await MainActor.run {
+                            AiboLibraryStore.shared.adoptImportedLibrary()
+                            BackupSettingsModel.shared.isWorking = false
+                            if settingsChoice == .apply {
+                                AppSettings.shared.applyBackupLanguage(settings)
+                            }
+                        }
+                    } else {
+                        try? replacement.restore()
+                        await MainActor.run {
+                            AiboLibraryStore.shared.adoptImportedLibrary()
+                            BackupSettingsModel.shared.isWorking = false
+                            BackupSettingsModel.shared.errorMessage = Self.message(
+                                for: AiboBackupError.ioFailed,
+                                importing: true
+                            )
+                        }
+                    }
+                    try? FileManager.default.removeItem(at: root)
+                    return
+                }
                 if let hookLog = document.hookLogURL {
                     do {
                         try await MainActor.run {

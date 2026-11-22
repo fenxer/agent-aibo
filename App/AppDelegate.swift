@@ -27,7 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let archives = urls.filter(Self.isBackupArchive)
         let links = urls.filter { !Self.isBackupArchive($0) }
         if let archive = archives.last {
-            BackupSettingsModel.shared.importArchiveFromOutside(archive)
+            SettingsNavigator.shared.showBackup(importArchiveURL: archive)
         }
         if !links.isEmpty {
             ExtensionLinkRouter.accept(links)
@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        SettingsProcessHost.shared.terminateForAppQuit()
         persistAiboPositionIfNeeded()
         PlaytimeStore.shared.flushForTermination()
         AiboRuntime.shared.stop()

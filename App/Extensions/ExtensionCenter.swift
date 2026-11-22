@@ -314,6 +314,22 @@ final class ExtensionCenter {
         ExtensionLinkRouter.deliver()
     }
 
+    /// Settings process: reads installed plugins for UI display without starting desktop runtime.
+    func reloadForSettingsProcess() {
+        reload()
+    }
+
+    /// Main process: reloads plugin registry/settings after an edit in the settings process.
+    func reloadAfterSettingsEdit() {
+        reload()
+        if let activeID = session?.pluginID {
+            let active = plugins.first { $0.id == activeID }
+            if active == nil || active?.enabled == false {
+                cancelSession()
+            }
+        }
+    }
+
     /// Manual plugins open their prompt bubble. Anything else opens Settings.
     func openLinkedPlugin(slug: String) {
         guard let record = plugins.first(where: { $0.manifest.slug == slug }) else { return }
@@ -358,6 +374,7 @@ final class ExtensionCenter {
         }
         try? store.saveRegistry(registry)
         reload()
+        notifyExtensionCatalogChanged()
     }
 
     func noteInstallFailure(_ message: String) {
@@ -369,6 +386,7 @@ final class ExtensionCenter {
             _ = try store.install(from: directory)
             lastError = nil
             reload()
+            notifyExtensionCatalogChanged()
         } catch let error as ExtensionStoreError {
             lastError = Self.installMessage(for: error)
         } catch {
@@ -410,6 +428,7 @@ final class ExtensionCenter {
         }
         try? store.uninstall(id: id)
         reload()
+        notifyExtensionCatalogChanged()
     }
 
     func settingsValues(for id: String) -> [String: String] {
@@ -454,6 +473,7 @@ final class ExtensionCenter {
             }
         }
         try? store.saveSettings(id: id, values: stored)
+        notifyExtensionCatalogChanged()
     }
 
     func providers(for pluginID: String) -> [ExtensionProvider] {
@@ -483,6 +503,7 @@ final class ExtensionCenter {
             )
         }
         writeProviders(pluginID: pluginID, list)
+        notifyExtensionCatalogChanged()
     }
 
     /// One short completion against the draft provider. Does not save it.
@@ -550,6 +571,15 @@ final class ExtensionCenter {
         list.removeAll { $0.id == providerID }
         KeychainStore.delete(account: providerKeychainAccount(pluginID: pluginID, providerID: providerID))
         writeProviders(pluginID: pluginID, list)
+        notifyExtensionCatalogChanged()
+    }
+
+    private func notifyExtensionCatalogChanged() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.reloadExtensions)
+        } else {
+            SettingsProcessHost.shared.notifyExtensionsChanged()
+        }
     }
 
     func beginManualPrompt(id: String, fileURL: URL? = nil) {
@@ -690,6 +720,10 @@ final class ExtensionCenter {
     #if DEBUG
     /// Sample plugin window for layout checks. Does not run the plugin.
     func presentDebugWindow(running: Bool) {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.debugPresentExtensionWindow(running: running))
+            return
+        }
         fileChoice = nil
         runGeneration += 1
         let record = plugins.first { $0.manifest.slug == "translate" }

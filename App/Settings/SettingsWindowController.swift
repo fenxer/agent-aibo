@@ -31,6 +31,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         raise(window)
     }
 
+    func closeWindow() {
+        window?.close()
+    }
+
     private func raise(_ window: NSWindow) {
         if window.isMiniaturized {
             window.deminiaturize(nil)
@@ -137,6 +141,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.saveFrame(usingName: Self.frameAutosaveName)
         self.window = nil
         let closing = window
+        if AppProcessRole.isSettings {
+            closing.contentViewController = nil
+            SettingsProcessClient.shared.beginGracefulCloseAndExit()
+            return
+        }
         Task { @MainActor in
             autoreleasepool {
                 closing.contentViewController = nil

@@ -26,6 +26,7 @@ final class AiboActionSettings {
             AiboUserAction(rawValue: key) != nil && PetdexSpriteState(rawValue: value) != nil
         }
         persist()
+        notifyChanged()
     }
 
     func setSprite(_ sprite: PetdexSpriteState, for action: AiboUserAction) {
@@ -39,6 +40,19 @@ final class AiboActionSettings {
         guard next != overrides else { return }
         overrides = next
         persist()
+        notifyChanged()
+    }
+
+    func reloadFromDefaults() {
+        overrides = Self.load()
+    }
+
+    private func notifyChanged() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.actionSpriteMappingChanged)
+        } else {
+            SettingsProcessHost.shared.notifyActionSpritesChanged()
+        }
     }
 
     private func persist() {

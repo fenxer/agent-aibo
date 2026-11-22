@@ -24,6 +24,10 @@ final class KeystrokeMonitor {
 
     private init() {}
 
+    func applyMirroredAccessibilityTrusted(_ trusted: Bool) {
+        accessibilityTrusted = trusted
+    }
+
     func setEnabled(_ enabled: Bool, promptForAccessibility: Bool) {
         guard enabled else {
             stop()

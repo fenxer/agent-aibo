@@ -55,7 +55,7 @@ final class HookSpriteSettings {
         }
         file = next
         persist()
-        AiboRuntime.shared.noteHookSpriteMappingChanged()
+        notifyChanged()
     }
 
     func replace(with file: HookSpriteMappingFile) {
@@ -66,7 +66,7 @@ final class HookSpriteSettings {
             antigravity: file.antigravity.filter { PetdexSpriteState(rawValue: $0.value) != nil }
         )
         persist()
-        AiboRuntime.shared.noteHookSpriteMappingChanged()
+        notifyChanged()
     }
 
     func resetAll(for agent: AgentKind) {
@@ -79,7 +79,20 @@ final class HookSpriteSettings {
         }
         file = next
         persist()
-        AiboRuntime.shared.noteHookSpriteMappingChanged()
+        notifyChanged()
+    }
+
+    func reloadFromDefaults() {
+        file = Self.load()
+    }
+
+    private func notifyChanged() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.hookSpriteMappingChanged)
+        } else {
+            AiboRuntime.shared.noteHookSpriteMappingChanged()
+            SettingsProcessHost.shared.notifyHookSpritesChanged()
+        }
     }
 
     func hasCustomOverrides(for agent: AgentKind) -> Bool {

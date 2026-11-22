@@ -99,13 +99,16 @@ final class AppSettings {
     static let settingsWindowMinWidth: CGFloat = 560
     static let settingsWindowMinHeight: CGFloat = 420
 
+    /// Suppresses echo back over IPC while applying a snapshot from the peer process.
+    @ObservationIgnored var isApplyingRemoteSync = false
+
     /// Color scheme: follow system (default), force light, or force dark.
     var themeMode: AppThemeMode {
         didSet {
             guard oldValue != themeMode else { return }
             UserDefaults.standard.set(themeMode.rawValue, forKey: Keys.themeMode)
             Self.applyAppearance(themeMode)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -115,7 +118,12 @@ final class AppSettings {
             guard oldValue != languageMode else { return }
             UserDefaults.standard.set(languageMode.rawValue, forKey: Keys.languageMode)
             Self.applyLanguage(languageMode)
-            Self.relaunchToApplyLanguage()
+            guard !isApplyingRemoteSync else { return }
+            if AppProcessRole.isSettings {
+                SettingsProcessClient.shared.sendCommand(.relaunchMainApp)
+            } else {
+                Self.relaunchApplication()
+            }
         }
     }
 
@@ -124,6 +132,7 @@ final class AppSettings {
         didSet {
             guard oldValue != restoreLastAiboPosition else { return }
             UserDefaults.standard.set(restoreLastAiboPosition, forKey: Keys.restoreLastAiboPosition)
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -133,7 +142,10 @@ final class AppSettings {
         didSet {
             guard oldValue != hideWhenFullscreen else { return }
             UserDefaults.standard.set(hideWhenFullscreen, forKey: Keys.hideWhenFullscreen)
-            AiboPanelController.shared.syncFullscreenPolicy()
+            if AppProcessRole.isMain {
+                AiboPanelController.shared.syncFullscreenPolicy()
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -142,7 +154,10 @@ final class AppSettings {
         didSet {
             guard oldValue != disableMouseTracking else { return }
             UserDefaults.standard.set(disableMouseTracking, forKey: Keys.disableMouseTracking)
-            AiboPanelController.shared.syncLookDirection()
+            if AppProcessRole.isMain {
+                AiboPanelController.shared.syncLookDirection()
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -152,7 +167,10 @@ final class AppSettings {
         didSet {
             guard oldValue != mouseShakeDodgeEnabled else { return }
             UserDefaults.standard.set(mouseShakeDodgeEnabled, forKey: Keys.mouseShakeDodgeEnabled)
-            AiboPanelController.shared.syncMouseShakeDodgeEnabled()
+            if AppProcessRole.isMain {
+                AiboPanelController.shared.syncMouseShakeDodgeEnabled()
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -168,8 +186,11 @@ final class AppSettings {
         didSet {
             guard oldValue != keystrokeOverlayEnabled else { return }
             UserDefaults.standard.set(keystrokeOverlayEnabled, forKey: Keys.keystrokeOverlayEnabled)
-            KeystrokeMonitor.shared.setEnabled(keystrokeOverlayEnabled, promptForAccessibility: true)
-            AiboPanelController.shared.syncKeystrokeGeometry()
+            if AppProcessRole.isMain {
+                KeystrokeMonitor.shared.setEnabled(keystrokeOverlayEnabled, promptForAccessibility: true)
+                AiboPanelController.shared.syncKeystrokeGeometry()
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -183,7 +204,10 @@ final class AppSettings {
             }
             guard oldValue != keystrokeLingerSeconds else { return }
             UserDefaults.standard.set(keystrokeLingerSeconds, forKey: Keys.keystrokeLingerSeconds)
-            KeystrokeMonitor.shared.lingerDurationChanged()
+            if AppProcessRole.isMain {
+                KeystrokeMonitor.shared.lingerDurationChanged()
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -198,7 +222,10 @@ final class AppSettings {
             }
             guard oldValue != keystrokeMaxCount else { return }
             UserDefaults.standard.set(keystrokeMaxCount, forKey: Keys.keystrokeMaxCount)
-            KeystrokeMonitor.shared.maxCountChanged()
+            if AppProcessRole.isMain {
+                KeystrokeMonitor.shared.maxCountChanged()
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -207,8 +234,11 @@ final class AppSettings {
         didSet {
             guard oldValue != musicNotesEnabled else { return }
             UserDefaults.standard.set(musicNotesEnabled, forKey: Keys.musicNotesEnabled)
-            AiboRuntime.shared.syncMusicPlaybackMonitor()
-            AiboPanelController.shared.refreshContent()
+            if AppProcessRole.isMain {
+                AiboRuntime.shared.syncMusicPlaybackMonitor()
+                AiboPanelController.shared.refreshContent()
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -217,7 +247,7 @@ final class AppSettings {
         didSet {
             guard oldValue != musicNotesColorMode else { return }
             UserDefaults.standard.set(musicNotesColorMode.rawValue, forKey: Keys.musicNotesColorMode)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -226,7 +256,7 @@ final class AppSettings {
         didSet {
             guard oldValue != musicNotesCustomColor else { return }
             Self.persistColor(musicNotesCustomColor, key: Keys.musicNotesCustomColor)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -235,7 +265,10 @@ final class AppSettings {
         didSet {
             guard oldValue != customMusicNotificationNames else { return }
             UserDefaults.standard.set(customMusicNotificationNames, forKey: Keys.customMusicNotificationNames)
-            MusicPlaybackMonitor.shared.reloadObservers()
+            if AppProcessRole.isMain {
+                MusicPlaybackMonitor.shared.reloadObservers()
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -244,7 +277,7 @@ final class AppSettings {
         didSet {
             guard oldValue != bubbleGlassStyle else { return }
             UserDefaults.standard.set(bubbleGlassStyle.rawValue, forKey: Keys.bubbleGlassStyle)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -253,7 +286,7 @@ final class AppSettings {
         didSet {
             guard oldValue != bubbleGlassTint else { return }
             Self.persistColor(bubbleGlassTint, key: Keys.bubbleGlassTint)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -262,7 +295,7 @@ final class AppSettings {
         didSet {
             guard oldValue != cursorCapsuleColor else { return }
             Self.persistColor(cursorCapsuleColor, key: Keys.cursorCapsuleColor)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -271,7 +304,7 @@ final class AppSettings {
         didSet {
             guard oldValue != codexCapsuleColor else { return }
             Self.persistColor(codexCapsuleColor, key: Keys.codexCapsuleColor)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -280,7 +313,7 @@ final class AppSettings {
         didSet {
             guard oldValue != deepseekCapsuleColor else { return }
             Self.persistColor(deepseekCapsuleColor, key: Keys.deepseekCapsuleColor)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -289,7 +322,7 @@ final class AppSettings {
         didSet {
             guard oldValue != antigravityCapsuleColor else { return }
             Self.persistColor(antigravityCapsuleColor, key: Keys.antigravityCapsuleColor)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -301,7 +334,7 @@ final class AppSettings {
                 codexPlanProgressShaderEnabled,
                 forKey: Keys.codexPlanProgressShaderEnabled
             )
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -313,7 +346,7 @@ final class AppSettings {
                 codexPlanProgressShaderPrimary,
                 key: Keys.codexPlanProgressShaderPrimary
             )
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -325,7 +358,7 @@ final class AppSettings {
                 deepseekPlanProgressShaderEnabled,
                 forKey: Keys.deepseekPlanProgressShaderEnabled
             )
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -337,7 +370,7 @@ final class AppSettings {
                 deepseekPlanProgressShaderPrimary,
                 key: Keys.deepseekPlanProgressShaderPrimary
             )
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -346,7 +379,7 @@ final class AppSettings {
         didSet {
             guard oldValue != cursorBubbleGlassStyle else { return }
             UserDefaults.standard.set(cursorBubbleGlassStyle.rawValue, forKey: Keys.cursorBubbleGlassStyle)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -354,7 +387,7 @@ final class AppSettings {
         didSet {
             guard oldValue != codexBubbleGlassStyle else { return }
             UserDefaults.standard.set(codexBubbleGlassStyle.rawValue, forKey: Keys.codexBubbleGlassStyle)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -362,7 +395,7 @@ final class AppSettings {
         didSet {
             guard oldValue != deepseekBubbleGlassStyle else { return }
             UserDefaults.standard.set(deepseekBubbleGlassStyle.rawValue, forKey: Keys.deepseekBubbleGlassStyle)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -373,7 +406,7 @@ final class AppSettings {
                 antigravityBubbleGlassStyle.rawValue,
                 forKey: Keys.antigravityBubbleGlassStyle
             )
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -382,7 +415,7 @@ final class AppSettings {
         didSet {
             guard oldValue != cursorBubbleGlassTint else { return }
             Self.persistColor(cursorBubbleGlassTint, key: Keys.cursorBubbleGlassTint)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -390,7 +423,7 @@ final class AppSettings {
         didSet {
             guard oldValue != codexBubbleGlassTint else { return }
             Self.persistColor(codexBubbleGlassTint, key: Keys.codexBubbleGlassTint)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -398,7 +431,7 @@ final class AppSettings {
         didSet {
             guard oldValue != deepseekBubbleGlassTint else { return }
             Self.persistColor(deepseekBubbleGlassTint, key: Keys.deepseekBubbleGlassTint)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -406,7 +439,7 @@ final class AppSettings {
         didSet {
             guard oldValue != antigravityBubbleGlassTint else { return }
             Self.persistColor(antigravityBubbleGlassTint, key: Keys.antigravityBubbleGlassTint)
-            AiboPanelController.shared.refreshContent()
+            notifyPanelContentChanged()
         }
     }
 
@@ -414,8 +447,11 @@ final class AppSettings {
         didSet {
             guard oldValue != webhookEnabled else { return }
             UserDefaults.standard.set(webhookEnabled, forKey: Keys.webhookEnabled)
-            AiboRuntime.shared.syncWebhookServer()
-            TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+            if AppProcessRole.isMain {
+                AiboRuntime.shared.syncWebhookServer()
+                TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -423,8 +459,11 @@ final class AppSettings {
         didSet {
             guard oldValue != webhookPort else { return }
             UserDefaults.standard.set(Int(webhookPort), forKey: Keys.webhookPort)
-            AiboRuntime.shared.syncWebhookServer()
-            TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+            if AppProcessRole.isMain {
+                AiboRuntime.shared.syncWebhookServer()
+                TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -439,7 +478,10 @@ final class AppSettings {
             }
             guard oldValue != publicWebhookURLString else { return }
             UserDefaults.standard.set(publicWebhookURLString, forKey: Keys.publicWebhookURL)
-            TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+            if AppProcessRole.isMain {
+                TunnelHealthMonitor.shared.scheduleCheck(reason: .settingsChanged)
+            }
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -448,6 +490,7 @@ final class AppSettings {
         didSet {
             guard oldValue != webhookDismissMode else { return }
             UserDefaults.standard.set(webhookDismissMode.rawValue, forKey: Keys.webhookDismissMode)
+            notifyPeerPreferencesChanged()
         }
     }
 
@@ -461,10 +504,11 @@ final class AppSettings {
             }
             guard oldValue != webhookAutoDismissSeconds else { return }
             UserDefaults.standard.set(webhookAutoDismissSeconds, forKey: Keys.webhookAutoDismissSeconds)
+            notifyPeerPreferencesChanged()
         }
     }
 
-    private(set) var webhookSecret: String
+    internal(set) var webhookSecret: String
 
     var webhookURLString: String {
         "http://127.0.0.1:\(webhookPort)\(WebhookRequestHandler.path)"
@@ -646,9 +690,11 @@ final class AppSettings {
 
         if let existing = KeychainStore.string(forAccount: Keys.webhookSecretAccount), !existing.isEmpty {
             webhookSecret = existing
-        } else {
+        } else if AppProcessRole.isMain {
             webhookSecret = Self.makeSecret()
             try? KeychainStore.setString(webhookSecret, forAccount: Keys.webhookSecretAccount)
+        } else {
+            webhookSecret = ""
         }
     }
 
@@ -662,9 +708,30 @@ final class AppSettings {
     }
 
     func regenerateWebhookSecret() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.regenerateWebhookSecret)
+            return
+        }
         webhookSecret = Self.makeSecret()
         try? KeychainStore.setString(webhookSecret, forAccount: Keys.webhookSecretAccount)
         AiboRuntime.shared.syncWebhookServer()
+        notifyPeerPreferencesChanged()
+    }
+
+    private func notifyPanelContentChanged() {
+        if AppProcessRole.isMain {
+            AiboPanelController.shared.refreshContent()
+        }
+        notifyPeerPreferencesChanged()
+    }
+
+    private func notifyPeerPreferencesChanged() {
+        guard !isApplyingRemoteSync else { return }
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendPreferences(syncPreferencesWire())
+        } else {
+            SettingsProcessHost.shared.notifyPreferencesChanged()
+        }
     }
 
     /// Custom agent-capsule fill, or `nil` for the default black/white look.
@@ -790,6 +857,7 @@ final class AppSettings {
         } else {
             UserDefaults.standard.removeObject(forKey: Keys.aiboPositionScreenUUID)
         }
+        notifyPeerPreferencesChanged()
     }
 
     func clearSavedAiboPosition() {
@@ -803,6 +871,7 @@ final class AppSettings {
         UserDefaults.standard.removeObject(forKey: Keys.aiboPositionXPercent)
         UserDefaults.standard.removeObject(forKey: Keys.aiboPositionYPercent)
         UserDefaults.standard.removeObject(forKey: Keys.aiboPositionScreenUUID)
+        notifyPeerPreferencesChanged()
     }
 
     /// Content height saved by the old Settings scene. Frame autosave takes
@@ -863,7 +932,7 @@ final class AppSettings {
     }
 
     /// `String(localized:)` reads the main bundle’s language at process start.
-    private static func relaunchToApplyLanguage() {
+    static func relaunchApplication() {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
         configuration.activates = false

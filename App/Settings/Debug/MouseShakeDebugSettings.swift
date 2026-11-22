@@ -11,12 +11,25 @@ final class MouseShakeDebugSettings {
 
     private static let defaultsKey = "debug.mouseShake.config"
 
+    @ObservationIgnored private var isApplyingRemoteSync = false
+
     var config: MouseShakeConfig {
-        didSet { persist() }
+        didSet {
+            persist()
+            if AppProcessRole.isSettings, !isApplyingRemoteSync {
+                SettingsProcessClient.shared.sendCommand(.debugMouseShakeConfigChanged(config))
+            }
+        }
     }
 
     private init() {
         config = Self.load() ?? MouseShakeConfig()
+    }
+
+    func applyRemoteConfig(_ config: MouseShakeConfig) {
+        isApplyingRemoteSync = true
+        defer { isApplyingRemoteSync = false }
+        self.config = config
     }
 
     func reset() {

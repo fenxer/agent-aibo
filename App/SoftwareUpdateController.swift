@@ -1,3 +1,4 @@
+import AiboCore
 import AppKit
 import Sparkle
 
@@ -57,7 +58,18 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
         }
     }
 
+    func applyMirroredSnapshot(_ snapshot: SettingsMainSnapshot) {
+        hasUpdateFeed = snapshot.hasUpdateFeed
+        canCheckForUpdates = snapshot.canCheckForUpdates
+        automaticallyChecksForUpdates = snapshot.automaticallyChecksForUpdates
+        availableUpdateDisplayVersion = snapshot.availableUpdateDisplayVersion
+    }
+
     func checkForUpdates() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.checkForUpdates)
+            return
+        }
         #if DEBUG
         if debugPreviewActive {
             if availableUpdateDisplayVersion != nil {
@@ -75,6 +87,10 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
     #if DEBUG
     /// Development: stand-in “update available” dialog and About hint.
     func debugShowAvailableUpdate() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.debugShowAvailableUpdate)
+            return
+        }
         debugPreviewActive = true
         hasUpdateFeed = true
         availableUpdateDisplayVersion = "9.9.9"
@@ -83,6 +99,10 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
 
     /// Development: stand-in “you’re up to date” dialog.
     func debugShowUpToDate() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.debugShowUpToDate)
+            return
+        }
         debugPreviewActive = true
         hasUpdateFeed = true
         availableUpdateDisplayVersion = nil
@@ -91,6 +111,10 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
 
     /// Development: drop the fake About hint.
     func debugClearPreview() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.debugClearUpdatePreview)
+            return
+        }
         debugPreviewActive = false
         hasUpdateFeed = (Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String)?
             .isEmpty == false
@@ -101,6 +125,10 @@ final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate, SPUStandardU
 
     func setAutomaticallyChecksForUpdates(_ enabled: Bool) {
         automaticallyChecksForUpdates = enabled
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.setAutomaticallyChecksForUpdates(enabled))
+            return
+        }
         updaterController?.updater.automaticallyChecksForUpdates = enabled
     }
 

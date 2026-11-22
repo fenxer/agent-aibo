@@ -1,14 +1,27 @@
+import AiboCore
 import AiboIngest
 import SwiftUI
 
 @main
+enum AiboMain {
+    static func main() {
+        AppProcessRole.bootstrapFromCommandLine()
+        // AppleLanguages only — constructing AppSettings here crashes:
+        // `NSApp` is still nil, and `applyAppearance` unwraps it.
+        AppSettings.applyStoredLanguageAtLaunch()
+        switch AppProcessRole.current {
+        case .main:
+            aiboApp.main()
+        case .settings:
+            SettingsProcessApp.main()
+        }
+    }
+}
+
 struct aiboApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
-        // AppleLanguages only — constructing AppSettings here crashes:
-        // `NSApp` is still nil, and `applyAppearance` unwraps it.
-        AppSettings.applyStoredLanguageAtLaunch()
         _ = AiboIngest.moduleName
     }
 

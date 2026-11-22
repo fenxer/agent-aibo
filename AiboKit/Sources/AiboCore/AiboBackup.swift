@@ -294,7 +294,7 @@ public struct AiboBackupPlaytimeFile: Codable, Equatable, Sendable {
     }
 }
 
-public enum AiboBackupPlaytimeMode: Sendable, Equatable, Hashable {
+public enum AiboBackupPlaytimeMode: String, Codable, Sendable, Equatable, Hashable {
     /// Same aibo, same local day: add the seconds. Lifetime becomes the sum of the merged days.
     case add
     /// The backup's ledger replaces this Mac's ledger.

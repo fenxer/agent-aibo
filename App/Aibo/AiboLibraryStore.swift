@@ -80,10 +80,59 @@ final class AiboLibraryStore {
     }
 
     private init() {
-        AiboPaths.migrateLegacyLibraryDirectoryIfNeeded()
+        if AppProcessRole.isMain {
+            AiboPaths.migrateLegacyLibraryDirectoryIfNeeded()
+        }
         reloadFromDisk()
-        migrateGlobalBubbleLayoutIfNeeded()
-        migrateGlobalAiboScaleIfNeeded()
+        if AppProcessRole.isMain {
+            migrateGlobalBubbleLayoutIfNeeded()
+            migrateGlobalAiboScaleIfNeeded()
+            let selected = selectedRecord
+            Task { await convertPetdexClipsIfNeeded(selected) }
+        }
+    }
+
+    /// Settings process: reloads library state written by the main process.
+    func reloadFromRemoteDiskChange() {
+        let previousSelected = selectedID
+        reloadFromDisk()
+        if previousSelected != selectedID {
+            AiboSpriteCache.shared.invalidateRecord(selectedID)
+        }
+    }
+
+    /// Main process: adopts a pet installed and saved to disk by the settings process.
+    func adoptInstalledRecordFromSettingsProcess(id: String) {
+        let fromID = selectedID
+        let fromRecord = selectedRecord
+        let backing = AiboPanelController.shared.spriteBackingScale
+        let fromDesktopSize = AiboSpriteDisplay.desktopSize(
+            for: fromRecord,
+            nominal: AiboSpriteDisplay.basePointSize * CGFloat(fromRecord.scalePercent / 100),
+            backingScale: backing
+        )
+
+        reloadFromDisk()
+
+        if let installed = records.first(where: { $0.id == id }) {
+            PlaytimeStore.shared.noteInstalled(installed)
+        }
+        if fromID != selectedID {
+            let toRecord = selectedRecord
+            let toDesktopSize = AiboSpriteDisplay.desktopSize(
+                for: toRecord,
+                nominal: AiboSpriteDisplay.basePointSize * CGFloat(toRecord.scalePercent / 100),
+                backingScale: backing
+            )
+            AiboSwitchSignal.shared.emit(
+                from: fromID,
+                to: selectedID,
+                fromDesktopSize: fromDesktopSize,
+                toDesktopSize: toDesktopSize
+            )
+        }
+        notifyAppearanceChanged()
+        PlaytimeStore.shared.noteSelected()
         let selected = selectedRecord
         Task { await convertPetdexClipsIfNeeded(selected) }
     }
@@ -107,10 +156,12 @@ final class AiboLibraryStore {
     func adoptImportedLibrary() {
         reloadFromDisk()
         AiboSpriteCache.shared.invalidate(keeping: [])
+        guard AppProcessRole.isMain else { return }
         AiboPanelController.shared.updateHitTestImage()
         if !AiboSwitchSignal.shared.locksDesktopSize {
             AiboPanelController.shared.refreshContent()
         }
+        SettingsProcessHost.shared.notifyLibraryChanged()
         let selected = selectedRecord
         Task { await convertPetdexClipsIfNeeded(selected) }
     }
@@ -122,8 +173,13 @@ final class AiboLibraryStore {
         if selectedID == AiboLibraryDefaults.builtInID {
             persistedBuiltInRecord.bubblePlacement = placement
         }
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendLibrary(.setBubblePlacement(placement: placement))
+            return
+        }
         persist()
         AiboPanelController.shared.refreshContent()
+        SettingsProcessHost.shared.notifyLibraryChanged()
     }
 
     func setBubbleDistance(_ distance: Double) {
@@ -133,6 +189,10 @@ final class AiboLibraryStore {
         records[index].bubbleDistance = clamped
         if selectedID == AiboLibraryDefaults.builtInID {
             persistedBuiltInRecord.bubbleDistance = clamped
+        }
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendLibrary(.setBubbleDistance(distance: clamped))
+            return
         }
         persist()
         refreshPanelGeometryAfterMetricChange()
@@ -152,6 +212,10 @@ final class AiboLibraryStore {
         records[index].scalePercent = adjusted
         if selectedID == AiboLibraryDefaults.builtInID {
             persistedBuiltInRecord.scalePercent = adjusted
+        }
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendLibrary(.setScalePercent(percent: adjusted))
+            return
         }
         persist()
         AiboPanelController.shared.updateHitTestImage()
@@ -177,11 +241,16 @@ final class AiboLibraryStore {
             persistedBuiltInRecord.pixelOptimizationEnabled = records[index].pixelOptimizationEnabled
             persistedBuiltInRecord.scalePercent = records[index].scalePercent
         }
-        persist()
         AiboSpriteCache.shared.invalidateRecord(selectedID)
         AiboAppearance.invalidateDominantColorCache()
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendLibrary(.setPixelOptimization(enabled: enabled))
+            return
+        }
+        persist()
         AiboPanelController.shared.updateHitTestImage()
         AiboPanelController.shared.refreshContent()
+        SettingsProcessHost.shared.notifyLibraryChanged()
     }
 
     func captureOnboardingReplaySnapshot() -> OnboardingReplaySnapshot {
@@ -270,6 +339,11 @@ final class AiboLibraryStore {
 
     func select(id: String) {
         guard records.contains(where: { $0.id == id }), id != selectedID else { return }
+        if AppProcessRole.isSettings {
+            selectedID = id
+            SettingsProcessClient.shared.sendLibrary(.select(id: id))
+            return
+        }
         let fromID = selectedID
         let fromRecord = selectedRecord
         let backing = AiboPanelController.shared.spriteBackingScale
@@ -294,6 +368,7 @@ final class AiboLibraryStore {
         persist()
         notifyAppearanceChanged()
         PlaytimeStore.shared.noteSelected()
+        SettingsProcessHost.shared.notifyLibraryChanged()
         Task { await convertPetdexClipsIfNeeded(selectedRecord) }
     }
 
@@ -320,8 +395,13 @@ final class AiboLibraryStore {
         if id == AiboLibraryDefaults.builtInID {
             persistedBuiltInRecord.displayName = name
         }
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendLibrary(.rename(id: id, name: name))
+            return .renamed
+        }
         persist()
         PlaytimeStore.shared.noteRenamed(id: id, to: name)
+        SettingsProcessHost.shared.notifyLibraryChanged()
         return .renamed
     }
 
@@ -467,6 +547,10 @@ final class AiboLibraryStore {
         if !records.contains(where: { $0.id == selectedID }) {
             selectedID = records.first?.id ?? AiboLibraryDefaults.builtInID
         }
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendLibrary(.remove(ids: toRemoveIDs))
+            return
+        }
         for record in toRemove where record.removesOnDiskFiles {
             let absolute = AiboPaths.aibosDirectory.appendingPathComponent(record.relativePath)
             try? FileManager.default.removeItem(at: absolute)
@@ -474,6 +558,7 @@ final class AiboLibraryStore {
         persist()
         notifyAppearanceChanged()
         PlaytimeStore.shared.noteRemoved(ids: Array(removeIDs))
+        SettingsProcessHost.shared.notifyLibraryChanged()
     }
 
     /// Opens this aibo's folder in Finder. Built-in Poli lives in the app bundle and is skipped.
@@ -541,6 +626,12 @@ final class AiboLibraryStore {
     private func commitInstalled(_ record: AiboLibraryRecord) -> AiboLibraryRecord {
         upsert(record)
         let committed = records.first(where: { $0.id == record.id }) ?? record
+        if AppProcessRole.isSettings {
+            selectedID = committed.id
+            persist()
+            SettingsProcessClient.shared.sendLibrary(.reloadAfterDiskImport(installedID: committed.id))
+            return committed
+        }
         PlaytimeStore.shared.noteInstalled(committed)
         if selectedID != committed.id {
             select(id: committed.id)
@@ -548,6 +639,7 @@ final class AiboLibraryStore {
             persist()
             notifyAppearanceChanged()
             PlaytimeStore.shared.noteSelected()
+            SettingsProcessHost.shared.notifyLibraryChanged()
         }
         return committed
     }

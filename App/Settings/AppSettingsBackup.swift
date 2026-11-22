@@ -128,6 +128,92 @@ extension AppSettings {
         languageMode = mode
     }
 
+    func syncPreferencesWire() -> SettingsAppPreferencesWire {
+        SettingsAppPreferencesWire(
+            backup: backupSnapshot(),
+            savedAiboPositionScreenUUID: savedAiboPositionScreenUUID,
+            keystrokeOverlayEnabled: keystrokeOverlayEnabled,
+            keystrokeLingerSeconds: keystrokeLingerSeconds,
+            keystrokeMaxCount: keystrokeMaxCount,
+            webhookSecret: webhookSecret
+        )
+    }
+
+    func applyRemotePreferencesWire(_ wire: SettingsAppPreferencesWire) {
+        isApplyingRemoteSync = true
+        defer { isApplyingRemoteSync = false }
+
+        let backup = wire.backup
+        if let mode = AppThemeMode(rawValue: backup.themeMode) {
+            themeMode = mode
+        }
+        if let mode = AppLanguageMode(rawValue: backup.languageMode) {
+            languageMode = mode
+        }
+        if let style = BubbleGlassStyle(rawValue: backup.bubbleGlassStyle) {
+            bubbleGlassStyle = style
+        }
+        bubbleGlassTint = backup.bubbleGlassTint.map(Self.color(from:))
+        if let style = BubbleGlassStyle(rawValue: backup.cursorBubbleGlassStyle) {
+            cursorBubbleGlassStyle = style
+        }
+        if let style = BubbleGlassStyle(rawValue: backup.codexBubbleGlassStyle) {
+            codexBubbleGlassStyle = style
+        }
+        if let style = BubbleGlassStyle(rawValue: backup.deepseekBubbleGlassStyle) {
+            deepseekBubbleGlassStyle = style
+        }
+        if let style = BubbleGlassStyle(rawValue: backup.antigravityBubbleGlassStyle) {
+            antigravityBubbleGlassStyle = style
+        }
+        cursorBubbleGlassTint = backup.cursorBubbleGlassTint.map(Self.color(from:))
+        codexBubbleGlassTint = backup.codexBubbleGlassTint.map(Self.color(from:))
+        deepseekBubbleGlassTint = backup.deepseekBubbleGlassTint.map(Self.color(from:))
+        antigravityBubbleGlassTint = backup.antigravityBubbleGlassTint.map(Self.color(from:))
+        cursorCapsuleColor = backup.cursorCapsuleColor.map(Self.color(from:))
+        codexCapsuleColor = backup.codexCapsuleColor.map(Self.color(from:))
+        deepseekCapsuleColor = backup.deepseekCapsuleColor.map(Self.color(from:))
+        antigravityCapsuleColor = backup.antigravityCapsuleColor.map(Self.color(from:))
+        codexPlanProgressShaderEnabled = backup.codexPlanProgressShaderEnabled
+        codexPlanProgressShaderPrimary = backup.codexPlanProgressShaderPrimary.map(Self.color(from:))
+        deepseekPlanProgressShaderEnabled = backup.deepseekPlanProgressShaderEnabled
+        deepseekPlanProgressShaderPrimary = backup.deepseekPlanProgressShaderPrimary.map(Self.color(from:))
+        restoreLastAiboPosition = backup.restoreLastAiboPosition
+        hideWhenFullscreen = backup.hideWhenFullscreen
+        disableMouseTracking = backup.disableMouseTracking
+        mouseShakeDodgeEnabled = backup.mouseShakeDodgeEnabled
+        if let x = backup.centerXPercent, let y = backup.centerYPercent {
+            saveAiboCenterRelativePosition(
+                xPercent: x,
+                yPercent: y,
+                screenUUID: wire.savedAiboPositionScreenUUID
+            )
+        } else {
+            clearSavedAiboPosition()
+        }
+        keystrokeOverlayEnabled = wire.keystrokeOverlayEnabled
+        keystrokeLingerSeconds = wire.keystrokeLingerSeconds
+        keystrokeMaxCount = wire.keystrokeMaxCount
+        musicNotesEnabled = backup.musicNotesEnabled
+        if let mode = MusicNotesColorMode(rawValue: backup.musicNotesColorMode) {
+            musicNotesColorMode = mode
+        }
+        musicNotesCustomColor = Self.color(from: backup.musicNotesCustomColor)
+        customMusicNotificationNames = backup.customMusicNotificationNames
+        webhookEnabled = backup.webhookEnabled
+        if backup.webhookPort > 0, backup.webhookPort <= Int(UInt16.max) {
+            webhookPort = UInt16(backup.webhookPort)
+        }
+        if let mode = WebhookDismissMode(rawValue: backup.webhookDismissMode) {
+            webhookDismissMode = mode
+        }
+        webhookAutoDismissSeconds = backup.webhookAutoDismissSeconds
+        publicWebhookURLString = backup.publicWebhookURL
+        if !wire.webhookSecret.isEmpty {
+            webhookSecret = wire.webhookSecret
+        }
+    }
+
     private static func backupColor(_ color: Color?) -> AiboBackupColor? {
         guard let color, let rgb = NSColor(color).usingColorSpace(.sRGB) else { return nil }
         return AiboBackupColor(

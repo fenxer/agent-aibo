@@ -178,7 +178,11 @@ struct DevelopmentSettingsPane: View {
         Section {
             Button {
                 runtime.clearDebugBubble()
-                OnboardingController.shared.replay()
+                if AppProcessRole.isSettings {
+                    SettingsProcessClient.shared.sendCommand(.debugReplayOnboarding)
+                } else {
+                    OnboardingController.shared.replay()
+                }
             } label: {
                 Text(verbatim: "Replay Onboarding")
             }
@@ -193,7 +197,11 @@ struct DevelopmentSettingsPane: View {
     private var launchEntranceSection: some View {
         Section {
             Button {
-                AiboPanelController.shared.replayLaunchPortal()
+                if AppProcessRole.isSettings {
+                    SettingsProcessClient.shared.sendCommand(.debugReplayLaunchPortal)
+                } else {
+                    AiboPanelController.shared.replayLaunchPortal()
+                }
             } label: {
                 Text(verbatim: "Replay Launch Entrance")
             }
@@ -328,8 +336,18 @@ struct DevelopmentSettingsPane: View {
 
     private var hitRegionDebugBinding: Binding<Bool> {
         Binding(
-            get: { AiboPanelController.shared.showHitRegionDebug },
-            set: { AiboPanelController.shared.showHitRegionDebug = $0 }
+            get: {
+                AppProcessRole.isSettings
+                    ? SettingsProcessClient.shared.showHitRegionDebug
+                    : AiboPanelController.shared.showHitRegionDebug
+            },
+            set: { newValue in
+                if AppProcessRole.isSettings {
+                    SettingsProcessClient.shared.setShowHitRegionDebug(newValue)
+                } else {
+                    AiboPanelController.shared.showHitRegionDebug = newValue
+                }
+            }
         )
     }
 

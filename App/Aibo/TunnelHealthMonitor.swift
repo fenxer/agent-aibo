@@ -1,3 +1,4 @@
+import AiboCore
 import AppKit
 import Foundation
 import Network
@@ -81,6 +82,12 @@ final class TunnelHealthMonitor {
 
     /// Coalesce rapid settings edits; path/wake/launch run a bounded recovery series.
     func scheduleCheck(reason: Reason) {
+        if AppProcessRole.isSettings {
+            if reason == .manual {
+                SettingsProcessClient.shared.sendCommand(.scheduleTunnelCheck)
+            }
+            return
+        }
         switch reason {
         case .pathBecameUnsatisfied:
             cancelProbeWork()

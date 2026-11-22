@@ -1,3 +1,4 @@
+import AiboCore
 import AppKit
 import Foundation
 import MediaRemoteAdapter
@@ -104,13 +105,34 @@ final class MusicPlaybackMonitor {
     #if DEBUG
     /// Settings → Development: pretend a player is playing (drives music-note overlay).
     var debugForcePlaying = false {
-        didSet { recomputeIsPlaying() }
+        didSet {
+            if AppProcessRole.isSettings {
+                if !isApplyingRemoteSync {
+                    SettingsProcessClient.shared.sendCommand(.debugSetMusicForcePlaying(debugForcePlaying))
+                }
+                return
+            }
+            recomputeIsPlaying()
+        }
     }
 
     /// Latest MediaRemoteAdapter payload dump (artwork bytes omitted).
     private(set) var debugLastMediaRemoteDump = "(no update yet)"
     private(set) var debugMediaRemoteUpdateCount = 0
     #endif
+
+    @ObservationIgnored private var isApplyingRemoteSync = false
+
+    func applyMirroredSnapshot(_ snapshot: SettingsMainSnapshot) {
+        isApplyingRemoteSync = true
+        defer { isApplyingRemoteSync = false }
+        isPlaying = snapshot.musicIsPlaying
+        #if DEBUG
+        debugForcePlaying = snapshot.musicDebugForcePlaying
+        debugMediaRemoteUpdateCount = snapshot.mediaRemoteUpdateCount
+        debugLastMediaRemoteDump = snapshot.mediaRemoteLastDump
+        #endif
+    }
 
     private var playingSources: Set<String> = [] {
         didSet { recomputeIsPlaying() }
@@ -258,6 +280,10 @@ final class MusicPlaybackMonitor {
     #if DEBUG
     /// One-shot fetch for Development pane (does not require stream restart).
     func debugFetchMediaRemoteOnce() {
+        if AppProcessRole.isSettings {
+            SettingsProcessClient.shared.sendCommand(.debugFetchMediaRemoteOnce)
+            return
+        }
         let controller = mediaController ?? MediaController()
         controller.getTrackInfo { trackInfo in
             Task { @MainActor in
