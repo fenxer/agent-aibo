@@ -2,68 +2,6 @@ import AiboCore
 import AppKit
 import SwiftUI
 
-/// SwiftUI frame of each prompt field, in the panel hosting view (top-left).
-///
-/// Beside a hook bubble the card is drawn outside the anchor view. AppKit
-/// `hitTest` stops at that ancestor, so a click on the glyphs never reaches
-/// the text view and the caret stays where the keyboard left it.
-/// Main-thread only: AppKit hit testing and SwiftUI geometry both run there.
-enum PromptFieldTracker {
-    weak static var host: NSView?
-    private static var tokens: [PromptFieldToken] = []
-
-    static func register(_ token: PromptFieldToken) {
-        guard tokens.contains(where: { $0 === token }) == false else { return }
-        tokens.append(token)
-    }
-
-    static func unregister(_ token: PromptFieldToken) {
-        tokens.removeAll { $0 === token }
-    }
-
-    static func frame(of textView: PromptTextView) -> CGRect? {
-        tokens.first { $0.textView === textView }?.frame
-    }
-
-    static func textView(at point: NSPoint) -> PromptTextView? {
-        for token in tokens.reversed() {
-            guard token.frame.contains(point), let textView = token.textView, textView.window != nil else {
-                continue
-            }
-            // A field in the detached window must not steal clicks aimed at the pet.
-            if let host, textView.window !== host.window { continue }
-            return textView
-        }
-        return nil
-    }
-}
-
-final class PromptFieldToken {
-    weak var textView: PromptTextView?
-    var frame: CGRect = .null
-}
-
-/// `NSHostingView` is flipped, but AppKit hit-tests the embedded field in
-/// bottom-left space. The view it returns is the field mirrored across the
-/// panel, so rows under the well — and the bubble below — receive the text
-/// view. The real well is claimed from its SwiftUI frame before this runs.
-enum PromptFieldHitFilter {
-    static func isMirroredPromptHit(_ hit: NSView, host: NSView, point: NSPoint) -> Bool {
-        guard let scroll = promptScroll(in: hit, host: host) else { return false }
-        let visual = scroll.convert(scroll.bounds, to: host)
-        return visual.insetBy(dx: -2, dy: -2).contains(point) == false
-    }
-
-    private static func promptScroll(in hit: NSView, host: NSView) -> PromptScrollView? {
-        var view: NSView? = hit
-        while let current = view, current !== host {
-            if let scroll = current as? PromptScrollView { return scroll }
-            view = current.superview
-        }
-        return nil
-    }
-}
-
 /// Plain prompt field. TextKit 1 so a click can move the caret; paste is normalized
 /// before it lands, including when the cleaned string matches what is already stored.
 struct ExtensionPromptField: View {
@@ -71,25 +9,9 @@ struct ExtensionPromptField: View {
     var multiline: Bool
     /// Inset inside a well. Off when the field shares a plate, so the text lines up with the label above.
     var inset: Bool = true
-    @State private var token = PromptFieldToken()
-    @Environment(\.extensionBubbleChrome) private var chrome
 
     var body: some View {
-        ExtensionPromptFieldRepresentable(text: $text, multiline: multiline, inset: inset, token: token)
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .named(AiboPanelSpace.name))
-            } action: { frame in
-                guard chrome == .anchored else {
-                    token.frame = .null
-                    PromptFieldTracker.unregister(token)
-                    return
-                }
-                token.frame = frame
-                PromptFieldTracker.register(token)
-            }
-            .onDisappear {
-                PromptFieldTracker.unregister(token)
-            }
+        ExtensionPromptFieldRepresentable(text: $text, multiline: multiline, inset: inset)
     }
 }
 
@@ -97,10 +19,9 @@ private struct ExtensionPromptFieldRepresentable: NSViewRepresentable {
     @Binding var text: String
     var multiline: Bool
     var inset: Bool
-    var token: PromptFieldToken
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, multiline: multiline, token: token)
+        Coordinator(text: $text, multiline: multiline)
     }
 
     func makeNSView(context: Context) -> PromptScrollView {
@@ -137,16 +58,10 @@ private struct ExtensionPromptFieldRepresentable: NSViewRepresentable {
         textView.autoresizingMask = [.width]
         textView.delegate = context.coordinator
         textView.string = text
-        token.textView = textView
 
         scroll.documentView = textView
         context.coordinator.textView = textView
-        PromptFieldTracker.register(token)
         return scroll
-    }
-
-    static func dismantleNSView(_ nsView: PromptScrollView, coordinator: Coordinator) {
-        PromptFieldTracker.unregister(coordinator.token)
     }
 
     func updateNSView(_ scroll: PromptScrollView, context: Context) {
@@ -167,14 +82,12 @@ private struct ExtensionPromptFieldRepresentable: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         var text: Binding<String>
         var multiline: Bool
-        var token: PromptFieldToken
         weak var textView: PromptTextView?
         private var applying = false
 
-        init(text: Binding<String>, multiline: Bool, token: PromptFieldToken) {
+        init(text: Binding<String>, multiline: Bool) {
             self.text = text
             self.multiline = multiline
-            self.token = token
         }
 
         func textView(
@@ -270,102 +183,7 @@ final class PromptScrollView: NSScrollView {
     }
 }
 
-/// Click places the caret from the field's SwiftUI frame. `super.mouseDown` does
-/// not: the hook bubble's tap gesture cancels that selection and leaves the
-/// insertion point at the end. Arrow keys still work because they never enter
-/// that gesture.
 final class PromptTextView: NSTextView {
-    /// Host-point index where the current click began. Drag extends from here.
-    var clickAnchor: Int?
-
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func mouseDown(with event: NSEvent) {
-        (window as? AiboPanel)?.makeKey()
-        window?.makeFirstResponder(self)
-        guard let host = PromptFieldTracker.host else { return }
-        beginClick(atHostPoint: host.convert(event.locationInWindow, from: nil), clickCount: event.clickCount)
-    }
-
-    override func mouseDragged(with event: NSEvent) {
-        guard let host = PromptFieldTracker.host else { return }
-        extendClick(toHostPoint: host.convert(event.locationInWindow, from: nil))
-    }
-
-    func beginClick(atHostPoint point: NSPoint, clickCount: Int) {
-        let index = characterIndex(atHostPoint: point)
-        clickAnchor = index
-        if clickCount >= 2 {
-            let granularity: NSSelectionGranularity = clickCount >= 3 ? .selectByParagraph : .selectByWord
-            let proposed = NSRange(location: min(index, (string as NSString).length), length: 0)
-            let range = selectionRange(forProposedRange: proposed, granularity: granularity)
-            setSelectedRange(range)
-            clickAnchor = range.location
-        } else {
-            setSelectedRange(NSRange(location: index, length: 0))
-        }
-        scrollRangeToVisible(selectedRange())
-    }
-
-    func extendClick(toHostPoint point: NSPoint) {
-        let index = characterIndex(atHostPoint: point)
-        let anchor = clickAnchor ?? index
-        let location = min(anchor, index)
-        setSelectedRange(NSRange(location: location, length: abs(index - anchor)))
-        scrollRangeToVisible(selectedRange())
-    }
-
-    func characterIndex(atHostPoint point: NSPoint) -> Int {
-        let length = (string as NSString).length
-        guard let layoutManager, let container = textContainer else { return length }
-        layoutManager.ensureLayout(for: container)
-        guard var local = pointInTextView(fromHostPoint: point) else { return length }
-        let origin = textContainerOrigin
-        local.x -= origin.x
-        local.y -= origin.y
-        // A click in the empty part of a tall well is below the glyphs. TextKit
-        // then reports the end of the string, so the caret never enters the text.
-        // Keep the horizontal position and pin Y to the nearest laid-out line.
-        let used = layoutManager.usedRect(for: container)
-        if used.width > 1, used.height > 1, local.x >= used.minX, local.x <= used.maxX + 1 {
-            if local.y < used.minY { local.y = used.minY + 0.5 }
-            if local.y > used.maxY { local.y = used.maxY - 0.5 }
-        }
-        var fraction: CGFloat = 0
-        var index = layoutManager.characterIndex(
-            for: local,
-            in: container,
-            fractionOfDistanceBetweenInsertionPoints: &fraction
-        )
-        if index < 0 || index > length {
-            index = length
-        }
-        if fraction >= 0.5, index < length {
-            index += 1
-        }
-        return index
-    }
-
-    /// Point in this text view. Prefer AppKit's own conversion; the SwiftUI
-    /// frame is the fallback when an ancestor clipped the view out of hit testing
-    /// and the view's frame no longer matches where the glyphs were drawn.
-    private func pointInTextView(fromHostPoint point: NSPoint) -> NSPoint? {
-        if let host = PromptFieldTracker.host {
-            let converted = host.convert(point, to: self)
-            if bounds.insetBy(dx: -2, dy: -2).contains(converted) {
-                return converted
-            }
-        }
-        guard let tokenFrame = frameInPanel, tokenFrame.width > 1, tokenFrame.height > 1 else { return nil }
-        let clip = enclosingScrollView?.contentView.bounds.origin ?? .zero
-        return NSPoint(
-            x: min(max(point.x, tokenFrame.minX), tokenFrame.maxX - 1) - tokenFrame.minX + clip.x,
-            y: min(max(point.y, tokenFrame.minY), tokenFrame.maxY - 1) - tokenFrame.minY + clip.y
-        )
-    }
-
-    private var frameInPanel: CGRect? {
-        PromptFieldTracker.frame(of: self)
-    }
 }

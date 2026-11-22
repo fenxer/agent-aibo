@@ -14,25 +14,25 @@ enum ExtensionOutcomeKind: Equatable {
             LocalizedStringResource(
                 "extension-outcome-running",
                 defaultValue: "Running",
-                comment: "Badge on a plugin bubble while the plugin is working."
+                comment: "Badge on a plugin window while the plugin is working."
             )
         case .completed:
             LocalizedStringResource(
                 "extension-outcome-completed",
                 defaultValue: "Completed",
-                comment: "Badge on a plugin bubble after a normal result."
+                comment: "Badge on a plugin window after a normal result."
             )
         case .warning:
             LocalizedStringResource(
                 "extension-outcome-warning",
                 defaultValue: "Warning",
-                comment: "Badge on a plugin bubble for a warning, including a missing dependency."
+                comment: "Badge on a plugin window for a warning, including a missing dependency."
             )
         case .failed:
             LocalizedStringResource(
                 "extension-outcome-failed",
                 defaultValue: "Failed",
-                comment: "Badge on a plugin bubble when the result was not the expected output."
+                comment: "Badge on a plugin window when the result was not the expected output."
             )
         }
     }
@@ -46,17 +46,7 @@ enum ExtensionOutcomeKind: Equatable {
         }
     }
 
-    /// Solid system green, yellow, and red. Running stays a translucent gray.
-    var fill: Color {
-        switch self {
-        case .running: Color.gray.opacity(0.28)
-        case .completed: .green
-        case .warning: .yellow
-        case .failed: .red
-        }
-    }
-
-    /// Same hues as `fill`, opaque so `Glass.tint` can dye the capsule. Running stays clear.
+    /// Opaque hues so `Glass.tint` can dye the capsule. Running stays clear.
     var glassTint: Color? {
         switch self {
         case .running: nil
@@ -90,27 +80,9 @@ struct ExtensionRunningCard: View {
     var icon: ExtensionIcon
     var message: String
 
-    @Environment(\.extensionBubbleChrome) private var chrome
-
     var body: some View {
-        if chrome == .window {
-            stack.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        } else {
-            stack
-        }
-    }
-
-    private var stack: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
             ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: .running)
-            messageWell
-                .padding(.top, chrome == .window ? -ExtensionBubbleMetrics.windowHeaderContentTrim : 0)
-        }
-    }
-
-    @ViewBuilder
-    private var messageWell: some View {
-        if chrome == .window {
             ScrollView {
                 Text(message)
                     .font(.system(size: 14))
@@ -122,28 +94,15 @@ struct ExtensionRunningCard: View {
             .scrollContentBackground(.hidden)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(ExtensionBubbleMetrics.runningWellPadding)
-            .background { well }
-        } else {
-            Text(message)
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(ExtensionBubbleMetrics.runningWellPadding)
-                .background { well }
+            .background {
+                ExtensionWindowContentFill(
+                    topRadius: ExtensionBubbleMetrics.inputCornerRadius,
+                    color: Color(nsColor: .secondarySystemFill)
+                )
+            }
+            .padding(.top, -ExtensionBubbleMetrics.windowHeaderContentTrim)
         }
-    }
-
-    @ViewBuilder
-    private var well: some View {
-        if chrome == .window {
-            ExtensionWindowContentFill(
-                topRadius: ExtensionBubbleMetrics.inputCornerRadius,
-                color: Color(nsColor: .secondarySystemFill)
-            )
-        } else {
-            RoundedRectangle(cornerRadius: ExtensionBubbleMetrics.inputCornerRadius, style: .continuous)
-                .fill(Color(nsColor: .secondarySystemFill))
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -157,50 +116,31 @@ struct ExtensionOutcomeCard: View {
     var onCopy: () -> Void
     var onClose: () -> Void
 
-    @Environment(\.extensionBubbleChrome) private var chrome
-
     var body: some View {
-        if chrome == .window {
-            stack.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        } else {
-            stack
-        }
-    }
-
-    private var stack: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
             ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: kind)
-            if chrome == .window {
-                windowContent
-            } else {
+            VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
                 ExtensionOutcomeBody(text: text)
+                    .padding(ExtensionBubbleMetrics.formPadding)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background {
+                        ExtensionWindowContentFill(
+                            topRadius: ExtensionBubbleMetrics.groupCornerRadius,
+                            color: Color(nsColor: .secondarySystemFill)
+                        )
+                    }
+                    .clipShape(
+                        ConcentricRectangle(
+                            uniformTopCorners: .fixed(ExtensionBubbleMetrics.groupCornerRadius),
+                            uniformBottomCorners: .concentric(
+                                minimum: .fixed(ExtensionBubbleMetrics.groupCornerRadius)
+                            )
+                        )
+                    )
                 ExtensionOutcomeActions(copiesIssue: copiesIssue, onCopy: onCopy, onClose: onClose)
             }
         }
-    }
-
-    /// The result fills the space above the buttons. The platter stops there.
-    private var windowContent: some View {
-        VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
-            ExtensionOutcomeBody(text: text)
-                .padding(ExtensionBubbleMetrics.formPadding)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background {
-                    ExtensionWindowContentFill(
-                        topRadius: ExtensionBubbleMetrics.groupCornerRadius,
-                        color: Color(nsColor: .secondarySystemFill)
-                    )
-                }
-                .clipShape(
-                    ConcentricRectangle(
-                        uniformTopCorners: .fixed(ExtensionBubbleMetrics.groupCornerRadius),
-                        uniformBottomCorners: .concentric(
-                            minimum: .fixed(ExtensionBubbleMetrics.groupCornerRadius)
-                        )
-                    )
-                )
-            ExtensionOutcomeActions(copiesIssue: copiesIssue, onCopy: onCopy, onClose: onClose)
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -215,51 +155,31 @@ struct ExtensionDependencyCard: View {
     var onCopy: () -> Void
     var onClose: () -> Void
 
-    @Environment(\.extensionBubbleChrome) private var chrome
-
     var body: some View {
-        if chrome == .window {
-            stack.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        } else {
-            stack
-        }
-    }
-
-    private var stack: some View {
         VStack(alignment: .leading, spacing: ExtensionBubbleMetrics.pluginHeaderSpacing) {
             ExtensionOutcomeHeader(name: name, directory: directory, icon: icon, kind: .warning)
             Text("Missing Dependency")
                 .font(.system(size: ExtensionBubbleMetrics.fieldFontSize))
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, minHeight: ExtensionBubbleMetrics.dependencyTitleHeight, alignment: .leading)
-                .padding(.top, chrome == .window ? -ExtensionBubbleMetrics.windowHeaderContentTrim : 0)
-            rowList
+                .padding(.top, -ExtensionBubbleMetrics.windowHeaderContentTrim)
+            ScrollView {
+                VStack(spacing: ExtensionBubbleMetrics.dependencyRowSpacing) {
+                    ForEach(rows) { row in
+                        ExtensionDependencyRow(
+                            row: row,
+                            isInstalling: installingID == row.issue.subjectID,
+                            onInstall: { onInstall(row.issue.subjectID) },
+                            onEnabled: { onEnabled($0, row.issue.subjectID) }
+                        )
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             ExtensionOutcomeActions(copiesIssue: true, onCopy: onCopy, onClose: onClose)
         }
-    }
-
-    private var rowStack: some View {
-        VStack(spacing: ExtensionBubbleMetrics.dependencyRowSpacing) {
-            ForEach(rows) { row in
-                ExtensionDependencyRow(
-                    row: row,
-                    isInstalling: installingID == row.issue.subjectID,
-                    onInstall: { onInstall(row.issue.subjectID) },
-                    onEnabled: { onEnabled($0, row.issue.subjectID) }
-                )
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var rowList: some View {
-        if chrome == .window {
-            ScrollView { rowStack }
-                .scrollBounceBehavior(.basedOnSize)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            rowStack
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -268,26 +188,17 @@ private struct ExtensionOutcomeHeader: View {
     var directory: URL?
     var icon: ExtensionIcon
     var kind: ExtensionOutcomeKind
-    var onClose: (() -> Void)?
-
-    @Environment(\.extensionBubbleChrome) private var chrome
 
     var body: some View {
-        HStack(spacing: chrome == .window ? ExtensionBubbleMetrics.windowGlassButtonSpacing : 6) {
+        HStack(spacing: ExtensionBubbleMetrics.windowGlassButtonSpacing) {
             pluginMark
             Spacer(minLength: 8)
-            if chrome == .window {
-                ExtensionOutcomeBadge(kind: kind, showsFill: false)
-                    .modifier(ExtensionWindowGlassButton(tint: kind.glassTint))
-                ExtensionBubbleCornerButton()
-                    .modifier(ExtensionWindowGlassButton())
-            } else {
-                ExtensionOutcomeBadge(kind: kind)
-                closeButton
-                ExtensionBubbleCornerButton()
-            }
+            ExtensionOutcomeBadge(kind: kind)
+                .modifier(ExtensionWindowGlassButton(tint: kind.glassTint))
+            ExtensionBubbleCornerButton()
+                .modifier(ExtensionWindowGlassButton())
         }
-        .modifier(ExtensionWindowTitleBand(enabled: chrome == .window))
+        .modifier(ExtensionWindowTitleBand())
     }
 
     private var pluginMark: some View {
@@ -305,19 +216,10 @@ private struct ExtensionOutcomeHeader: View {
                 .lineLimit(1)
         }
     }
-
-    @ViewBuilder
-    private var closeButton: some View {
-        if let onClose {
-            ExtensionBubbleCloseButton(action: onClose)
-        }
-    }
 }
 
 private struct ExtensionOutcomeBadge: View {
     var kind: ExtensionOutcomeKind
-    /// Window chrome tints the glass instead of painting this fill.
-    var showsFill: Bool = true
 
     var body: some View {
         HStack(spacing: 4) {
@@ -331,11 +233,6 @@ private struct ExtensionOutcomeBadge: View {
         .padding(.trailing, 6)
         .frame(height: ExtensionBubbleMetrics.pluginHeaderHeight)
         .fixedSize(horizontal: true, vertical: false)
-        .background {
-            if showsFill {
-                Capsule().fill(kind.fill)
-            }
-        }
     }
 
     @ViewBuilder
@@ -355,20 +252,7 @@ private struct ExtensionOutcomeBadge: View {
 private struct ExtensionOutcomeBody: View {
     var text: String
 
-    @Environment(\.extensionBubbleChrome) private var chrome
-
     var body: some View {
-        if chrome == .window {
-            textScroll
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .frame(minHeight: 36)
-        } else {
-            textScroll
-                .frame(height: ExtensionBubbleMetrics.textBlockHeight(text))
-        }
-    }
-
-    private var textScroll: some View {
         ScrollView {
             Text(text)
                 .font(.system(size: 14))
@@ -377,87 +261,9 @@ private struct ExtensionOutcomeBody: View {
                 .textSelection(.enabled)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .scrollContentBackground(chrome == .window ? .hidden : .automatic)
-    }
-}
-
-/// Copy / Close on a finished card. The panel is not allowed to become key, so
-/// SwiftUI's button asks `_NSGlassEffectWindow` to become key, that window
-/// returns NO, and AppKit drops the click before the button can draw its
-/// pressed bezel. A hook bubble under the card also wins the gesture. The
-/// panel tracks the press from this frame, darkens the button while the
-/// pointer is down, and runs the action on release.
-@Observable
-final class ExtensionOutcomeActionToken {
-    @ObservationIgnored var frame: CGRect = .null
-    @ObservationIgnored var perform: @MainActor () -> Void = {}
-    var pressed = false
-}
-
-enum ExtensionOutcomeActionTracker {
-    private static var tokens: [ExtensionOutcomeActionToken] = []
-    private static var armed: ExtensionOutcomeActionToken?
-    /// Bumps on each new press so a late outside mouse-up cannot clear the next one.
-    private(set) static var generation = 0
-
-    static func register(_ token: ExtensionOutcomeActionToken) {
-        guard tokens.contains(where: { $0 === token }) == false else { return }
-        tokens.append(token)
-    }
-
-    static func unregister(_ token: ExtensionOutcomeActionToken) {
-        if armed === token {
-            armed = nil
-        }
-        tokens.removeAll { $0 === token }
-    }
-
-    /// Drop a press whose mouse-up never arrived. Does not run the action.
-    @MainActor
-    static func cancelPress() {
-        generation += 1
-        armed?.pressed = false
-        armed = nil
-    }
-
-    @MainActor
-    static func beginPress(at point: NSPoint) -> Bool {
-        guard let token = tokens.reversed().first(where: { $0.frame.contains(point) }) else {
-            return false
-        }
-        generation += 1
-        if armed !== token {
-            armed?.pressed = false
-            armed = token
-        }
-        token.pressed = true
-        return true
-    }
-
-    /// Keeps the darker bezel only while the pointer is still inside the button.
-    @MainActor
-    static func dragPress(at point: NSPoint?, matching generation: Int? = nil) -> Bool {
-        if let generation, generation != self.generation { return false }
-        guard let armed else { return false }
-        let inside = point.map { armed.frame.contains($0) } ?? false
-        if armed.pressed != inside {
-            armed.pressed = inside
-        }
-        return true
-    }
-
-    /// Releases the bezel. Runs the action only when the pointer is still inside.
-    @MainActor
-    static func endPress(at point: NSPoint?, matching generation: Int? = nil) -> Bool {
-        if let generation, generation != self.generation { return false }
-        guard let token = armed else { return false }
-        armed = nil
-        let inside = point.map { token.frame.contains($0) } ?? false
-        token.pressed = false
-        if inside {
-            token.perform()
-        }
-        return true
+        .scrollContentBackground(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(minHeight: 36)
     }
 }
 
@@ -469,77 +275,17 @@ private struct ExtensionOutcomeActions: View {
     var body: some View {
         HStack(spacing: 8) {
             if copiesIssue {
-                ExtensionOutcomeActionButton(title: "Copy Issue", prominent: true, action: onCopy)
+                Button("Copy Issue", action: onCopy)
+                    .buttonStyle(.borderedProminent)
             } else {
-                ExtensionOutcomeActionButton(title: "Copy", prominent: true, action: onCopy)
+                Button("Copy", action: onCopy)
+                    .buttonStyle(.borderedProminent)
             }
-            ExtensionOutcomeActionButton(title: "Close", prominent: false, action: onClose)
+            Button("Close", action: onClose)
+                .buttonStyle(.bordered)
         }
         .controlSize(.extraLarge)
         .frame(height: ExtensionBubbleMetrics.buttonRowHeight, alignment: .leading)
-    }
-}
-
-/// Anchored result buttons. The detached window can become key, so it keeps the
-/// system button and does not register a frame.
-private struct ExtensionOutcomeActionButton: View {
-    var title: LocalizedStringKey
-    var prominent: Bool
-    var action: () -> Void
-
-    @Environment(\.extensionBubbleChrome) private var chrome
-    @State private var token = ExtensionOutcomeActionToken()
-
-    var body: some View {
-        button
-            .modifier(OutcomePressTint(on: chrome == .anchored && token.pressed))
-            .animation(nil, value: token.pressed)
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .named(AiboPanelSpace.name))
-            } action: { frame in
-                guard chrome == .anchored else {
-                    token.frame = .null
-                    token.pressed = false
-                    ExtensionOutcomeActionTracker.unregister(token)
-                    return
-                }
-                guard frame.width > 8, frame.height > 8, frame.width < 280, frame.height < 64 else {
-                    token.frame = .null
-                    return
-                }
-                token.frame = frame.insetBy(dx: -2, dy: -2)
-                token.perform = action
-                ExtensionOutcomeActionTracker.register(token)
-            }
-            .onDisappear {
-                ExtensionOutcomeActionTracker.unregister(token)
-            }
-    }
-
-    @ViewBuilder
-    private var button: some View {
-        if prominent {
-            Button(title, action: action)
-                .buttonStyle(.borderedProminent)
-        } else {
-            Button(title, action: action)
-                .buttonStyle(.bordered)
-        }
-    }
-}
-
-/// System bordered buttons darken while held. The anchored card never becomes
-/// key, so that bezel never paints. Multiply the whole control instead; black
-/// title text stays black. Off leaves the button untouched.
-private struct OutcomePressTint: ViewModifier {
-    var on: Bool
-
-    func body(content: Content) -> some View {
-        if on {
-            content.colorMultiply(Color(white: 0.84))
-        } else {
-            content
-        }
     }
 }
 
@@ -598,83 +344,19 @@ private struct ExtensionDependencyRow: View {
             .controlSize(.small)
             .disabled(isInstalling)
         case .enable:
-            ExtensionEnableSwitch(isOn: row.enabled, onChange: onEnabled)
+            Toggle(
+                "Turn On",
+                isOn: Binding(
+                    get: { row.enabled },
+                    set: { onEnabled($0) }
+                )
+            )
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .fixedSize()
         case .unavailable:
             EmptyView()
-        }
-    }
-}
-
-/// Switch frame in the pet panel, top-left, same space as prompt fields.
-///
-/// A click on this control asks the bubble's `_NSGlassEffectWindow` to become
-/// key. That window refuses, and AppKit drops the click, so the switch never
-/// toggles. The panel's mouse monitor turns the dependency on and swallows
-/// the event before it reaches the glass window.
-final class ExtensionEnableSwitchToken {
-    var frame: CGRect = .null
-    var turnOn: @MainActor () -> Void = {}
-}
-
-enum ExtensionEnableSwitchTracker {
-    private static var tokens: [ExtensionEnableSwitchToken] = []
-
-    static func register(_ token: ExtensionEnableSwitchToken) {
-        guard tokens.contains(where: { $0 === token }) == false else { return }
-        tokens.append(token)
-    }
-
-    static func unregister(_ token: ExtensionEnableSwitchToken) {
-        tokens.removeAll { $0 === token }
-    }
-
-    @MainActor
-    static func turnOn(at point: NSPoint) -> Bool {
-        for token in tokens.reversed() where token.frame.contains(point) {
-            token.turnOn()
-            return true
-        }
-        return false
-    }
-}
-
-/// Small system switch. The pet panel enables the dependency itself.
-private struct ExtensionEnableSwitch: View {
-    var isOn: Bool
-    var onChange: (Bool) -> Void
-    @State private var token = ExtensionEnableSwitchToken()
-    @Environment(\.extensionBubbleChrome) private var chrome
-
-    var body: some View {
-        Toggle(
-            "Turn On",
-            isOn: Binding(
-                get: { isOn },
-                set: { onChange($0) }
-            )
-        )
-        .labelsHidden()
-        .toggleStyle(.switch)
-        .controlSize(.small)
-        .fixedSize()
-        .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .named(AiboPanelSpace.name))
-        } action: { frame in
-            guard chrome == .anchored else {
-                token.frame = .null
-                ExtensionEnableSwitchTracker.unregister(token)
-                return
-            }
-            guard frame.width > 8, frame.height > 8, frame.width < 80, frame.height < 48 else {
-                token.frame = .null
-                return
-            }
-            token.frame = frame.insetBy(dx: -4, dy: -4)
-            token.turnOn = { onChange(true) }
-            ExtensionEnableSwitchTracker.register(token)
-        }
-        .onDisappear {
-            ExtensionEnableSwitchTracker.unregister(token)
         }
     }
 }

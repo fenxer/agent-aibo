@@ -2,19 +2,10 @@ import AiboCore
 import AppKit
 import SwiftUI
 
-enum ExtensionBubbleChrome: Equatable {
-    /// Card beside the pet.
-    case anchored
-    /// The same card in its own window.
-    case window
-}
-
 extension EnvironmentValues {
-    @Entry var extensionBubbleChrome: ExtensionBubbleChrome = .anchored
-    /// Set by the detached prompt so multiline wells absorb extra window height.
-    /// Nil keeps the bubble's fixed well.
+    /// Set by the prompt window so multiline wells absorb extra window height.
     @Entry var extensionTextWellHeight: CGFloat? = nil
-    /// Plugin icon's x from the window edge, after the traffic lights. Zero on the bubble.
+    /// Plugin icon's x from the window edge, after the traffic lights.
     @Entry var extensionWindowHeaderLeading: CGFloat = 0
 }
 
@@ -37,88 +28,27 @@ struct ExtensionWindowGlassButton: ViewModifier {
     }
 }
 
-/// 52pt band on the detached window. The bubble keeps the 24pt header.
+/// 52pt title band on the plugin window.
 struct ExtensionWindowTitleBand: ViewModifier {
-    var enabled: Bool
-
     @Environment(\.extensionWindowHeaderLeading) private var leading
 
     func body(content: Content) -> some View {
-        if enabled {
-            content
-                .padding(.horizontal, -ExtensionBubbleMetrics.formPadding)
-                .padding(.leading, leading)
-                .padding(.trailing, ExtensionBubbleMetrics.windowHeaderTrailing)
-                .frame(maxWidth: .infinity)
-                .frame(height: ExtensionBubbleMetrics.windowHeaderBand, alignment: .center)
-        } else {
-            content.frame(height: ExtensionBubbleMetrics.pluginHeaderHeight, alignment: .leading)
-        }
+        content
+            .padding(.horizontal, -ExtensionBubbleMetrics.formPadding)
+            .padding(.leading, leading)
+            .padding(.trailing, ExtensionBubbleMetrics.windowHeaderTrailing)
+            .frame(maxWidth: .infinity)
+            .frame(height: ExtensionBubbleMetrics.windowHeaderBand, alignment: .center)
     }
 }
 
-/// Header close control. The glyph stays 11pt; the hit target fills the 24pt header row.
-struct ExtensionBubbleCloseButton: View {
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 16, height: 16)
-                .frame(
-                    width: ExtensionBubbleMetrics.cornerButtonSide,
-                    height: ExtensionBubbleMetrics.cornerButtonSide,
-                    alignment: .trailing
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Text("Close"))
-    }
-}
-
-/// Corner control drawn on the pet. A finished card does not make the panel key,
-/// and the result text is hit-tested over this glyph, so the plain button never
-/// runs. The panel opens the window from this frame instead.
-final class ExtensionBubbleCornerToken {
-    var frame: CGRect = .null
-    var perform: @MainActor () -> Void = {}
-}
-
-enum ExtensionBubbleCornerTracker {
-    private static var tokens: [ExtensionBubbleCornerToken] = []
-
-    static func register(_ token: ExtensionBubbleCornerToken) {
-        guard tokens.contains(where: { $0 === token }) == false else { return }
-        tokens.append(token)
-    }
-
-    static func unregister(_ token: ExtensionBubbleCornerToken) {
-        tokens.removeAll { $0 === token }
-    }
-
-    @MainActor
-    static func perform(at point: NSPoint) -> Bool {
-        for token in tokens.reversed() where token.frame.contains(point) {
-            token.perform()
-            return true
-        }
-        return false
-    }
-}
-
-/// 24×24 corner control. The bubble opens a window; the window pins itself above other apps.
+/// 24×24 corner control that pins this specific plugin window above other apps.
 struct ExtensionBubbleCornerButton: View {
-    @Environment(\.extensionBubbleChrome) private var chrome
-    @State private var token = ExtensionBubbleCornerToken()
-
-    private var window = ExtensionBubbleWindowController.shared
+    @Environment(ExtensionWindowInstance.self) private var windowInstance
 
     var body: some View {
-        Button(action: perform) {
-            Image(systemName: symbolName)
+        Button(action: windowInstance.togglePinned) {
+            Image(systemName: windowInstance.isPinned ? "pin.fill" : "pin.slash.fill")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .frame(
@@ -131,103 +61,62 @@ struct ExtensionBubbleCornerButton: View {
         .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel(Text(help))
-        .onGeometryChange(for: CGRect.self) { proxy in
-            proxy.frame(in: .named(AiboPanelSpace.name))
-        } action: { frame in
-            guard chrome == .anchored else {
-                token.frame = .null
-                ExtensionBubbleCornerTracker.unregister(token)
-                return
-            }
-            guard frame.width > 8, frame.height > 8, frame.width < 48, frame.height < 48 else {
-                token.frame = .null
-                return
-            }
-            token.frame = frame
-            token.perform = { window.detach() }
-            ExtensionBubbleCornerTracker.register(token)
-        }
-        .onDisappear {
-            ExtensionBubbleCornerTracker.unregister(token)
-        }
-    }
-
-    private var symbolName: String {
-        switch chrome {
-        case .anchored:
-            "arrow.up.right.square.fill"
-        case .window:
-            window.isPinned ? "pin.fill" : "pin.slash.fill"
-        }
     }
 
     private var help: String {
-        switch chrome {
-        case .anchored:
+        if windowInstance.isPinned {
             String(
-                localized: "Open in Window",
-                comment: "Button on a plugin bubble that opens the card in its own window."
+                localized: "Stop Keeping on Top",
+                comment: "Button that lets the plugin window go behind other windows."
             )
-        case .window:
-            if window.isPinned {
-                String(
-                    localized: "Stop Keeping on Top",
-                    comment: "Button that lets the plugin window go behind other windows."
-                )
-            } else {
-                String(
-                    localized: "Keep on Top",
-                    comment: "Button that keeps the plugin window above other windows."
-                )
-            }
-        }
-    }
-
-    private func perform() {
-        switch chrome {
-        case .anchored:
-            window.detach()
-        case .window:
-            window.togglePinned()
+        } else {
+            String(
+                localized: "Keep on Top",
+                comment: "Button that keeps the plugin window above other windows."
+            )
         }
     }
 }
 
 struct ExtensionBubbleWindowView: View {
+    var instance: ExtensionWindowInstance
     private var center = ExtensionCenter.shared
-    private var windowModel = ExtensionBubbleWindowController.shared
 
     var body: some View {
-        ExtensionBubbleColumn(placement: .bottom, showsArrow: false, center: center)
-            .environment(\.extensionBubbleChrome, .window)
-            .environment(\.extensionWindowHeaderLeading, headerLeading)
-            .ignoresSafeArea(edges: .top)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .containerShape(ExtensionWindowShape.shape)
-            .background(ExtensionWindowGlass.scrim)
-            .background { ExtensionWindowGlassBackdrop() }
-            .clipShape(
-                RoundedRectangle(
-                    cornerRadius: ExtensionBubbleMetrics.windowCornerRadius,
-                    style: .continuous
-                )
-            )
-            .ignoresSafeArea()
-            .background {
-                Button(action: { center.cancelSession() }) {
-                    EmptyView()
-                }
-                .keyboardShortcut("w", modifiers: .command)
-                .buttonStyle(.plain)
-                .labelsHidden()
-                .accessibilityHidden(true)
-                .frame(width: 0, height: 0)
+        Group {
+            if let presentation = center.presentation(for: instance.id) {
+                ExtensionBubbleColumn(presentation: presentation, center: center)
             }
+        }
+        .environment(instance)
+        .environment(\.extensionWindowHeaderLeading, headerLeading)
+        .ignoresSafeArea(edges: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .containerShape(ExtensionWindowShape.shape)
+        .background(ExtensionWindowGlass.scrim)
+        .background { ExtensionWindowGlassBackdrop() }
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: ExtensionBubbleMetrics.windowCornerRadius,
+                style: .continuous
+            )
+        )
+        .ignoresSafeArea()
+        .background {
+            Button(action: { center.closeWindow(id: instance.id) }) {
+                EmptyView()
+            }
+            .keyboardShortcut("w", modifiers: .command)
+            .buttonStyle(.plain)
+            .labelsHidden()
+            .accessibilityHidden(true)
+            .frame(width: 0, height: 0)
+        }
     }
 
     /// Icon starts just after the zoom button. The title band cancels the card's own inset.
     private var headerLeading: CGFloat {
-        windowModel.trafficLightTrailing + ExtensionBubbleMetrics.windowControlGap
+        instance.trafficLightTrailing + ExtensionBubbleMetrics.windowControlGap
     }
 }
 
@@ -239,7 +128,7 @@ enum ExtensionWindowShape {
     )
 }
 
-/// Gray content platter in the detached window.
+/// Gray content platter in the plugin window.
 /// Top corners stay a fixed radius; they sit under the title band, away from the window.
 /// Bottom corners are concentric with the window, so they share its corner center.
 struct ExtensionWindowContentFill: View {
@@ -280,113 +169,50 @@ private struct ExtensionWindowGlassBackdrop: NSViewRepresentable {
     }
 }
 
-/// One plugin window for the current session. Frame comes from AppKit's autosave;
-/// pin state is our own default because autosave does not store window level.
+/// Per-window state so each open plugin window owns its own pin toggle,
+/// traffic-light alignment, and frame tracking independently.
 @MainActor
 @Observable
-final class ExtensionBubbleWindowController {
-    static let shared = ExtensionBubbleWindowController()
-
-    private(set) var isDetached = false
-    /// `pin.fill` while the window stays above normal windows.
-    private(set) var isPinned: Bool
+final class ExtensionWindowInstance {
+    let id: UUID
+    /// `pin.fill` while this window stays above normal windows. Defaults to pinned.
+    private(set) var isPinned = true
     /// Trailing edge of the zoom button after it has been seated, in the content view.
     private(set) var trafficLightTrailing: CGFloat = 80
 
-    private var isSeatingTrafficLights = false
-    private var trafficLightObserver: NSObjectProtocol?
+    @ObservationIgnored var window: ExtensionBubbleWindow?
+    @ObservationIgnored var delegate: ExtensionBubbleWindowDelegate?
+    @ObservationIgnored var trafficLightObserver: NSObjectProtocol?
+    @ObservationIgnored var isSeatingTrafficLights = false
+    @ObservationIgnored var isPositioningProgrammatically = false
+    @ObservationIgnored var hasSavedUserFrame = false
+    @ObservationIgnored var activeFrameAutosaveName: String?
 
-    private var window: ExtensionBubbleWindow?
-    private let windowDelegate = ExtensionBubbleWindowDelegate()
-
-    private enum Keys {
-        static let pinned = "extensionBubbleWindow.pinned"
-    }
-
-    private init() {
-        let defaults = UserDefaults.standard
-        if defaults.object(forKey: Keys.pinned) == nil {
-            // The card was floating with the pet. Stay above other apps until the user unpins.
-            isPinned = true
-        } else {
-            isPinned = defaults.bool(forKey: Keys.pinned)
-        }
-    }
-
-    func detach() {
-        guard ExtensionCenter.shared.session != nil else { return }
-        if isDetached, window?.isVisible == true {
-            present()
-            return
-        }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            isDetached = true
-        }
-        present()
-        // No poof on the pet: drop the card slot on the next turn so hit rects
-        // match the layout without the plugin.
-        AiboPanelController.shared.notePluginWindowDetached()
-        AiboPanelController.shared.updateOnboardingKeyWindow()
+    init(id: UUID) {
+        self.id = id
     }
 
     func togglePinned() {
         isPinned.toggle()
-        UserDefaults.standard.set(isPinned, forKey: Keys.pinned)
-        if let window {
-            applyLevel(to: window)
+        applyLevel()
+    }
+
+    func applyLevel() {
+        guard let window else { return }
+        if isPinned {
+            window.level = .floating
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        } else {
+            window.level = .normal
+            window.collectionBehavior = [.managed, .fullScreenAuxiliary]
         }
     }
 
-    /// Hide without ending the session. `cancelSession` clears the session first.
-    func dismiss() {
-        isDetached = false
-        window?.orderOut(nil)
-    }
-
-    private func present() {
-        let window = ensureWindow()
-        window.title = ExtensionCenter.shared.session?.pluginName ?? ""
-        let clamped = clampToVisible(window.frame)
-        if !framesMatch(window.frame, clamped) {
-            window.setFrame(clamped, display: false)
-        }
-        applyLevel(to: window)
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-        seatTrafficLights()
-    }
-
-    private func ensureWindow() -> ExtensionBubbleWindow {
-        if let window { return window }
-        let window = ExtensionBubbleWindow(contentRect: initialFrame())
-        window.delegate = windowDelegate
-        installContent(in: window)
-        let minimum = ExtensionBubbleMetrics.windowMinimumSize
-        window.contentMinSize = minimum
-        window.minSize = minimum
-        // Restores the last origin and size when this name was saved before.
-        if window.setFrameAutosaveName("aibo.pluginBubbleWindow") {
-            window.setFrame(clampToVisible(window.frame), display: false)
-        }
-        applyLevel(to: window)
-        watchTrafficLights(on: window)
-        self.window = window
-        return window
-    }
-
-    /// NSHostingView must not be the content view. As contentView it rewrites
-    /// contentMinSize / contentMaxSize from transient SwiftUI metrics and can
-    /// collapse the window the same way it collapsed the pet panel.
-    private func installContent(in window: ExtensionBubbleWindow) {
-        let root = NSView(frame: NSRect(origin: .zero, size: window.frame.size))
-        let hosting = ExtensionBubbleHostingView(rootView: ExtensionBubbleWindowView())
-        hosting.sizingOptions = []
-        hosting.frame = root.bounds
-        hosting.autoresizingMask = [.width, .height]
-        root.addSubview(hosting)
-        window.contentView = root
+    func performProgrammaticFrameUpdate(_ body: () -> Void) {
+        let previous = isPositioningProgrammatically
+        isPositioningProgrammatically = true
+        defer { isPositioningProgrammatically = previous }
+        body()
     }
 
     /// AppKit's titlebar is shorter than the drawn band, so the lights are pushed to its
@@ -416,20 +242,30 @@ final class ExtensionBubbleWindowController {
         syncTrafficLightInsets()
     }
 
-    private func watchTrafficLights(on window: NSWindow) {
-        guard trafficLightObserver == nil, let close = window.standardWindowButton(.closeButton) else {
-            return
+    func noteUserFrameInteraction(_ window: NSWindow) {
+        guard !isPositioningProgrammatically,
+              window === self.window,
+              window.isVisible,
+              let key = activeFrameAutosaveName
+        else { return }
+        hasSavedUserFrame = true
+        window.saveFrame(usingName: key)
+    }
+
+    func teardown() {
+        if let observer = trafficLightObserver {
+            NotificationCenter.default.removeObserver(observer)
+            trafficLightObserver = nil
         }
-        close.postsFrameChangedNotifications = true
-        trafficLightObserver = NotificationCenter.default.addObserver(
-            forName: NSView.frameDidChangeNotification,
-            object: close,
-            queue: .main
-        ) { _ in
-            MainActor.assumeIsolated {
-                ExtensionBubbleWindowController.shared.seatTrafficLights()
-            }
+        if let window {
+            window.delegate = nil
+            window.orderOut(nil)
+            window.contentView = nil
         }
+        delegate = nil
+        window = nil
+        activeFrameAutosaveName = nil
+        hasSavedUserFrame = false
     }
 
     private func syncTrafficLightInsets() {
@@ -441,32 +277,317 @@ final class ExtensionBubbleWindowController {
             trafficLightTrailing = zoomBox.maxX
         }
     }
+}
 
-    private func applyLevel(to window: NSWindow) {
-        if isPinned {
-            window.level = .floating
-            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        } else {
-            window.level = .normal
-            window.collectionBehavior = [.managed, .fullScreenAuxiliary]
+/// Manages all open plugin windows. Each extension ID remembers one frame;
+/// additional simultaneous windows cascade by a small offset without overwriting it.
+@MainActor
+final class ExtensionBubbleWindowController {
+    static let shared = ExtensionBubbleWindowController()
+
+    private static let frameAutosavePrefix = "aibo.pluginBubbleWindow."
+    private static let fileChoiceFrameAutosaveName = "aibo.pluginBubbleWindow.fileChoice"
+    private static let cascadeOffset: CGFloat = 24
+    private static let overlapThreshold: CGFloat = 16
+
+    static func frameAutosaveName(forPluginID id: String) -> String {
+        "\(frameAutosavePrefix)\(id)"
+    }
+
+    static func removeSavedFrame(forPluginID id: String) {
+        NSWindow.removeFrame(usingName: frameAutosaveName(forPluginID: id))
+    }
+
+    private var instances: [UUID: ExtensionWindowInstance] = [:]
+
+    private init() {}
+
+    func present(windowID: UUID) {
+        guard let presentation = ExtensionCenter.shared.presentation(for: windowID) else { return }
+        let targetFrameName = frameAutosaveName(for: presentation)
+        let instance = instances[windowID] ?? makeInstance(id: windowID)
+        let window = ensureWindow(for: instance, presentation: presentation)
+        let wasVisible = window.isVisible
+        let switchedOwner = instance.activeFrameAutosaveName != targetFrameName
+        instance.activeFrameAutosaveName = targetFrameName
+        window.title = windowTitle(for: presentation)
+        let siblingFrames = otherVisibleFrames(excluding: windowID)
+
+        instance.performProgrammaticFrameUpdate {
+            if !wasVisible || switchedOwner {
+                let baseFrame: NSRect
+                if window.setFrameUsingName(targetFrameName) {
+                    instance.hasSavedUserFrame = true
+                    baseFrame = clampToVisible(window.frame)
+                } else {
+                    instance.hasSavedUserFrame = false
+                    baseFrame = initialFrame(for: presentation)
+                }
+                let finalFrame = cascadedFrame(from: baseFrame, avoiding: siblingFrames)
+                if !framesMatch(window.frame, finalFrame) {
+                    window.setFrame(finalFrame, display: false)
+                }
+            } else if !instance.hasSavedUserFrame {
+                growWindowToFitIfNeeded(window, presentation: presentation)
+            } else {
+                let clamped = clampToVisible(window.frame)
+                if !framesMatch(window.frame, clamped) {
+                    window.setFrame(clamped, display: false)
+                }
+            }
+            instance.applyLevel()
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        }
+        instance.seatTrafficLights()
+    }
+
+    /// Expands an unpositioned window downward when the active phase grows taller
+    /// (for example moving from missing-dependency to editing, or editing to a longer result).
+    func syncNaturalHeightIfUnpositioned(windowID: UUID) {
+        guard let instance = instances[windowID],
+              let window = instance.window,
+              window.isVisible,
+              !instance.hasSavedUserFrame,
+              let presentation = ExtensionCenter.shared.presentation(for: windowID)
+        else { return }
+        instance.performProgrammaticFrameUpdate {
+            growWindowToFitIfNeeded(window, presentation: presentation)
+        }
+        instance.seatTrafficLights()
+    }
+
+    /// Close and release one plugin window. Callers clear presentation state first.
+    func dismiss(windowID: UUID) {
+        guard let instance = instances.removeValue(forKey: windowID) else { return }
+        instance.teardown()
+    }
+
+    private func makeInstance(id: UUID) -> ExtensionWindowInstance {
+        let instance = ExtensionWindowInstance(id: id)
+        instances[id] = instance
+        return instance
+    }
+
+    private func frameAutosaveName(for presentation: ExtensionWindowPresentation) -> String {
+        switch presentation.content {
+        case .session(let session):
+            Self.frameAutosaveName(forPluginID: session.pluginID)
+        case .fileChoice:
+            Self.fileChoiceFrameAutosaveName
         }
     }
 
-    /// First open matches the bubble. Later opens keep the autosaved frame.
-    private func initialFrame() -> NSRect {
-        let minimum = ExtensionBubbleMetrics.windowMinimumSize
-        let natural = ExtensionCenter.shared.session?.layoutHeights.first ?? minimum.height
-        let size = NSSize(width: minimum.width, height: max(natural, minimum.height))
-        if let bubble = AiboPanelController.shared.extensionCardScreenRect() {
-            let frame = NSRect(
-                x: bubble.minX,
-                y: bubble.maxY - size.height,
-                width: size.width,
-                height: size.height
-            )
-            return clampToVisible(frame)
+    private func windowTitle(for presentation: ExtensionWindowPresentation) -> String {
+        switch presentation.content {
+        case .session(let session):
+            session.pluginName
+        case .fileChoice:
+            String(localized: "Choose an Extension")
         }
-        return clampToVisible(centered(size))
+    }
+
+    private func ensureWindow(
+        for instance: ExtensionWindowInstance,
+        presentation: ExtensionWindowPresentation
+    ) -> ExtensionBubbleWindow {
+        if let window = instance.window { return window }
+        let window = ExtensionBubbleWindow(contentRect: initialFrame(for: presentation))
+        let delegate = ExtensionBubbleWindowDelegate(instance: instance)
+        instance.delegate = delegate
+        window.delegate = delegate
+        installContent(in: window, instance: instance)
+        let minimum = ExtensionBubbleMetrics.windowMinimumSize
+        window.contentMinSize = minimum
+        window.minSize = minimum
+        instance.window = window
+        instance.applyLevel()
+        watchTrafficLights(on: window, instance: instance)
+        return window
+    }
+
+    /// NSHostingView must not be the content view. As contentView it rewrites
+    /// contentMinSize / contentMaxSize from transient SwiftUI metrics and can
+    /// collapse the window the same way it collapsed the pet panel.
+    private func installContent(in window: ExtensionBubbleWindow, instance: ExtensionWindowInstance) {
+        let root = NSView(frame: NSRect(origin: .zero, size: window.frame.size))
+        let hosting = ExtensionBubbleHostingView(rootView: ExtensionBubbleWindowView(instance: instance))
+        hosting.sizingOptions = []
+        hosting.frame = root.bounds
+        hosting.autoresizingMask = [.width, .height]
+        root.addSubview(hosting)
+        window.contentView = root
+    }
+
+    private func watchTrafficLights(on window: NSWindow, instance: ExtensionWindowInstance) {
+        guard instance.trafficLightObserver == nil,
+              let close = window.standardWindowButton(.closeButton)
+        else { return }
+        close.postsFrameChangedNotifications = true
+        instance.trafficLightObserver = NotificationCenter.default.addObserver(
+            forName: NSView.frameDidChangeNotification,
+            object: close,
+            queue: .main
+        ) { [weak instance] _ in
+            MainActor.assumeIsolated {
+                instance?.seatTrafficLights()
+            }
+        }
+    }
+
+    private func otherVisibleFrames(excluding windowID: UUID) -> [NSRect] {
+        instances.values.compactMap { other in
+            guard other.id != windowID, let window = other.window, window.isVisible else { return nil }
+            return window.frame
+        }
+    }
+
+    /// Offsets a newly opened window if another open plugin window sits at the same top-left spot.
+    private func cascadedFrame(from baseFrame: NSRect, avoiding occupied: [NSRect]) -> NSRect {
+        guard !occupied.isEmpty else { return baseFrame }
+        let screen = NSScreen.screens.first { $0.visibleFrame.intersects(baseFrame) }
+            ?? AiboPanelController.shared.petScreen()
+            ?? NSScreen.screens.first
+        let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
+
+        let stepX: CGFloat = baseFrame.maxX + Self.cascadeOffset <= visible.maxX
+            ? Self.cascadeOffset
+            : -Self.cascadeOffset
+        let stepY: CGFloat = baseFrame.minY - Self.cascadeOffset >= visible.minY
+            ? -Self.cascadeOffset
+            : Self.cascadeOffset
+
+        var candidate = baseFrame
+        for _ in 0..<12 {
+            let overlaps = occupied.contains { other in
+                abs(other.minX - candidate.minX) < Self.overlapThreshold
+                    && abs(other.maxY - candidate.maxY) < Self.overlapThreshold
+            }
+            guard overlaps else { return candidate }
+            var shifted = candidate
+            shifted.origin.x += stepX
+            shifted.origin.y += stepY
+            let next = clampToVisible(shifted)
+            if framesMatch(next, candidate) {
+                break
+            }
+            candidate = next
+        }
+        return candidate
+    }
+
+    private func growWindowToFitIfNeeded(
+        _ window: NSWindow,
+        presentation: ExtensionWindowPresentation
+    ) {
+        let minimum = ExtensionBubbleMetrics.windowMinimumSize
+        let neededHeight = max(naturalWindowHeight(for: presentation), minimum.height)
+        guard neededHeight > window.frame.height + 1 else {
+            let clamped = clampToVisible(window.frame)
+            if !framesMatch(window.frame, clamped) {
+                window.setFrame(clamped, display: false)
+            }
+            return
+        }
+        var grown = window.frame
+        grown.origin.y = window.frame.maxY - neededHeight
+        grown.size.height = neededHeight
+        let clamped = clampToVisible(grown)
+        if !framesMatch(window.frame, clamped) {
+            window.setFrame(clamped, display: false)
+        }
+    }
+
+    private func naturalWindowHeight(for presentation: ExtensionWindowPresentation) -> CGFloat {
+        let minimum = ExtensionBubbleMetrics.windowMinimumSize.height
+        switch presentation.content {
+        case .fileChoice(let choice):
+            return max(
+                minimum,
+                ExtensionBubbleMetrics.fileChoiceCardHeight(count: choice.options.count) + 4
+            )
+        case .session(let session):
+            switch session.phase {
+            case .editing:
+                return max(minimum, ExtensionBubbleMetrics.promptHeight(kinds: session.groupKinds) + 4)
+            case .running(let message):
+                return max(minimum, ExtensionBubbleMetrics.runningCardHeight(text: message) + 4)
+            case .result(let summary, _):
+                return max(minimum, ExtensionBubbleMetrics.statusHeight(text: summary) + 38)
+            case .failed(let message, _):
+                return max(minimum, ExtensionBubbleMetrics.statusHeight(text: message) + 38)
+            case .notice(let summary, _):
+                return max(minimum, ExtensionBubbleMetrics.statusHeight(text: summary) + 38)
+            case .dependency(let issues):
+                return max(minimum, ExtensionBubbleMetrics.dependencyCardHeight(count: issues.count) + 4)
+            }
+        }
+    }
+
+    /// Default placement before the user moves or resizes this extension's window: right beside the pet.
+    private func initialFrame(for presentation: ExtensionWindowPresentation) -> NSRect {
+        let minimum = ExtensionBubbleMetrics.windowMinimumSize
+        let size = NSSize(
+            width: minimum.width,
+            height: max(naturalWindowHeight(for: presentation), minimum.height)
+        )
+        guard let pet = AiboPanelController.shared.petScreenRect() else {
+            return clampToVisible(centered(size))
+        }
+        let screen = NSScreen.screens.first { $0.visibleFrame.intersects(pet) }
+            ?? AiboPanelController.shared.petScreen()
+            ?? NSScreen.screens.first
+        let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
+        let record = AiboLibraryStore.shared.selectedRecord
+        let gap = max(CGFloat(record.bubbleDistance), 12)
+        let frame = besidePet(
+            size: size,
+            pet: pet,
+            placement: record.bubblePlacement,
+            gap: gap,
+            visible: visible
+        )
+        return clampToVisible(frame)
+    }
+
+    private func besidePet(
+        size: NSSize,
+        pet: NSRect,
+        placement: BubblePlacement,
+        gap: CGFloat,
+        visible: NSRect
+    ) -> NSRect {
+        let leftX = pet.minX - gap - size.width
+        let rightX = pet.maxX + gap
+        let aboveY = pet.maxY + gap
+        let belowY = pet.minY - gap - size.height
+        let centeredX = pet.midX - size.width / 2
+        let centeredY = pet.midY - size.height / 2
+
+        let origin: NSPoint
+        switch placement {
+        case .left:
+            let fitsLeft = leftX >= visible.minX
+            let fitsRight = rightX + size.width <= visible.maxX
+            let x = (fitsLeft || !fitsRight) ? leftX : rightX
+            origin = NSPoint(x: x, y: centeredY)
+        case .right:
+            let fitsRight = rightX + size.width <= visible.maxX
+            let fitsLeft = leftX >= visible.minX
+            let x = (fitsRight || !fitsLeft) ? rightX : leftX
+            origin = NSPoint(x: x, y: centeredY)
+        case .top:
+            let fitsAbove = aboveY + size.height <= visible.maxY
+            let fitsBelow = belowY >= visible.minY
+            let y = (fitsAbove || !fitsBelow) ? aboveY : belowY
+            origin = NSPoint(x: centeredX, y: y)
+        case .bottom:
+            let fitsBelow = belowY >= visible.minY
+            let fitsAbove = aboveY + size.height <= visible.maxY
+            let y = (fitsBelow || !fitsAbove) ? belowY : aboveY
+            origin = NSPoint(x: centeredX, y: y)
+        }
+        return NSRect(origin: origin, size: size)
     }
 
     private func centered(_ size: NSSize) -> NSRect {
@@ -550,17 +671,40 @@ private final class ExtensionBubbleHostingView<Content: View>: NSHostingView<Con
     override var mouseDownCanMoveWindow: Bool { true }
 }
 
-private final class ExtensionBubbleWindowDelegate: NSObject, NSWindowDelegate {
+final class ExtensionBubbleWindowDelegate: NSObject, NSWindowDelegate {
+    weak var instance: ExtensionWindowInstance?
+
+    init(instance: ExtensionWindowInstance) {
+        self.instance = instance
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         MainActor.assumeIsolated {
-            ExtensionCenter.shared.cancelSession()
+            guard let id = instance?.id else { return }
+            ExtensionCenter.shared.closeWindow(id: id)
         }
         return false
     }
 
-    func windowDidResize(_ notification: Notification) {
+    func windowDidMove(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
         MainActor.assumeIsolated {
-            ExtensionBubbleWindowController.shared.seatTrafficLights()
+            instance?.noteUserFrameInteraction(window)
+        }
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        MainActor.assumeIsolated {
+            instance?.seatTrafficLights()
+            instance?.noteUserFrameInteraction(window)
+        }
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        MainActor.assumeIsolated {
+            instance?.noteUserFrameInteraction(window)
         }
     }
 }

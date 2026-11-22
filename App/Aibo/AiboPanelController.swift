@@ -56,8 +56,6 @@ final class AiboPanelController {
     private var screenObserver: NSObjectProtocol?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
-    /// Prompt field receiving a caret drag. The hook-bubble gesture must not see these events.
-    private weak var promptCaretDrag: PromptTextView?
     private let fullscreenMonitor = FullscreenSpaceMonitor()
     /// True while hide-when-fullscreen is suppressing the panel (not user Hide Aibo).
     private(set) var isSuppressedForFullscreen = false
@@ -75,7 +73,6 @@ final class AiboPanelController {
         CGPoint(x: laidOutAiboFrame.midX, y: laidOutAiboFrame.midY)
     }
     private var laidOutOnboardingLayoutID = ""
-    private var laidOutExtensionLayoutToken = ""
     private var laidOutAiboBubbleSpacing: CGFloat = 6
     /// True while the next geometry pass will enlarge the panel. New cards stay
     /// out of the tree until that frame is committed, or they paint halfway
@@ -84,23 +81,9 @@ final class AiboPanelController {
     /// Bumped when a growth pass has resized and laid out. Appear motion waits
     /// for this so the spring starts on the final seat.
     private(set) var frameGrowthEpoch = 0
-    /// Plugin card requested, panel not yet grown to fit it.
-    private(set) var isExtensionCardHeld = false
     /// Status bubbles already given a frame. New ids join at the end of a
     /// growth pass, not on the SwiftUI update that precedes it.
     private(set) var presentedBubbleIDs: Set<String> = []
-    /// Plugin-only column kept beside the pet while that card poofs.
-    private(set) var pluginPoofSlotSize: CGSize?
-    /// Near-pet bubble kept as the side anchor while it poofs and a plugin card remains.
-    private(set) var heldNearBubble: StatusBubbleItem?
-    /// Hidden copies of bubbles removed under a plugin card, so the card does not drop.
-    private(set) var heldStackItems: [StatusBubbleItem] = []
-    /// Panel stack frozen for a poof. Cleared in the same turn as the window move.
-    @ObservationIgnored private var frozenLayoutHeights: [CGFloat]?
-    @ObservationIgnored private var frozenNearRowHeight: CGFloat?
-    /// Keeps a geometry pass during poof from seeing a token change and moving the window.
-    @ObservationIgnored private var frozenExtensionLayoutToken: String?
-    @ObservationIgnored private var pluginPoofReleaseTask: Task<Void, Never>?
     @ObservationIgnored private var hostingLayoutScheduled = false
 
     private let baseAiboSize: CGFloat = 96
@@ -563,23 +546,10 @@ final class AiboPanelController {
         hostingView?.frame = bounds
     }
 
-    /// The plugin card moved to its own window. Resize on the next turn; the pet
-    /// stack has already dropped the card, and there is no poof to wait out.
-    func notePluginWindowDetached() {
-        clearExtensionCardFrame()
-        // The plugin window activates the app, so a stuck click-through flag is
-        // no longer cleared by the global mouse monitor.
-        panel?.ignoresMouseEvents = false
-        scheduleGeometryUpdate(after: .zero)
-    }
-
     /// Keycaps use the bubble side. Resize immediately so the pet does not
     /// slide inside a frame that still belongs to the previous chord.
     func syncKeystrokeGeometry() {
         guard !isLaunchPortalPlaying else { return }
-        clearExtensionCardFrame()
-        clearPluginPoofHold()
-        isExtensionCardHeld = false
         isFrameGrowthPending = false
         if isRepositioningAibo {
             scheduleGeometryUpdate(after: .milliseconds(50))
@@ -640,7 +610,6 @@ final class AiboPanelController {
     func updateOnboardingKeyWindow() {
         guard let panel else { return }
         let allowed = OnboardingController.shared.allowsKeyWindow
-            || ExtensionCenter.shared.needsKeyWindow
         panel.allowsBecomingKey = allowed
         if allowed {
             panel.makeKeyAndOrderFront(nil)
@@ -716,9 +685,6 @@ final class AiboPanelController {
             return
         }
         isFrameGrowthPending = true
-        if isNewExtensionCard {
-            isExtensionCardHeld = true
-        }
     }
 
     private func isUpcomingFrameGrowth() -> Bool {
@@ -739,26 +705,16 @@ final class AiboPanelController {
         )
     }
 
-    private var isNewExtensionCard: Bool {
-        isLiveExtensionToken(currentExtensionLayoutToken)
-            && !isLiveExtensionToken(laidOutExtensionLayoutToken)
-    }
-
-    private func isLiveExtensionToken(_ token: String) -> Bool {
-        !token.isEmpty && token != "detached"
-    }
-
     /// Put cards that were waiting into the frame `applyGeometry` just set.
     /// No-op when nothing new is pending, so portal and drag passes don't
     /// force an extra layout.
     private func mountPresentationAfterFrameChange() {
         let incoming = Set(AiboRuntime.shared.bubbleItems.map(\.id))
         let hasNewBubbles = !incoming.isSubset(of: presentedBubbleIDs)
-        guard isExtensionCardHeld || isFrameGrowthPending || hasNewBubbles else { return }
+        guard isFrameGrowthPending || hasNewBubbles else { return }
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-            isExtensionCardHeld = false
             isFrameGrowthPending = false
             frameGrowthEpoch &+= 1
             presentedBubbleIDs.formUnion(incoming)
@@ -802,9 +758,7 @@ final class AiboPanelController {
         let items = AiboRuntime.shared.bubbleItems
         let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
         let aiboSize = currentAiboSize
-        let extensionToken = currentExtensionLayoutToken
-        let bubbleCount = frozenLayoutHeights?.count
-            ?? (effectiveBubbleCount(items) + (extensionLayoutHeights == nil ? 0 : 1))
+        let bubbleCount = effectiveBubbleCount(items)
         let pinBubble = shouldPinOnboardingBubble
 
         let oldFrame = panel.frame
@@ -837,7 +791,6 @@ final class AiboPanelController {
            placement == laidOutPlacement,
            bubbleCount == laidOutBubbleCount,
            onboardingLayoutID == laidOutOnboardingLayoutID,
-           extensionToken == laidOutExtensionLayoutToken,
            aiboBubbleSpacing == laidOutAiboBubbleSpacing,
            newAiboCenter == laidOutAiboCenter,
            isLaunchPortalPlaying == laidOutLaunchPortalPlaying
@@ -891,7 +844,6 @@ final class AiboPanelController {
         laidOutPlacement = placement
         laidOutAiboSize = aiboSize
         laidOutOnboardingLayoutID = onboardingLayoutID
-        laidOutExtensionLayoutToken = extensionToken
         laidOutAiboBubbleSpacing = aiboBubbleSpacing
         updatePetHitRect(
             panelSize: safeSize,
@@ -1025,151 +977,9 @@ final class AiboPanelController {
         return panel
     }
 
-    /// Plugin prompt sits farther from the pet than hook bubbles. Nil when no prompt is open.
-    /// Adds shadow room only when this card is the bottom edge, matching the padding in `ExtensionBubbleColumn`.
-    private var extensionLayoutHeights: [CGFloat]? {
-        extensionCardHeights(hookBubbleCount: effectiveBubbleCount(AiboRuntime.shared.bubbleItems))
-    }
-
-    private func extensionCardHeights(hookBubbleCount: Int) -> [CGFloat]? {
-        guard !isLaunchPortalPlaying else { return nil }
-        guard let heights = ExtensionCenter.shared.layoutHeights else { return nil }
-        let room = AiboAppearance.pluginBottomShadowRoom(
-            placement: AiboLibraryStore.shared.selectedRecord.bubblePlacement,
-            hookBubbleCount: hookBubbleCount
-        )
-        guard room > 0 else { return heights }
-        return heights.map { $0 + room }
-    }
-
-    /// Bubbles already given a frame. A growth pass keeps new hook cards out of
-    /// this list so the plugin row does not collapse before they mount.
-    private var presentedBubbleItems: [StatusBubbleItem] {
-        let items = AiboRuntime.shared.bubbleItems
-        guard isFrameGrowthPending else { return items }
-        return items.filter { presentedBubbleIDs.contains($0.id) }
-    }
-
-    /// Side plugin-only slot. Matches the panel's row height so the pet stays centered on the card.
-    var pluginOnlyAnchorSize: CGSize? {
-        // The row grows with the window, not a frame earlier. Mounting the
-        // anchor now would slide the pet inside the still-small panel.
-        if isExtensionCardHeld { return nil }
-        if heldNearBubble != nil { return nil }
-        if let pluginPoofSlotSize { return pluginPoofSlotSize }
-        // A hook bubble that is not on screen yet must not drop this slot.
-        // The card would lose its column and paint at the panel's leading edge,
-        // then jump again to sit above the hook bubble.
-        guard presentedBubbleItems.isEmpty else { return nil }
-        guard let height = extensionCardHeights(hookBubbleCount: 0)?.first else { return nil }
-        return CGSize(width: bubbleMaxWidth, height: height)
-    }
-
-    /// Side placements center the pet on the plugin card. Hold that slot through
-    /// poof; dropping it early lets the pet fall inside the still-tall panel.
-    func beginPluginPoofHoldIfNeeded() {
-        let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
-        guard placement == .left || placement == .right else { return }
-        // Agent poof is already holding the row. Restart the timer so the
-        // plugin cloud is not clipped, and leave the pet where it is.
-        if heldNearBubble != nil {
-            schedulePluginPoofRelease()
-            return
-        }
-        guard AiboRuntime.shared.bubbleItems.isEmpty else { return }
-        guard let height = extensionLayoutHeights?.first else { return }
-        pluginPoofSlotSize = CGSize(width: bubbleMaxWidth, height: height)
-        frozenLayoutHeights = layoutBubbleHeights(items: [])
-        frozenNearRowHeight = height
-        frozenExtensionLayoutToken = ExtensionCenter.shared.layoutToken
-        schedulePluginPoofRelease()
-    }
-
-    /// Last status bubbles are leaving while a plugin card is open. Keep the
-    /// near-pet row and the stack gap so neither the pet nor the card slides.
-    func beginStackedBubblePoofHoldIfNeeded(nearItem: StatusBubbleItem) {
-        let placement = AiboLibraryStore.shared.selectedRecord.bubblePlacement
-        guard placement == .left || placement == .right else { return }
-        guard ExtensionCenter.shared.showsPetCard else { return }
-        let items = AiboRuntime.shared.bubbleItems
-        guard !items.isEmpty else { return }
-        frozenLayoutHeights = layoutBubbleHeights(items: items)
-        var near = nearItem
-        near.isInspecting = false
-        frozenNearRowHeight = sideNearRowHeight(for: near)
-        frozenExtensionLayoutToken = ExtensionCenter.shared.layoutToken
-        heldNearBubble = near
-        heldStackItems = items.map { item in
-            var copy = item
-            copy.isInspecting = false
-            copy.id = item.id + ".hold"
-            return copy
-        }
-        schedulePluginPoofRelease()
-    }
-
-    /// A new prompt replaces the card; don't keep the previous poof slot.
-    func discardPluginColumnSlot() {
-        pluginPoofReleaseTask?.cancel()
-        pluginPoofReleaseTask = nil
-        clearPluginPoofHold()
-    }
-
-    private func schedulePluginPoofRelease() {
-        pluginPoofReleaseTask?.cancel()
-        pluginPoofReleaseTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(420))
-            guard !Task.isCancelled else { return }
-            self.releasePluginPoofHold()
-        }
-    }
-
-    private func clearPluginPoofHold() {
-        pluginPoofSlotSize = nil
-        heldNearBubble = nil
-        heldStackItems = []
-        frozenLayoutHeights = nil
-        frozenNearRowHeight = nil
-        frozenExtensionLayoutToken = nil
-    }
-
-    private var currentExtensionLayoutToken: String {
-        if isLaunchPortalPlaying { return "" }
-        if let frozenExtensionLayoutToken { return frozenExtensionLayoutToken }
-        return ExtensionCenter.shared.layoutToken
-    }
-
-    private func releasePluginPoofHold() {
-        pluginPoofReleaseTask = nil
-        guard pluginPoofSlotSize != nil || heldNearBubble != nil || frozenLayoutHeights != nil else { return }
-        guard !isRepositioningAibo else {
-            pluginPoofReleaseTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(50))
-                guard !Task.isCancelled else { return }
-                self.releasePluginPoofHold()
-            }
-            return
-        }
-        // Drop the hold and move the window before the next display, or the
-        // pet slides inside the old frame and then snaps back.
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        clearPluginPoofHold()
-        applyGeometryNow()
-        layoutHostingView()
-        CATransaction.commit()
-    }
-
-    /// Hook bubbles, with the plugin card inserted at the far end (index 0).
-    /// Side layout treats the last height as the bubble centered on the pet.
     private func layoutBubbleHeights(items: [StatusBubbleItem]) -> [CGFloat] {
         if keystrokeOverlayActive { return [] }
-        if let frozenLayoutHeights { return frozenLayoutHeights }
-        var heights = items.map(estimatedBubbleHeight(for:))
-        guard let pluginHeight = extensionLayoutHeights?.first else { return heights }
-        if heights.isEmpty { return [pluginHeight] }
-        heights.insert(pluginHeight, at: 0)
-        return heights
+        return items.map(estimatedBubbleHeight(for:))
     }
 
     private func panelSize(
@@ -1407,49 +1217,16 @@ final class AiboPanelController {
         refreshClickThroughState()
     }
 
-    /// Plugin cards report the frame SwiftUI actually laid out (top-left, this
-    /// hosting view). Height estimates stay for panel sizing only — a long
-    /// result used to draw Copy / Close below the estimate, and those clicks
-    /// fell through to the desktop.
-    func noteExtensionCardFrame(_ frame: CGRect) {
-        guard !ExtensionBubbleWindowController.shared.isDetached else {
-            clearExtensionCardFrame()
-            return
+    /// Pet artwork rect in screen coordinates (bottom-left origin), or nil when hidden.
+    func petScreenRect() -> NSRect? {
+        guard let panel, panel.isVisible, laidOutAiboFrame.width > 0, laidOutAiboFrame.height > 0 else {
+            return nil
         }
-        guard let hostingView else { return }
-        guard frame.width > 1, frame.height > 1 else {
-            clearExtensionCardFrame()
-            return
-        }
-        if let current = hostingView.measuredBubbleHitRects.first, rectsMatch(current, frame) {
-            return
-        }
-        hostingView.measuredBubbleHitRects = [frame]
-    }
-
-    func clearExtensionCardFrame() {
-        hostingView?.measuredBubbleHitRects = []
-    }
-
-    /// Plugin card in screen coordinates (bottom-left origin), including any
-    /// shadow padding under the glass. Nil before the card has been laid out.
-    func extensionCardScreenRect() -> NSRect? {
-        guard let hostingView, let panel else { return nil }
-        guard let frame = hostingView.measuredBubbleHitRects.first,
-              frame.width > 1, frame.height > 1 else { return nil }
-        let inWindow = hostingView.convert(frame, to: nil)
-        return panel.convertToScreen(inWindow)
+        return panel.convertToScreen(laidOutAiboFrame)
     }
 
     func petScreen() -> NSScreen? {
         panel?.screen ?? NSScreen.main
-    }
-
-    private func rectsMatch(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
-        abs(lhs.minX - rhs.minX) < 0.5
-            && abs(lhs.minY - rhs.minY) < 0.5
-            && abs(lhs.width - rhs.width) < 0.5
-            && abs(lhs.height - rhs.height) < 0.5
     }
 
     /// Bottom-left of the near-aibo bubble stack in panel coords (AppKit origin).
@@ -1494,102 +1271,15 @@ final class AiboPanelController {
         return true
     }
 
-    /// The dependency switch sits on Liquid Glass. The click asks
-    /// `_NSGlassEffectWindow` to become key, that window returns NO, and AppKit
-    /// drops the event. Turn the plugin on here and swallow the click.
-    private func turnOnExtensionDependency(with event: NSEvent) -> Bool {
-        guard event.modifierFlags.contains(.control) == false else { return false }
-        guard let point = hostPoint(for: event) else { return false }
-        return ExtensionEnableSwitchTracker.turnOn(at: point)
-    }
-
-    /// The corner control sits on a card that is not allowed to become key
-    /// (a finished result, a failure, a warning). SwiftUI's plain button asks
-    /// for key and AppKit drops the click; the result text is also hit-tested
-    /// across that glyph. Open the window from the control's real frame.
-    private func openExtensionWindow(with event: NSEvent) -> Bool {
-        guard event.modifierFlags.contains(.control) == false else { return false }
-        guard let point = hostPoint(for: event) else { return false }
-        return ExtensionBubbleCornerTracker.perform(at: point)
-    }
-
-    /// Copy / Close on a finished plugin card. Same drop as the corner control:
-    /// the panel cannot become key, and a hook bubble under the card takes the
-    /// gesture. Arm the drawn frame so the button can darken, and swallow the
-    /// click. The action runs on mouse-up, still inside the frame.
-    private func beginExtensionOutcomePress(with event: NSEvent) -> Bool {
-        guard event.modifierFlags.contains(.control) == false else { return false }
-        guard let point = hostPoint(for: event) else { return false }
-        return ExtensionOutcomeActionTracker.beginPress(at: point)
-    }
-
-    private func dragExtensionOutcomePress(with event: NSEvent) -> Bool {
-        ExtensionOutcomeActionTracker.dragPress(at: hostPoint(for: event))
-    }
-
-    private func endExtensionOutcomePress(with event: NSEvent) -> Bool {
-        ExtensionOutcomeActionTracker.endPress(at: hostPoint(for: event))
-    }
-
-    private func endExtensionOutcomePress(atScreen screen: NSPoint, matching generation: Int) -> Bool {
-        ExtensionOutcomeActionTracker.endPress(
-            at: hostPoint(atScreen: screen),
-            matching: generation
-        )
-    }
-
-    private func dragExtensionOutcomePress(atScreen screen: NSPoint, matching generation: Int) -> Bool {
-        ExtensionOutcomeActionTracker.dragPress(
-            at: hostPoint(atScreen: screen),
-            matching: generation
-        )
-    }
-
-    /// Hook-bubble taps use a SwiftUI gesture on this same hosting view. That
-    /// gesture wins the click, so the prompt field keeps the caret at the end.
-    /// Place the caret from the field's drawn frame and swallow the click.
-    private func forwardPromptTextClick(_ event: NSEvent) -> Bool {
-        guard event.modifierFlags.contains(.control) == false else { return false }
-        guard let point = hostPoint(for: event) else { return false }
-        guard let textView = PromptFieldTracker.textView(at: point) else { return false }
-        if let panel = panel as? AiboPanel, panel.allowsBecomingKey, panel.isKeyWindow == false {
-            panel.makeKey()
-        }
-        panel?.makeFirstResponder(textView)
-        textView.beginClick(atHostPoint: point, clickCount: event.clickCount)
-        promptCaretDrag = textView
-        return true
-    }
-
-    private func extendPromptTextDrag(_ event: NSEvent) -> Bool {
-        guard let promptCaretDrag, let point = hostPoint(for: event) else { return false }
-        promptCaretDrag.extendClick(toHostPoint: point)
-        return true
-    }
-
-    private func hostPoint(for event: NSEvent) -> NSPoint? {
-        guard let panel, let hostingView else { return nil }
-        if event.window === panel {
-            return hostingView.convert(event.locationInWindow, from: nil)
-        }
-        return hostPoint(atScreen: NSEvent.mouseLocation)
-    }
-
-    private func hostPoint(atScreen screen: NSPoint) -> NSPoint? {
-        guard let panel, let hostingView else { return nil }
-        guard panel.frame.contains(screen) else { return nil }
-        let windowPoint = panel.convertPoint(fromScreen: screen)
-        return hostingView.convert(windowPoint, from: nil)
-    }
-
     /// Copy / Close sit in a non-activating panel; SwiftUI and `NSButton` never
     /// see the click (`hitTest` lands on a hosting descendant). Swallow here.
     private func handleInspectCardClick(with event: NSEvent) -> Bool {
         guard event.window === panel, let panel, let content = panel.contentView else {
             return false
         }
-        let point = content.convert(event.locationInWindow, from: nil)
         let items = AiboRuntime.shared.bubbleItems
+        guard items.contains(where: \.isInspecting) else { return false }
+        let point = content.convert(event.locationInWindow, from: nil)
         let frames = bubbleItemFrames(
             panelSize: panel.frame.size,
             aiboSize: laidOutAiboSize,
@@ -1890,16 +1580,8 @@ final class AiboPanelController {
         case .left, .right:
             // Vertically center the pet with the near bubble. Skip / Continue
             // hang below the bubble and take extra panel space, not this row.
-            // Plugin prompts replace that near bubble; use their height or the
-            // pet (and the hit rect) sit on the status-bubble row instead.
-            let nearRow: CGFloat = {
-                if let frozenNearRowHeight { return frozenNearRowHeight }
-                let items = AiboRuntime.shared.bubbleItems
-                if items.isEmpty, let pluginHeight = extensionLayoutHeights?.last {
-                    return pluginHeight
-                }
-                return items.last.map(sideNearRowHeight(for:)) ?? bubbleEstimatedHeight
-            }()
+            let nearRow = AiboRuntime.shared.bubbleItems.last.map(sideNearRowHeight(for:))
+                ?? bubbleEstimatedHeight
             let rowHeight = max(aiboSize.height, nearRow)
             let y = insets.bottom + onboardingActionPillsHeight
                 + (rowHeight - aiboSize.height) / 2
@@ -1922,76 +1604,22 @@ final class AiboPanelController {
                 .rightMouseDragged,
                 .rightMouseDown,
                 .leftMouseDown,
-                .leftMouseUp,
             ]
         ) { [weak self] event in
             guard let self else { return event }
             self.refreshClickThroughState()
-            switch event.type {
-            case .leftMouseDown:
-                ExtensionOutcomeActionTracker.cancelPress()
-                if self.forwardPromptTextClick(event) {
-                    return nil
-                }
-                if self.turnOnExtensionDependency(with: event) {
-                    return nil
-                }
-                if self.openExtensionWindow(with: event) {
-                    return nil
-                }
-                if self.beginExtensionOutcomePress(with: event) {
-                    return nil
-                }
-                if self.handleInspectCardClick(with: event) {
-                    return nil
-                }
-            case .leftMouseDragged:
-                if self.dragExtensionOutcomePress(with: event) {
-                    return nil
-                }
-                if self.extendPromptTextDrag(event) {
-                    return nil
-                }
-            case .leftMouseUp:
-                if self.endExtensionOutcomePress(with: event) {
-                    return nil
-                }
-                if self.promptCaretDrag != nil {
-                    self.promptCaretDrag = nil
-                    return nil
-                }
-            default:
-                break
+            if event.type == .leftMouseDown, self.handleInspectCardClick(with: event) {
+                return nil
             }
             return event
         }
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDragged, .leftMouseUp]
-        ) { [weak self] event in
-            let screen = NSEvent.mouseLocation
-            // Monitors run on the main thread. Read the press generation now;
-            // a later hop would belong to whatever gesture is current then.
-            let generation = MainActor.assumeIsolated {
-                ExtensionOutcomeActionTracker.generation
-            }
-            Task { @MainActor in
-                guard let self else { return }
-                if event.type == .leftMouseUp {
-                    self.promptCaretDrag = nil
-                    // Local delivery already released an inside click. This
-                    // catches a release outside the panel, where the up is
-                    // not sent to the app. The screen point was read in the
-                    // monitor, before this hop.
-                    _ = self.endExtensionOutcomePress(atScreen: screen, matching: generation)
-                    return
-                }
-                if event.type == .leftMouseDragged {
-                    if self.dragExtensionOutcomePress(atScreen: screen, matching: generation) {
-                        return
-                    }
-                    if self.extendPromptTextDrag(event) { return }
-                }
-                self.refreshClickThroughState()
+            matching: [.mouseMoved, .leftMouseDragged]
+        ) { [weak self] _ in
+            // AppKit invokes global event monitors on the main thread; stay
+            // synchronous to avoid allocating a Task on every mouse move.
+            MainActor.assumeIsolated {
+                self?.refreshClickThroughState()
             }
         }
     }

@@ -7,12 +7,7 @@ import SwiftUI
 /// lives on the content view. The alpha mask is built once from the aibo image.
 ///
 /// `aiboHitRect` / `bubbleHitRects` use bottom-left coordinates (same as the panel).
-/// `measuredBubbleHitRects` use this view's coordinates (top-left, same as SwiftUI).
 /// `NSHostingView` is flipped (origin top-left), so hit-test points are converted first.
-enum AiboPanelSpace {
-    static let name = "aiboPanel"
-}
-
 final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     private let opaqueAlphaThreshold: UInt8 = 26 // ~10%
     private var alphaMask: AlphaMask?
@@ -21,9 +16,6 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     var aiboHitRect: CGRect = .null
     /// Approximate bubble stack rects in bottom-left content coordinates.
     var bubbleHitRects: [CGRect] = []
-    /// Plugin card frames in this view's top-left coordinates.
-    /// Estimates in `bubbleHitRects` miss buttons once a card is taller than the guess.
-    var measuredBubbleHitRects: [CGRect] = []
     /// Nesting count for this view's `-layout`. A re-entrant
     /// `layoutSubtreeIfNeeded` is what logs `_NSDetectedLayoutRecursion`.
     private var layoutDepth = 0
@@ -100,13 +92,6 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard bounds.contains(point) else { return nil }
-        PromptFieldTracker.host = self
-        // The field's SwiftUI frame, not the view AppKit would hit. A hook
-        // bubble under the card makes the ancestor miss, and its tap gesture
-        // then keeps the caret at the end of the text.
-        if let text = PromptFieldTracker.textView(at: point) {
-            return text
-        }
         let p = pointInBottomLeft(point)
 
         if aiboHitRect.isNull == false, aiboHitRect.contains(p) {
@@ -120,31 +105,15 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
             }
             if opaque {
                 // Opaque pet pixel — accept (SwiftUI context menu / AppKit drag).
-                return hitTestSkippingPromptMirror(point) ?? self
+                return super.hitTest(point) ?? self
             }
             // Transparent corner of the pet's box. A bubble in that square
             // still needs the click; otherwise fall through to the desktop.
         }
 
-        // A plugin card reports where it was actually drawn. That rect wins over
-        // the height estimate, which is only used to size the panel.
-        // Beside a hook bubble the card is drawn in an overlay past the anchor's
-        // bounds, so AppKit's hit walk stops at that ancestor and the click never
-        // reaches the field. Search descendants anyway.
-        if measuredBubbleHitRects.contains(where: { $0.contains(point) }) {
-            if let hit = hitTestSkippingPromptMirror(point) {
-                return hit
-            }
-            if let deep = deepestDescendant(containing: point),
-               PromptFieldHitFilter.isMirroredPromptHit(deep, host: self, point: point) == false {
-                return deep
-            }
-            return self
-        }
-
         // Bubbles only — empty padding / music overflow / infinity frames pass through.
         if bubbleHitRects.contains(where: { $0.contains(p) }) {
-            return hitTestSkippingPromptMirror(point)
+            return super.hitTest(point)
         }
 
         return nil
@@ -192,36 +161,6 @@ final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
             }
         }
         super.scrollWheel(with: event)
-    }
-
-    /// Drop the field's mirrored hit. `super.hitTest` reports the text view for
-    /// that band; SwiftUI controls in the same band are reached through this
-    /// hosting view, the same way a click that never touched the field is.
-    private func hitTestSkippingPromptMirror(_ point: NSPoint) -> NSView? {
-        guard let hit = super.hitTest(point) else { return nil }
-        if PromptFieldHitFilter.isMirroredPromptHit(hit, host: self, point: point) {
-            return self
-        }
-        return hit
-    }
-
-    /// Deepest visible descendant whose own bounds contain `point`, even when an
-    /// ancestor's bounds do not. `point` is in this view's coordinates.
-    private func deepestDescendant(containing point: NSPoint) -> NSView? {
-        func walk(_ view: NSView, pointInView: NSPoint) -> NSView? {
-            for subview in view.subviews.reversed() {
-                guard subview.isHidden == false, subview.alphaValue > 0.01 else { continue }
-                let local = view.convert(pointInView, to: subview)
-                if let found = walk(subview, pointInView: local) {
-                    return found
-                }
-            }
-            if view !== self, view.bounds.contains(pointInView) {
-                return view
-            }
-            return nil
-        }
-        return walk(self, pointInView: point)
     }
 
     /// Consume bubble right-clicks here so SwiftUI never tries to key the panel.

@@ -59,6 +59,7 @@ final class ExtensionPromptSession {
     var values: [String: String]
     var toggles: [String: Bool]
     var phase: Phase = .editing
+    @ObservationIgnored var runGeneration = 0
 
     enum Phase: Equatable {
         case editing
@@ -149,23 +150,6 @@ final class ExtensionPromptSession {
         values[key] = url.path
         return true
     }
-
-    var layoutHeights: [CGFloat] {
-        switch phase {
-        case .editing:
-            [ExtensionBubbleMetrics.promptHeight(kinds: groupKinds)]
-        case .running(let message):
-            [ExtensionBubbleMetrics.runningCardHeight(text: message)]
-        case .result(let summary, _):
-            [ExtensionBubbleMetrics.statusHeight(text: summary)]
-        case .failed(let message, _):
-            [ExtensionBubbleMetrics.statusHeight(text: message)]
-        case .notice(let summary, _):
-            [ExtensionBubbleMetrics.statusHeight(text: summary)]
-        case .dependency(let issues):
-            [ExtensionBubbleMetrics.dependencyCardHeight(count: issues.count)]
-        }
-    }
 }
 
 struct ExtensionRecord: Identifiable, Equatable {
@@ -242,64 +226,47 @@ struct ExtensionPermissionFacts: Equatable {
     }
 }
 
+/// Content hosted inside one independent plugin window.
+@MainActor
+@Observable
+final class ExtensionWindowPresentation: Identifiable {
+    let id: UUID
+    var content: Content
+
+    enum Content {
+        case session(ExtensionPromptSession)
+        case fileChoice(ExtensionFileChoice)
+    }
+
+    init(id: UUID = UUID(), content: Content) {
+        self.id = id
+        self.content = content
+    }
+
+    var session: ExtensionPromptSession? {
+        if case .session(let session) = content { return session }
+        return nil
+    }
+
+    var fileChoice: ExtensionFileChoice? {
+        if case .fileChoice(let choice) = content { return choice }
+        return nil
+    }
+}
+
 @MainActor
 @Observable
 final class ExtensionCenter {
     static let shared = ExtensionCenter()
 
     private(set) var plugins: [ExtensionRecord] = []
-    private(set) var session: ExtensionPromptSession?
-    /// Set when a dropped file matches more than one plugin. The pet shows a picker instead of a prompt.
-    private(set) var fileChoice: ExtensionFileChoice?
+    private(set) var presentations: [UUID: ExtensionWindowPresentation] = [:]
     private(set) var lastError: String?
     private(set) var isReady = false
     private var store = ExtensionStore.live()
-    private var runGeneration = 0
 
-    /// Prompt card, or the drop picker when more than one plugin can open the file.
-    var showsPetCard: Bool {
-        fileChoice != nil || session != nil
-    }
-
-    var layoutHeights: [CGFloat]? {
-        guard !ExtensionBubbleWindowController.shared.isDetached else { return nil }
-        if let fileChoice {
-            return [ExtensionBubbleMetrics.fileChoiceCardHeight(count: fileChoice.options.count)]
-        }
-        guard let session, !session.layoutHeights.isEmpty else { return nil }
-        return session.layoutHeights
-    }
-
-    var layoutToken: String {
-        if ExtensionBubbleWindowController.shared.isDetached { return "detached" }
-        if let fileChoice {
-            return "drop-\(fileChoice.options.map(\.id).joined(separator: ","))"
-        }
-        guard let session else { return "" }
-        switch session.phase {
-        case .editing:
-            return "\(session.pluginID)-editing"
-        case .running(let message):
-            return "\(session.pluginID)-running-\(message.count)"
-        case .result(let summary, _):
-            return "\(session.pluginID)-result-\(summary.count)"
-        case .failed(let message, _):
-            return "\(session.pluginID)-failed-\(message.count)"
-        case .notice(let summary, _):
-            return "\(session.pluginID)-notice-\(summary.count)"
-        case .dependency(let issues):
-            return "\(session.pluginID)-dependency-\(issues.map(\.id).joined(separator: ","))"
-        }
-    }
-
-    var needsKeyWindow: Bool {
-        guard !ExtensionBubbleWindowController.shared.isDetached else { return false }
-        switch session?.phase {
-        case .editing, .dependency:
-            return true
-        default:
-            return false
-        }
+    func presentation(for windowID: UUID) -> ExtensionWindowPresentation? {
+        presentations[windowID]
     }
 
     var manualPlugins: [ExtensionRecord] {
@@ -322,19 +289,21 @@ final class ExtensionCenter {
     /// Main process: reloads plugin registry/settings after an edit in the settings process.
     func reloadAfterSettingsEdit() {
         reload()
-        if let activeID = session?.pluginID {
-            let active = plugins.first { $0.id == activeID }
-            if active == nil || active?.enabled == false {
-                cancelSession()
-            }
+        let activeIDs = Set(plugins.filter(\.enabled).map(\.id))
+        let toClose = presentations.compactMap { windowID, presentation -> UUID? in
+            guard let pluginID = presentation.session?.pluginID else { return nil }
+            return activeIDs.contains(pluginID) ? nil : windowID
         }
+        for windowID in toClose {
+            closeWindow(id: windowID)
+        }
+        applyDependencyGateToAll()
     }
 
-    /// Manual plugins open their prompt bubble. Anything else opens Settings.
+    /// Manual plugins open their prompt window. Anything else opens Settings.
     func openLinkedPlugin(slug: String) {
         guard let record = plugins.first(where: { $0.manifest.slug == slug }) else { return }
         if record.enabled, record.manifest.hasManualTrigger {
-            AiboPanelController.shared.show()
             beginManualPrompt(id: record.id)
             return
         }
@@ -368,9 +337,7 @@ final class ExtensionCenter {
             }
         } else {
             registry.enabledIDs.removeAll { $0 == id }
-            if session?.pluginID == id {
-                cancelSession()
-            }
+            closeWindows(forPluginID: id)
         }
         try? store.saveRegistry(registry)
         reload()
@@ -416,9 +383,7 @@ final class ExtensionCenter {
     }
 
     func uninstall(id: String) {
-        if session?.pluginID == id {
-            cancelSession()
-        }
+        closeWindows(forPluginID: id)
         let record = plugins.first { $0.id == id }
         for provider in providers(for: id) {
             KeychainStore.delete(account: providerKeychainAccount(pluginID: id, providerID: provider.id))
@@ -426,6 +391,7 @@ final class ExtensionCenter {
         for key in store.sensitiveKeys(in: record?.manifest.settings) {
             KeychainStore.delete(account: keychainAccount(id: id, key: key))
         }
+        ExtensionBubbleWindowController.removeSavedFrame(forPluginID: id)
         try? store.uninstall(id: id)
         reload()
         notifyExtensionCatalogChanged()
@@ -586,31 +552,16 @@ final class ExtensionCenter {
         lastError = nil
     }
 
-    func beginManualPrompt(id: String, fileURL: URL? = nil) {
-        fileChoice = nil
+    func beginManualPrompt(id: String, fileURL: URL? = nil, replacingWindowID: UUID? = nil) {
         guard let record = plugins.first(where: { $0.id == id }),
               record.enabled,
               record.manifest.hasManualTrigger
         else { return }
-        if fileURL == nil, case .running = session?.phase, session?.pluginID == id {
-            return
-        }
-        if let existing = session {
-            ExtensionClipboardImage.cleanupTemporaryFiles(in: existing.values.values)
-            if case .running = existing.phase {
-                runGeneration += 1
-            } else if fileURL != nil {
-                runGeneration += 1
-            }
-        } else if fileURL != nil {
-            runGeneration += 1
-        }
         var form = promptForm(for: record)
         if let fileURL {
             prefillImage(fileURL, into: &form, manifest: record.manifest)
         }
-        AiboPanelController.shared.discardPluginColumnSlot()
-        session = ExtensionPromptSession(
+        let newSession = ExtensionPromptSession(
             pluginID: record.id,
             pluginName: record.copy.name,
             groups: form.groups,
@@ -618,115 +569,126 @@ final class ExtensionCenter {
             toggles: form.toggles,
             required: form.required
         )
-        applyDependencyGate()
-        if fileURL != nil, case .editing = session?.phase, session?.canConfirm == true {
-            confirmPrompt()
+        let windowID: UUID
+        if let replacingWindowID, let existing = presentations[replacingWindowID] {
+            if let oldSession = existing.session {
+                ExtensionClipboardImage.cleanupTemporaryFiles(in: oldSession.values.values)
+                oldSession.runGeneration += 1
+            }
+            existing.content = .session(newSession)
+            windowID = replacingWindowID
+        } else {
+            windowID = UUID()
+            presentations[windowID] = ExtensionWindowPresentation(id: windowID, content: .session(newSession))
         }
+        applyDependencyGate(windowID: windowID)
+        if fileURL != nil, case .editing = newSession.phase, newSession.canConfirm == true {
+            confirmPrompt(windowID: windowID)
+        }
+        ExtensionBubbleWindowController.shared.present(windowID: windowID)
         let needsCatalog = !record.manifest.requiredCapabilities.isEmpty
             && ExtensionCatalogClient.shared.entries.isEmpty
         guard needsCatalog else { return }
         Task {
             await ExtensionCatalogClient.shared.reload()
-            guard self.session?.pluginID == id else { return }
-            applyDependencyGate()
+            guard self.presentations[windowID]?.session === newSession else { return }
+            applyDependencyGate(windowID: windowID)
         }
     }
 
-    /// Dropped on the pet. One matching plugin opens with the file filled in.
-    /// Several matching plugins show a picker first.
+    /// Dropped on the pet. One matching plugin opens a new window with the file filled in.
+    /// Several matching plugins open a picker window first.
     func receiveDroppedFile(_ url: URL) {
         let options = dropOptions(for: url)
         guard !options.isEmpty else { return }
-        AiboPanelController.shared.show()
         if options.count == 1, let only = options.first {
             beginManualPrompt(id: only.id, fileURL: url)
             return
         }
-        AiboPanelController.shared.discardPluginColumnSlot()
-        runGeneration += 1
-        if ExtensionBubbleWindowController.shared.isDetached {
-            ExtensionBubbleWindowController.shared.dismiss()
-        }
-        session = nil
-        fileChoice = ExtensionFileChoice(fileURL: url, options: options)
-        publishLayout()
+        let windowID = UUID()
+        let choice = ExtensionFileChoice(fileURL: url, options: options)
+        presentations[windowID] = ExtensionWindowPresentation(id: windowID, content: .fileChoice(choice))
+        ExtensionBubbleWindowController.shared.present(windowID: windowID)
     }
 
     func canAcceptDroppedFile(_ url: URL) -> Bool {
         !dropOptions(for: url).isEmpty
     }
 
-    func chooseDroppedPlugin(id: String) {
-        guard let fileChoice, fileChoice.options.contains(where: { $0.id == id }) else { return }
-        let url = fileChoice.fileURL
-        beginManualPrompt(id: id, fileURL: url)
+    func chooseDroppedPlugin(id: String, in windowID: UUID) {
+        guard let choice = presentations[windowID]?.fileChoice,
+              choice.options.contains(where: { $0.id == id })
+        else { return }
+        beginManualPrompt(id: id, fileURL: choice.fileURL, replacingWindowID: windowID)
     }
 
-    func cancelFileChoice() {
-        guard fileChoice != nil else { return }
-        let detached = ExtensionBubbleWindowController.shared.isDetached
-        if !detached {
-            AiboPanelController.shared.beginPluginPoofHoldIfNeeded()
-        }
-        withAnimation(detached ? nil : BubbleMotion.disappear) {
-            fileChoice = nil
-        }
-        publishLayout()
-        AiboPanelController.shared.clearExtensionCardFrame()
-    }
-
-    func confirmPrompt() {
-        guard let session, case .editing = session.phase else { return }
+    func confirmPrompt(windowID: UUID) {
+        guard let session = presentations[windowID]?.session,
+              case .editing = session.phase
+        else { return }
         guard let input = session.submissionInput() else { return }
         let pluginID = session.pluginID
         session.phase = .running(message: runningStatus(for: pluginID))
-        runGeneration += 1
-        let generation = runGeneration
-        publishLayout()
+        session.runGeneration += 1
+        let generation = session.runGeneration
+        let isCancelled: @MainActor () -> Bool = { [weak self, weak session] in
+            guard let self, let session else { return true }
+            return session.runGeneration != generation
+                || self.presentations[windowID]?.session !== session
+        }
         Task {
-            let outcome = await run(id: pluginID, trigger: "manual", input: input, depth: 0)
-            guard generation == runGeneration, self.session?.pluginID == pluginID else { return }
-            present(outcome)
-            publishLayout()
+            let outcome = await run(
+                id: pluginID,
+                trigger: "manual",
+                input: input,
+                depth: 0,
+                isCancelled: isCancelled
+            )
+            guard !isCancelled() else { return }
+            present(outcome, into: session)
+            ExtensionBubbleWindowController.shared.syncNaturalHeightIfUnpositioned(windowID: windowID)
         }
     }
 
     func installDependency(catalogID: String) {
         Task {
             await ExtensionCatalogClient.shared.install(id: catalogID)
-            applyDependencyGate()
+            applyDependencyGateToAll()
         }
     }
 
     func setDependencyEnabled(_ enabled: Bool, pluginID: String) {
         setEnabled(enabled, id: pluginID)
-        applyDependencyGate()
+        applyDependencyGateToAll()
     }
 
-    func copyResult() {
-        guard let text = copyPayload(), !text.isEmpty else { return }
+    func copyResult(windowID: UUID) {
+        guard let session = presentations[windowID]?.session,
+              let text = copyPayload(for: session),
+              !text.isEmpty
+        else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
     }
 
-    func cancelSession() {
-        guard let existing = session else { return }
-        ExtensionClipboardImage.cleanupTemporaryFiles(in: existing.values.values)
-        runGeneration += 1
-        let detached = ExtensionBubbleWindowController.shared.isDetached
-        // Hold the side row, then remove the card so its transition can poof
-        // without the pet following the collapse. A detached card is already
-        // off the pet, so there is nothing to hold.
-        if !detached {
-            AiboPanelController.shared.beginPluginPoofHoldIfNeeded()
+    func closeWindow(id windowID: UUID) {
+        if let removed = presentations.removeValue(forKey: windowID),
+           let session = removed.session
+        {
+            ExtensionClipboardImage.cleanupTemporaryFiles(in: session.values.values)
+            session.runGeneration += 1
         }
-        withAnimation(detached ? nil : BubbleMotion.disappear) {
-            session = nil
+        ExtensionBubbleWindowController.shared.dismiss(windowID: windowID)
+    }
+
+    func closeWindows(forPluginID id: String) {
+        let matching = presentations.compactMap { windowID, presentation in
+            presentation.session?.pluginID == id ? windowID : nil
         }
-        ExtensionBubbleWindowController.shared.dismiss()
-        publishLayout()
-        AiboPanelController.shared.clearExtensionCardFrame()
+        for windowID in matching {
+            closeWindow(id: windowID)
+        }
     }
 
     #if DEBUG
@@ -736,8 +698,6 @@ final class ExtensionCenter {
             SettingsProcessClient.shared.sendCommand(.debugPresentExtensionWindow(running: running))
             return
         }
-        fileChoice = nil
-        runGeneration += 1
         let record = plugins.first { $0.manifest.slug == "translate" }
             ?? plugins.first { $0.manifest.hasManualTrigger }
         let pluginID = record?.id ?? "debug.extension-window"
@@ -755,31 +715,32 @@ final class ExtensionCenter {
             let summary = "The world is so big."
             session.phase = .result(summary: summary, copyText: summary)
         }
-        self.session = session
-        ExtensionBubbleWindowController.shared.detach()
+        let windowID = UUID()
+        presentations[windowID] = ExtensionWindowPresentation(id: windowID, content: .session(session))
+        ExtensionBubbleWindowController.shared.present(windowID: windowID)
     }
     #endif
 
-    private func present(_ outcome: RunOutcome) {
+    private func present(_ outcome: RunOutcome, into session: ExtensionPromptSession) {
         switch outcome {
         case .bubbles(let bubbles):
             guard let bubble = bubbles.first else {
                 let message = String(localized: "Plugin failed")
-                session?.phase = .failed(message: message, copyText: message)
+                session.phase = .failed(message: message, copyText: message)
                 return
             }
             let summary = bubble.summary
             let copyText = bubble.actions.first { $0.copyText != nil }?.copyText ?? summary
             switch bubble.outcome {
             case .success:
-                session?.phase = .result(summary: summary, copyText: copyText)
+                session.phase = .result(summary: summary, copyText: copyText)
             case .failure:
-                session?.phase = .failed(message: summary, copyText: copyText)
+                session.phase = .failed(message: summary, copyText: copyText)
             case .warning:
-                session?.phase = .notice(summary: summary, copyText: copyText)
+                session.phase = .notice(summary: summary, copyText: copyText)
             }
         case .failed(let message):
-            session?.phase = .failed(message: message, copyText: message)
+            session.phase = .failed(message: message, copyText: message)
         }
     }
 
@@ -790,8 +751,14 @@ final class ExtensionCenter {
         return String(localized: "Working…")
     }
 
-    private func applyDependencyGate() {
-        guard let session else { return }
+    private func applyDependencyGateToAll() {
+        for windowID in Array(presentations.keys) {
+            applyDependencyGate(windowID: windowID)
+        }
+    }
+
+    private func applyDependencyGate(windowID: UUID) {
+        guard let session = presentations[windowID]?.session else { return }
         switch session.phase {
         case .editing, .dependency:
             break
@@ -806,7 +773,7 @@ final class ExtensionCenter {
         } else {
             session.phase = .dependency(issues)
         }
-        publishLayout()
+        ExtensionBubbleWindowController.shared.syncNaturalHeightIfUnpositioned(windowID: windowID)
     }
 
     private func dependencyIssues(for pluginID: String) -> [ExtensionDependencyIssue] {
@@ -837,8 +804,7 @@ final class ExtensionCenter {
         )
     }
 
-    private func copyPayload() -> String? {
-        guard let session else { return nil }
+    private func copyPayload(for session: ExtensionPromptSession) -> String? {
         switch session.phase {
         case .result(_, let copyText):
             return copyText
@@ -864,11 +830,6 @@ final class ExtensionCenter {
             }
             return [need, state, issue.summary].filter { !$0.isEmpty }.joined(separator: "\n")
         }.joined(separator: "\n\n")
-    }
-
-    private func publishLayout() {
-        AiboPanelController.shared.refreshContent()
-        AiboPanelController.shared.updateOnboardingKeyWindow()
     }
 
     private struct PromptForm {
@@ -1019,7 +980,8 @@ final class ExtensionCenter {
         id: String,
         trigger: String,
         input: [String: ExtensionValue],
-        depth: Int
+        depth: Int,
+        isCancelled: @escaping @MainActor () -> Bool
     ) async -> RunOutcome {
         guard let record = plugins.first(where: { $0.id == id }), record.enabled else {
             return .failed(String(localized: "Plugin failed"))
@@ -1030,14 +992,13 @@ final class ExtensionCenter {
         incrementInvocations(id: id)
         let settings = runtimeSettings(for: record)
         let secrets = secretValues(for: record)
-        let generation = runGeneration
         var responses: [String: ExtensionValue] = [:]
         var requestState = ""
         for _ in 0..<6 {
-            if generation != runGeneration {
+            if isCancelled() {
                 return .failed(String(localized: "Plugin failed"))
             }
-            var parameters = runParameters(
+            let parameters = runParameters(
                 record: record,
                 trigger: trigger,
                 settings: settings,
@@ -1082,14 +1043,15 @@ final class ExtensionCenter {
                 var next: [String: ExtensionValue] = [:]
                 let allowedImagePaths = Self.imagePaths(in: input, manifest: record.manifest)
                 for (key, request) in requests {
-                    if generation != runGeneration {
+                    if isCancelled() {
                         return .failed(String(localized: "Plugin failed"))
                     }
                     next[key] = await fulfill(
                         request,
                         caller: record,
                         depth: depth,
-                        allowedImagePaths: allowedImagePaths
+                        allowedImagePaths: allowedImagePaths,
+                        isCancelled: isCancelled
                     )
                 }
                 responses = next
@@ -1114,7 +1076,8 @@ final class ExtensionCenter {
         _ request: ExtensionInputRequest,
         caller: ExtensionRecord,
         depth: Int,
-        allowedImagePaths: Set<String>
+        allowedImagePaths: Set<String>,
+        isCancelled: @escaping @MainActor () -> Bool
     ) async -> ExtensionValue {
         switch request.method {
         case "aibo/llm":
@@ -1139,7 +1102,12 @@ final class ExtensionCenter {
             guard let plugin = plugins.first(where: { $0.id == model.pluginID }), plugin.enabled else {
                 return .object(["error": .object(["message": .string(String(localized: "The AI provider plugin is off."))])])
             }
-            return await providerOutput(id: plugin.id, providerID: model.providerID, params: params)
+            return await providerOutput(
+                id: plugin.id,
+                providerID: model.providerID,
+                params: params,
+                isCancelled: isCancelled
+            )
         case "aibo/fetch":
             let hosts = allowedHosts(for: caller)
             let response = await ExtensionFetch.perform(params: request.params, allowedHosts: hosts)
@@ -1149,7 +1117,12 @@ final class ExtensionCenter {
         }
     }
 
-    private func providerOutput(id: String, providerID: String, params: [String: ExtensionValue]) async -> ExtensionValue {
+    private func providerOutput(
+        id: String,
+        providerID: String,
+        params: [String: ExtensionValue],
+        isCancelled: @escaping @MainActor () -> Bool
+    ) async -> ExtensionValue {
         guard let record = plugins.first(where: { $0.id == id }) else {
             return .object(["error": .object(["message": .string(String(localized: "The AI provider plugin is off."))])])
         }
@@ -1158,11 +1131,10 @@ final class ExtensionCenter {
         }
         incrementInvocations(id: id)
         let settings = runtimeSettings(for: record, providerID: providerID)
-        let generation = runGeneration
         var responses: [String: ExtensionValue] = [:]
         var requestState = ""
         for _ in 0..<4 {
-            if generation != runGeneration {
+            if isCancelled() {
                 return .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
             }
             let parameters = runParameters(
@@ -1190,13 +1162,19 @@ final class ExtensionCenter {
                 requestState = state
                 var next: [String: ExtensionValue] = [:]
                 for (key, request) in requests {
-                    if generation != runGeneration {
+                    if isCancelled() {
                         return .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
                     }
                     if request.method == "aibo/llm" {
                         next[key] = .object(["error": .object(["message": .string(String(localized: "Plugin failed"))])])
                     } else {
-                        next[key] = await fulfill(request, caller: record, depth: 1, allowedImagePaths: [])
+                        next[key] = await fulfill(
+                            request,
+                            caller: record,
+                            depth: 1,
+                            allowedImagePaths: [],
+                            isCancelled: isCancelled
+                        )
                     }
                 }
                 responses = next

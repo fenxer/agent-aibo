@@ -4,18 +4,12 @@ import UniformTypeIdentifiers
 
 /// Image copied to the clipboard, as a png or jpeg path the plugin can send.
 enum ExtensionClipboardImage {
-    /// `Command-V` aimed at this bubble, and not at a text field inside it.
-    static func isPasteShortcut(_ event: NSEvent, chrome: ExtensionBubbleChrome) -> Bool {
+    /// `Command-V` aimed at this specific plugin window, and not at a text field inside it.
+    static func isPasteShortcut(_ event: NSEvent, targetWindow: NSWindow?) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard flags == .command else { return false }
         guard event.charactersIgnoringModifiers?.lowercased() == "v" else { return false }
-        guard let window = event.window else { return false }
-        switch chrome {
-        case .anchored:
-            guard window is AiboPanel else { return false }
-        case .window:
-            guard window is ExtensionBubbleWindow else { return false }
-        }
+        guard let targetWindow, let window = event.window, window === targetWindow else { return false }
         if window.firstResponder is NSTextView { return false }
         return true
     }

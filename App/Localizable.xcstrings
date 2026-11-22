@@ -2980,6 +2980,7 @@
     },
     "Open in Window" : {
       "comment" : "Button on a plugin bubble that opens the card in its own window.",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4520,7 +4521,7 @@
       }
     },
     "extension-outcome-completed" : {
-      "comment" : "Badge on a plugin bubble after a normal result.",
+      "comment" : "Badge on a plugin window after a normal result.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4537,7 +4538,7 @@
       }
     },
     "extension-outcome-failed" : {
-      "comment" : "Badge on a plugin bubble when the result was not the expected output.",
+      "comment" : "Badge on a plugin window when the result was not the expected output.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4554,7 +4555,7 @@
       }
     },
     "extension-outcome-running" : {
-      "comment" : "Badge on a plugin bubble while the plugin is working.",
+      "comment" : "Badge on a plugin window while the plugin is working.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4571,7 +4572,7 @@
       }
     },
     "extension-outcome-warning" : {
-      "comment" : "Badge on a plugin bubble for a warning, including a missing dependency.",
+      "comment" : "Badge on a plugin window for a warning, including a missing dependency.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
